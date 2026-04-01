@@ -22,8 +22,6 @@ build/
 venv/
 .python-version
 
-# uv
-uv.lock
 
 # Jupyter
 .ipynb_checkpoints/

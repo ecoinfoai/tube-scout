@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tube-scout"
+version = "0.1.0"
+description = "YouTube lecture video analytics CLI tool"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+
+dependencies = [
+    "typer>=0.12.0",
+    "rich>=13.0.0",
+    "google-api-python-client>=2.100.0",
+    "google-auth-oauthlib>=1.1.0",
+    "youtube-transcript-api>=0.6.0",
+    "pandas>=2.1.0",
+    "polars>=0.20.0",
+    "plotly>=5.18.0",
+    "jinja2>=3.1.0",
+    "pydantic>=2.5.0",
+    "nbformat>=5.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.4.0",
+]
+
+[project.scripts]
+tube-scout = "tube_scout.cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tube_scout"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tube_scout"]
