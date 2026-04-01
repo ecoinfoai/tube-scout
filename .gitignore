@@ -21,6 +21,7 @@ build/
 .venv/
 venv/
 .python-version
+.direnv/
 
 
 # Jupyter
