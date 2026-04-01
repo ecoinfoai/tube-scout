@@ -1,0 +1,63 @@
+# Project directories (local only)
+idea/
+specs/
+projects/
+data/
+input/
+output/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+.python-version
+
+# uv
+uv.lock
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment & secrets
+.env
+.env.*
+*.age
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code
+.claude/
+
+# Speckit
+.specify/
+
+# Logs & cache
+*.log
+.cache/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
+# Reports (generated)
+*.html
+!templates/*.html
