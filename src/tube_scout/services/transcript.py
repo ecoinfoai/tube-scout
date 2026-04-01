@@ -55,17 +55,18 @@ class TranscriptService:
             transcript = transcript_list.find_manually_created_transcript(
                 self.languages
             )
-            segments = transcript.fetch()
+            result = transcript.fetch()
+            snippets = result.snippets if hasattr(result, "snippets") else result
             return {
                 "video_id": video_id,
                 "transcript_type": "manual",
                 "segments": [
                     {
-                        "text": s["text"],
-                        "start": s["start"],
-                        "duration": s["duration"],
+                        "text": s.text if hasattr(s, "text") else s["text"],
+                        "start": s.start if hasattr(s, "start") else s["start"],
+                        "duration": s.duration if hasattr(s, "duration") else s["duration"],
                     }
-                    for s in segments
+                    for s in snippets
                 ],
             }
         except NoTranscriptFound:
@@ -74,17 +75,18 @@ class TranscriptService:
         # Fallback to auto-generated
         try:
             transcript = transcript_list.find_generated_transcript(self.languages)
-            segments = transcript.fetch()
+            result = transcript.fetch()
+            snippets = result.snippets if hasattr(result, "snippets") else result
             return {
                 "video_id": video_id,
                 "transcript_type": "auto_generated",
                 "segments": [
                     {
-                        "text": s["text"],
-                        "start": s["start"],
-                        "duration": s["duration"],
+                        "text": s.text if hasattr(s, "text") else s["text"],
+                        "start": s.start if hasattr(s, "start") else s["start"],
+                        "duration": s.duration if hasattr(s, "duration") else s["duration"],
                     }
-                    for s in segments
+                    for s in snippets
                 ],
             }
         except NoTranscriptFound:

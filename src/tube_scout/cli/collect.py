@@ -58,10 +58,17 @@ def collect_videos_command(
     config = _load_config(data_path)
 
     try:
-        service = YouTubeDataService()
-    except ValueError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(code=1)
+        from tube_scout.services.auth import build_data_client
+
+        client = build_data_client()
+        service = YouTubeDataService(client=client)
+        console.print("[dim]Using OAuth authentication (unlisted videos accessible)[/dim]")
+    except (FileNotFoundError, Exception):
+        try:
+            service = YouTubeDataService()
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=1)
 
     for channel_config in config.channels:
         channel_id = channel_config.channel_id
@@ -208,9 +215,15 @@ def collect_retention_command(
     config = _load_config(data_path)
 
     try:
-        service = YouTubeAnalyticsService()
-    except Exception as e:
+        from tube_scout.services.auth import build_analytics_client
+
+        client = build_analytics_client()
+        service = YouTubeAnalyticsService(client=client)
+    except FileNotFoundError as e:
         console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]OAuth authentication failed: {e}[/red]")
         raise typer.Exit(code=1)
 
     video_ids_to_collect: list[str] = []
@@ -290,10 +303,16 @@ def collect_comments_command(
     config = _load_config(data_path)
 
     try:
-        service = YouTubeDataService()
-    except ValueError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(code=1)
+        from tube_scout.services.auth import build_data_client
+
+        client = build_data_client()
+        service = YouTubeDataService(client=client)
+    except (FileNotFoundError, Exception):
+        try:
+            service = YouTubeDataService()
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=1)
 
     video_ids_to_collect: list[str] = []
 
