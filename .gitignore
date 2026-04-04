@@ -62,4 +62,4 @@ Thumbs.db
 
 # Reports (generated)
 *.html
-!templates/*.html
+!**/templates/*.html

@@ -1,7 +1,9 @@
 """Transcript fetching service using youtube-transcript-api."""
 
+from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from youtube_transcript_api import (
     NoTranscriptFound,
@@ -9,20 +11,29 @@ from youtube_transcript_api import (
     YouTubeTranscriptApi,
 )
 
+if TYPE_CHECKING:
+    from tube_scout.services.rate_limiter import RateLimiter
+
 logger = logging.getLogger(__name__)
 
 
 class TranscriptService:
     """Service for fetching video transcripts."""
 
-    def __init__(self, languages: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        languages: list[str] | None = None,
+        rate_limiter: RateLimiter | None = None,
+    ) -> None:
         """Initialize transcript service.
 
         Args:
             languages: Preferred language codes in order (default: ['ko', 'en']).
+            rate_limiter: Optional rate limiter for inter-request delays.
         """
         self.languages = languages or ["ko", "en"]
         self._api = YouTubeTranscriptApi()
+        self._rate_limiter = rate_limiter
 
     def fetch_transcript(
         self,
@@ -41,6 +52,9 @@ class TranscriptService:
         Returns:
             Dict with 'transcript_type' and 'segments', or None if unavailable.
         """
+        if self._rate_limiter is not None:
+            self._rate_limiter.wait()
+
         try:
             transcript_list = self._api.list(video_id)
         except TranscriptsDisabled:

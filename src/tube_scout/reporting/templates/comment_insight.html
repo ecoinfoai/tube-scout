@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comment Insight: {{ video.title | default(video_id) }}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; color: #333; }
+        h1 { color: #1a73e8; }
+        h2 { color: #555; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        h3 { color: #666; margin-top: 20px; }
+        .metric { display: inline-block; background: #f5f5f5; padding: 12px 20px; margin: 5px; border-radius: 8px; }
+        .metric .value { font-size: 24px; font-weight: bold; color: #1a73e8; }
+        .metric .label { font-size: 12px; color: #888; }
+        .topic-card { background: #fafafa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin: 12px 0; }
+        .topic-card h3 { margin-top: 0; color: #1a73e8; }
+        .sentiment-bar { display: flex; height: 20px; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+        .sentiment-bar .positive { background: #34a853; }
+        .sentiment-bar .neutral { background: #fbbc04; }
+        .sentiment-bar .negative { background: #ea4335; }
+        .sentiment-legend { font-size: 12px; color: #666; margin-bottom: 8px; }
+        .representative { font-style: italic; color: #555; padding: 4px 0 4px 12px; border-left: 3px solid #ddd; margin: 4px 0; }
+        .faq-item { background: #e8f0fe; padding: 12px 16px; border-radius: 8px; margin: 8px 0; }
+        .faq-item .question { font-weight: bold; color: #1a73e8; }
+        .hotspot-badge { display: inline-block; background: #fce8e6; color: #c5221f; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-left: 8px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #eee; }
+        th { background: #f5f5f5; }
+        footer { margin-top: 40px; color: #888; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>Comment Insight Report</h1>
+    <p>{{ video.title | default(video_id) }} ({{ video_id }})</p>
+
+    <div>
+        <div class="metric">
+            <div class="value">{{ topics | length }}</div>
+            <div class="label">Topics</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ total_comments }}</div>
+            <div class="label">Comments Analyzed</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ questions | length }}</div>
+            <div class="label">Questions Found</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ hotspot_matches | length }}</div>
+            <div class="label">Hotspot Matches</div>
+        </div>
+    </div>
+
+    {% if topics %}
+    <h2>Topic Sentiment Summary</h2>
+    {% for topic in topics %}
+    <div class="topic-card">
+        <h3>{{ topic.topic_label }} <span style="font-size: 13px; color: #888;">({{ topic.comment_ids | length }} comments)</span></h3>
+
+        {% set dist = topic.sentiment_distribution %}
+        <div class="sentiment-legend">
+            Positive: {{ "%.0f" | format(dist.positive * 100) }}% |
+            Neutral: {{ "%.0f" | format(dist.neutral * 100) }}% |
+            Negative: {{ "%.0f" | format(dist.negative * 100) }}%
+        </div>
+        <div class="sentiment-bar">
+            {% if dist.positive > 0 %}<div class="positive" style="width: {{ "%.0f" | format(dist.positive * 100) }}%"></div>{% endif %}
+            {% if dist.neutral > 0 %}<div class="neutral" style="width: {{ "%.0f" | format(dist.neutral * 100) }}%"></div>{% endif %}
+            {% if dist.negative > 0 %}<div class="negative" style="width: {{ "%.0f" | format(dist.negative * 100) }}%"></div>{% endif %}
+        </div>
+
+        {% if topic.representative_comments %}
+        <div style="margin-top: 8px; font-size: 13px; color: #888;">Representative comments:</div>
+        {% for comment in topic.representative_comments %}
+        <div class="representative">{{ comment }}</div>
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if questions %}
+    <h2>Auto-Extracted FAQ</h2>
+    <p style="color: #666;">{{ questions | length }} student questions identified from comments.</p>
+    {% for q in questions %}
+    <div class="faq-item">
+        <div class="question">Q: {{ q.question_text }}</div>
+        {% for match in hotspot_matches %}
+        {% if match.comment_id == q.comment_id %}
+        <span class="hotspot-badge">Hotspot {{ "%.0f" | format(match.matched_hotspot_start * 100) }}%-{{ "%.0f" | format(match.matched_hotspot_end * 100) }}% (relevance: {{ "%.0f" | format(match.relevance_score * 100) }}%)</span>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if hotspot_matches %}
+    <h2>Question-Hotspot Cross Reference</h2>
+    <table>
+        <tr>
+            <th>Question</th>
+            <th>Hotspot Position</th>
+            <th>Relevance</th>
+        </tr>
+        {% for match in hotspot_matches %}
+        <tr>
+            <td>{{ match.question_text }}</td>
+            <td>{{ "%.0f" | format(match.matched_hotspot_start * 100) }}% - {{ "%.0f" | format(match.matched_hotspot_end * 100) }}%</td>
+            <td>{{ "%.0f" | format(match.relevance_score * 100) }}%</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    <footer>
+        Generated by Tube Scout | {{ generated_at }}
+    </footer>
+</body>
+</html>

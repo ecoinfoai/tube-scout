@@ -5,7 +5,6 @@ malformed input, missing data, and boundary conditions.
 """
 
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -106,15 +105,12 @@ class TestMalformedConfig:
 # PERSONA 2: Missing environment variables
 # ============================================================
 class TestMissingEnvVars:
-    """Persona: User has no YOUTUBE_API_KEY set."""
+    """Persona: User has no OAuth client configured."""
 
-    def test_youtube_data_service_requires_api_key(self) -> None:
-        """YouTubeDataService should raise ValueError if no API key."""
-        with patch.dict(os.environ, {}, clear=True):
-            # Remove key if present
-            os.environ.pop("YOUTUBE_API_KEY", None)
-            with pytest.raises(ValueError, match="YOUTUBE_API_KEY"):
-                YouTubeDataService()
+    def test_youtube_data_service_requires_client(self) -> None:
+        """YouTubeDataService should raise TypeError if no client provided."""
+        with pytest.raises(TypeError):
+            YouTubeDataService()  # type: ignore[call-arg]
 
     def test_analytics_service_no_client_raises(self) -> None:
         """Analytics service with no client should raise on get_retention_data."""

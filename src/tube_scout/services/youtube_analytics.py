@@ -1,10 +1,15 @@
 """YouTube Analytics API service for retention and analytics data."""
 
+from __future__ import annotations
+
 import time
 from datetime import date
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from googleapiclient.errors import HttpError
+
+if TYPE_CHECKING:
+    from tube_scout.services.rate_limiter import RateLimiter
 
 _MAX_RETRIES = 3
 _RETRY_BASE_DELAY = 0.1  # seconds (kept short for testing; override in production)
@@ -14,13 +19,19 @@ _RETRYABLE_STATUS_CODES = {500, 502, 503, 504}
 class YouTubeAnalyticsService:
     """Service for interacting with YouTube Analytics API."""
 
-    def __init__(self, client: Any | None = None) -> None:
+    def __init__(
+        self,
+        client: Any | None = None,
+        rate_limiter: RateLimiter | None = None,
+    ) -> None:
         """Initialize with an Analytics API client.
 
         Args:
             client: Pre-built API client (for testing/injection).
+            rate_limiter: Optional shared rate limiter for inter-request delays.
         """
         self._client = client
+        self._rate_limiter = rate_limiter
 
     def _ensure_client(self) -> None:
         """Validate that the API client is configured.
@@ -60,6 +71,9 @@ class YouTubeAnalyticsService:
         """
         self._ensure_client()
 
+        if self._rate_limiter is not None:
+            self._rate_limiter.wait()
+
         query_kwargs: dict[str, str] = {
             "ids": "channel==MINE",
             "startDate": start_date.isoformat(),
@@ -71,8 +85,14 @@ class YouTubeAnalyticsService:
         if filters:
             query_kwargs["filters"] = filters
 
+        max_retries = (
+            self._rate_limiter.profile.max_retries
+            if self._rate_limiter is not None
+            else _MAX_RETRIES
+        )
+
         last_error: HttpError | None = None
-        for attempt in range(_MAX_RETRIES):
+        for attempt in range(max_retries):
             try:
                 response = (
                     self._client.reports()
@@ -88,8 +108,11 @@ class YouTubeAnalyticsService:
                     ) from e
                 if e.resp.status in _RETRYABLE_STATUS_CODES:
                     last_error = e
-                    if attempt < _MAX_RETRIES - 1:
-                        time.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
+                    if attempt < max_retries - 1:
+                        if self._rate_limiter is not None:
+                            self._rate_limiter.wait_on_error(attempt)
+                        else:
+                            time.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
                         continue
                 raise
 

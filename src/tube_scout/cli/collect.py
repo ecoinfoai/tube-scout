@@ -97,12 +97,9 @@ def collect_videos_command(
             console.print(
                 "[dim]Using OAuth authentication (unlisted videos accessible)[/dim]"
             )
-    except (FileNotFoundError, Exception):
-        try:
-            service = YouTubeDataService()
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
 
     for channel_config in config.channels:
         channel_id = channel_config.channel_id
@@ -374,12 +371,9 @@ def collect_comments_command(
 
         client = build_data_client()
         service = YouTubeDataService(client=client)
-    except (FileNotFoundError, Exception):
-        try:
-            service = YouTubeDataService()
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(code=1)
+    except (FileNotFoundError, ValueError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
 
     video_ids_to_collect: list[str] = []
 
@@ -463,12 +457,20 @@ def collect_transcripts_command(
         project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
     """
+    from tube_scout.services.rate_limiter import RateLimiter
     from tube_scout.services.transcript import TranscriptService
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
     mgr = resolve_project(project_dir, project)
-    service = TranscriptService()
+
+    rate_limiter = RateLimiter(
+        config.settings.rate_limit_transcript,
+        on_backoff=lambda attempt, delay: console.print(
+            f"  [yellow]Backoff: attempt {attempt + 1}, waiting {delay:.1f}s[/yellow]"
+        ),
+    )
+    service = TranscriptService(rate_limiter=rate_limiter)
 
     video_ids_to_collect: list[str] = []
 
@@ -751,6 +753,11 @@ def collect_all_command(
         "--force-refresh",
         help="Ignore checkpoints.",
     ),
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias (uses multi-channel token).",
+    ),
 ) -> None:
     """Run all collection steps in sequence.
 
@@ -759,64 +766,107 @@ def collect_all_command(
         project_dir: Projects root directory path.
         project: Existing project path or 'latest'.
         force_refresh: Whether to ignore existing checkpoints.
+        channel: Optional channel alias for multi-channel auth.
     """
+    import time as _time
+
+    from tube_scout.models.config import StageResult
+
     mgr = resolve_project(project_dir, project)
     proj_path = str(mgr.project_dir)
 
+    stages = [
+        ("videos", "Collecting videos", collect_videos_command),
+        ("comments", "Collecting comments", collect_comments_command),
+        ("transcripts", "Collecting transcripts", collect_transcripts_command),
+        ("retention", "Collecting retention data", collect_retention_command),
+        ("analytics", "Collecting analytics", collect_analytics_command),
+    ]
+
+    results: list[StageResult] = []
+    pipeline_start = _time.monotonic()
+
     console.print("[bold]Running full collection pipeline...[/bold]\n")
 
-    console.print("[bold cyan]Step 1/5: Collecting videos...[/bold cyan]")
-    try:
-        collect_videos_command(
-            data_dir=data_dir,
-            project_dir=project_dir,
-            project=proj_path,
-            force_refresh=force_refresh,
-        )
-    except SystemExit:
-        pass
+    for idx, (stage_name, label, stage_fn) in enumerate(stages, 1):
+        console.print(f"[bold cyan]Step {idx}/5: {label}...[/bold cyan]")
+        stage_start = _time.monotonic()
 
-    console.print("\n[bold cyan]Step 2/5: Collecting comments...[/bold cyan]")
-    try:
-        collect_comments_command(
-            data_dir=data_dir,
-            project_dir=project_dir,
-            project=proj_path,
-        )
-    except SystemExit:
-        pass
+        # Build kwargs for each stage
+        kwargs: dict = {
+            "data_dir": data_dir,
+            "project_dir": project_dir,
+            "project": proj_path,
+        }
+        if stage_name == "videos":
+            kwargs["force_refresh"] = force_refresh
+            kwargs["channel"] = channel
+        elif stage_name == "analytics":
+            kwargs["channel"] = channel
 
-    console.print("\n[bold cyan]Step 3/5: Collecting transcripts...[/bold cyan]")
-    try:
-        collect_transcripts_command(
-            data_dir=data_dir,
-            project_dir=project_dir,
-            project=proj_path,
-        )
-    except SystemExit:
-        pass
+        try:
+            stage_fn(**kwargs)
+            duration = _time.monotonic() - stage_start
+            results.append(StageResult(
+                stage_name=stage_name,
+                status="completed",
+                duration_seconds=round(duration, 2),
+            ))
+        except SystemExit:
+            duration = _time.monotonic() - stage_start
+            results.append(StageResult(
+                stage_name=stage_name,
+                status="completed",
+                duration_seconds=round(duration, 2),
+            ))
+        except Exception as e:
+            duration = _time.monotonic() - stage_start
+            results.append(StageResult(
+                stage_name=stage_name,
+                status="failed",
+                error_message=str(e),
+                duration_seconds=round(duration, 2),
+            ))
+            console.print(f"  [red]Stage '{stage_name}' failed: {e}[/red]")
 
-    console.print("\n[bold cyan]Step 4/5: Collecting retention data...[/bold cyan]")
-    try:
-        collect_retention_command(
-            data_dir=data_dir,
-            project_dir=project_dir,
-            project=proj_path,
-        )
-    except SystemExit:
-        pass
+            # Abort pipeline if video listing fails (first stage)
+            if stage_name == "videos":
+                console.print(
+                    "[red]Pipeline aborted: video listing is required "
+                    "for all subsequent stages.[/red]"
+                )
+                break
+            # Otherwise continue to next stage
 
-    console.print("\n[bold cyan]Step 5/5: Collecting analytics...[/bold cyan]")
-    try:
-        collect_analytics_command(
-            data_dir=data_dir,
-            project_dir=project_dir,
-            project=proj_path,
-        )
-    except SystemExit:
-        pass
+    # Print pipeline summary
+    console.print("\n[bold]Pipeline Summary[/bold]")
+    for result in results:
+        if result.status == "completed":
+            console.print(
+                f"  [green]{result.stage_name}: completed "
+                f"({result.duration_seconds:.1f}s)[/green]"
+            )
+        elif result.status == "failed":
+            console.print(
+                f"  [red]{result.stage_name}: failed - "
+                f"{result.error_message}[/red]"
+            )
+        elif result.status == "skipped":
+            console.print(
+                f"  [yellow]{result.stage_name}: skipped[/yellow]"
+            )
 
-    console.print("\n[bold green]Collection pipeline complete.[/bold green]")
+    total_duration = _time.monotonic() - pipeline_start
+    failed = [r for r in results if r.status == "failed"]
+    if failed:
+        console.print(
+            f"\n[yellow]Pipeline completed with {len(failed)} error(s) "
+            f"in {total_duration:.1f}s.[/yellow]"
+        )
+    else:
+        console.print(
+            f"\n[bold green]Pipeline complete in {total_duration:.1f}s.[/bold green]"
+        )
 
 
 def collect_bulk_command(

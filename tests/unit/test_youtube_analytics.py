@@ -1,9 +1,12 @@
 """Tests for YouTubeAnalyticsService."""
 
+from datetime import date
 from unittest.mock import MagicMock
 
 import pytest
 
+from tube_scout.models.config import YOUTUBE_API_PROFILE
+from tube_scout.services.rate_limiter import RateLimiter
 from tube_scout.services.youtube_analytics import (
     YouTubeAnalyticsService,
     detect_rewatch_hotspots,
@@ -21,6 +24,73 @@ def mock_analytics_client() -> MagicMock:
 def service(mock_analytics_client: MagicMock) -> YouTubeAnalyticsService:
     """Create a YouTubeAnalyticsService with mocked client."""
     return YouTubeAnalyticsService(client=mock_analytics_client)
+
+
+class TestAnalyticsRateLimiter:
+    """Tests for YouTubeAnalyticsService rate limiter integration (US2)."""
+
+    def test_uses_shared_rate_limiter(
+        self, mock_analytics_client: MagicMock
+    ) -> None:
+        """Service should accept and use a shared RateLimiter."""
+        mock_limiter = MagicMock(spec=RateLimiter)
+        mock_limiter.profile = YOUTUBE_API_PROFILE
+        svc = YouTubeAnalyticsService(
+            client=mock_analytics_client, rate_limiter=mock_limiter
+        )
+        mock_analytics_client.reports().query().execute.return_value = {"rows": []}
+
+        svc._query(
+            channel_id="UCtest",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 1, 31),
+            metrics="views",
+        )
+        mock_limiter.wait.assert_called_once()
+
+    def test_backward_compatible_without_limiter(
+        self, mock_analytics_client: MagicMock
+    ) -> None:
+        """Service should work without rate_limiter (backward compat)."""
+        svc = YouTubeAnalyticsService(client=mock_analytics_client)
+        mock_analytics_client.reports().query().execute.return_value = {"rows": []}
+
+        result = svc._query(
+            channel_id="UCtest",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 1, 31),
+            metrics="views",
+        )
+        assert result == []
+
+    def test_backoff_on_retryable_error(
+        self, mock_analytics_client: MagicMock
+    ) -> None:
+        """Rate limiter wait_on_error should be called on retryable HTTP errors."""
+        import httplib2
+        from googleapiclient.errors import HttpError
+
+        mock_limiter = MagicMock(spec=RateLimiter)
+        mock_limiter.profile = YOUTUBE_API_PROFILE
+        svc = YouTubeAnalyticsService(
+            client=mock_analytics_client, rate_limiter=mock_limiter
+        )
+
+        resp_500 = httplib2.Response({"status": "500"})
+        # First call fails, second succeeds
+        mock_analytics_client.reports().query().execute.side_effect = [
+            HttpError(resp_500, b"server error"),
+            {"rows": [["2024-01-01", 100]]},
+        ]
+
+        result = svc._query(
+            channel_id="UCtest",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 1, 31),
+            metrics="views",
+        )
+        assert result == [["2024-01-01", 100]]
+        mock_limiter.wait_on_error.assert_called_once()
 
 
 class TestGetRetentionData:

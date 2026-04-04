@@ -1,11 +1,9 @@
 """YouTube Data API service for video collection."""
 
 import logging
-import os
 import re
 from typing import Any
 
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
@@ -32,20 +30,16 @@ def _parse_iso8601_duration(duration: str) -> int:
 class YouTubeDataService:
     """Service for interacting with YouTube Data API v3."""
 
-    def __init__(self, client: Any | None = None, api_key: str | None = None) -> None:
-        """Initialize with a YouTube API client.
+    def __init__(self, client: Any) -> None:
+        """Initialize with a pre-built OAuth YouTube API client.
 
         Args:
-            client: Pre-built API client (for testing/injection).
-            api_key: YouTube Data API key. Falls back to YOUTUBE_API_KEY env var.
+            client: Pre-built API client (from auth.build_data_client()).
+
+        Raises:
+            TypeError: If client is not provided.
         """
-        if client is not None:
-            self._client = client
-        else:
-            key = api_key or os.environ.get("YOUTUBE_API_KEY")
-            if not key:
-                raise ValueError("YOUTUBE_API_KEY environment variable is required")
-            self._client = build("youtube", "v3", developerKey=key)
+        self._client = client
 
     def get_channel_info(self, channel_id: str) -> dict[str, Any]:
         """Fetch channel information.

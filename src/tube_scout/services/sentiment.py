@@ -61,9 +61,13 @@ def _load_local_pipeline() -> Any:
 
     from transformers import pipeline  # type: ignore[import-untyped]
 
+    from tube_scout.models.config import get_device
+
+    device = get_device()
     _local_pipeline = pipeline(
         "sentiment-analysis",
         model="snunlp/KR-FinBert-SC",
+        device=device,
     )
     return _local_pipeline
 

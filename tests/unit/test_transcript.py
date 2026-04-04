@@ -2,7 +2,58 @@
 
 from unittest.mock import MagicMock, patch
 
+from tube_scout.models.config import RateLimitProfile
+from tube_scout.services.rate_limiter import RateLimiter
 from tube_scout.services.transcript import TranscriptService
+
+
+class TestTranscriptServiceRateLimiter:
+    """Tests for TranscriptService rate limiter integration (US2)."""
+
+    @patch("tube_scout.services.transcript.YouTubeTranscriptApi")
+    def test_wait_called_before_request(
+        self, mock_api_cls: MagicMock
+    ) -> None:
+        """RateLimiter.wait() should be called before each transcript fetch."""
+        mock_instance = mock_api_cls.return_value
+        tlist = mock_instance.list.return_value
+        tlist.find_manually_created_transcript.return_value.fetch.return_value = [
+            {"text": "Hello", "start": 0.0, "duration": 2.0},
+        ]
+
+        mock_limiter = MagicMock(spec=RateLimiter)
+        service = TranscriptService(rate_limiter=mock_limiter)
+        service.fetch_transcript("vid001")
+
+        mock_limiter.wait.assert_called_once()
+
+    @patch("tube_scout.services.transcript.YouTubeTranscriptApi")
+    def test_default_no_rate_limiter(
+        self, mock_api_cls: MagicMock
+    ) -> None:
+        """TranscriptService should work without rate_limiter (backward compat)."""
+        mock_instance = mock_api_cls.return_value
+        tlist = mock_instance.list.return_value
+        tlist.find_manually_created_transcript.return_value.fetch.return_value = [
+            {"text": "Hello", "start": 0.0, "duration": 2.0},
+        ]
+
+        service = TranscriptService()
+        result = service.fetch_transcript("vid001")
+        assert result is not None
+
+    @patch("tube_scout.services.transcript.YouTubeTranscriptApi")
+    def test_configurable_profile(
+        self, mock_api_cls: MagicMock
+    ) -> None:
+        """TranscriptService should accept custom RateLimitProfile via rate_limiter."""
+        profile = RateLimitProfile(
+            base_delay=5.0, max_retries=10, backoff_multiplier=4.0, jitter=1.0
+        )
+        limiter = RateLimiter(profile)
+        service = TranscriptService(rate_limiter=limiter)
+        assert service._rate_limiter is limiter
+        assert service._rate_limiter.profile.base_delay == 5.0
 
 
 class TestTranscriptService:

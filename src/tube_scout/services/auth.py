@@ -24,19 +24,29 @@ TOKEN_FILE = "token.json"
 
 
 def _default_client_secret_path() -> Path:
-    """Return path to client secret JSON from env or default location."""
+    """Return path to client secret JSON from TUBE_SCOUT_CLIENT_SECRET env var.
+
+    Returns:
+        Path to the client secret JSON file.
+
+    Raises:
+        ValueError: If TUBE_SCOUT_CLIENT_SECRET env var is not set.
+        FileNotFoundError: If the file at the env var path does not exist.
+    """
     env_path = os.environ.get("TUBE_SCOUT_CLIENT_SECRET")
-    if env_path:
-        return Path(env_path)
+    if not env_path:
+        raise ValueError(
+            "TUBE_SCOUT_CLIENT_SECRET environment variable is required. "
+            "Set it to the path of your OAuth client secret JSON file."
+        )
 
-    config_dir = Path.home() / ".config" / "tube-scout"
-    for f in sorted(config_dir.glob("client_secret_*.json")):
-        return f
-
-    raise FileNotFoundError(
-        "OAuth client secret not found. Set TUBE_SCOUT_CLIENT_SECRET env var "
-        "or place client_secret_*.json in ~/.config/tube-scout/"
-    )
+    path = Path(env_path)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"OAuth client secret not found at {env_path}. "
+            "Verify TUBE_SCOUT_CLIENT_SECRET points to an existing file."
+        )
+    return path
 
 
 def _token_path() -> Path:

@@ -54,6 +54,49 @@ def load_checkpoint(
     return CollectionState(**state_data)
 
 
+def is_stage_complete(data_dir: Path, channel_id: str, stage_name: str) -> bool:
+    """Check if a pipeline stage is marked as complete.
+
+    Args:
+        data_dir: Root data directory (checkpoints dir).
+        channel_id: YouTube channel ID.
+        stage_name: Pipeline stage name.
+
+    Returns:
+        True if the stage is marked as complete.
+    """
+    state = load_checkpoint(data_dir, channel_id, stage_name)
+    if state is None:
+        return False
+    return state.stage_completed
+
+
+def mark_stage_complete(data_dir: Path, channel_id: str, stage_name: str) -> None:
+    """Mark a pipeline stage as complete.
+
+    Args:
+        data_dir: Root data directory (checkpoints dir).
+        channel_id: YouTube channel ID.
+        stage_name: Pipeline stage name.
+    """
+    state = load_checkpoint(data_dir, channel_id, stage_name)
+    if state is None:
+        from datetime import UTC, datetime
+
+        state = CollectionState(
+            channel_id=channel_id,
+            phase=stage_name,
+            status="completed",
+            stage_completed=True,
+            started_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+    else:
+        state.stage_completed = True
+        state.status = "completed"
+    save_checkpoint(data_dir, state)
+
+
 def clear_checkpoint(data_dir: Path, channel_id: str, phase: str) -> None:
     """Clear a collection checkpoint (for force-refresh).
 

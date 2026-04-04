@@ -19,6 +19,26 @@ def service(mock_youtube_client: MagicMock) -> YouTubeDataService:
     return YouTubeDataService(client=mock_youtube_client)
 
 
+class TestYouTubeDataServiceInit:
+    """Tests for YouTubeDataService OAuth-only constructor (US1)."""
+
+    def test_requires_client_param(self) -> None:
+        """YouTubeDataService must be created with a client parameter."""
+        client = MagicMock()
+        svc = YouTubeDataService(client=client)
+        assert svc._client is client
+
+    def test_raises_without_client(self) -> None:
+        """YouTubeDataService must raise TypeError when no client provided."""
+        with pytest.raises(TypeError):
+            YouTubeDataService()
+
+    def test_raises_when_api_key_passed(self) -> None:
+        """YouTubeDataService must reject api_key parameter (removed)."""
+        with pytest.raises(TypeError):
+            YouTubeDataService(api_key="fake-key")
+
+
 class TestGetChannelInfo:
     """Tests for get_channel_info method."""
 

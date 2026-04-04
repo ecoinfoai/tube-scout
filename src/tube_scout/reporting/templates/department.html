@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Department Report: {{ overview.channel_name or overview.channel_id }}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; color: #333; }
+        h1 { color: #1a73e8; }
+        h2 { color: #555; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #eee; }
+        th { background: #f5f5f5; font-weight: bold; }
+        .metrics { display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; }
+        .metric { background: #f5f5f5; padding: 12px 20px; border-radius: 8px; min-width: 120px; }
+        .metric .value { font-size: 24px; font-weight: bold; color: #1a73e8; }
+        .metric .label { font-size: 12px; color: #888; }
+        .status-uploaded { color: #28a745; font-weight: bold; }
+        .status-missing { color: #dc3545; font-weight: bold; }
+        .status-late { color: #ffc107; font-weight: bold; }
+        .finding { background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 8px 0; border-radius: 4px; }
+        .finding.ERROR { background: #f8d7da; border-left-color: #dc3545; }
+        .finding.WARNING { background: #fff3cd; border-left-color: #ffc107; }
+        .finding.INFO { background: #d1ecf1; border-left-color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <h1>{{ overview.channel_name or overview.channel_id }}</h1>
+    <p>Channel ID: {{ overview.channel_id }}
+    {% if overview.year %} | Year: {{ overview.year }}{% endif %}
+    {% if overview.semester %} | Semester: {{ overview.semester }}{% endif %}
+    </p>
+
+    <h2>Department Overview</h2>
+    <div class="metrics">
+        <div class="metric">
+            <div class="value">{{ overview.total_videos }}</div>
+            <div class="label">Total Videos</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ overview.total_professors }}</div>
+            <div class="label">Professors</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ overview.total_courses }}</div>
+            <div class="label">Courses</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ "%.1f"|format(overview.total_duration_hours) }}h</div>
+            <div class="label">Total Duration</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ overview.total_views }}</div>
+            <div class="label">Total Views</div>
+        </div>
+        <div class="metric">
+            <div class="value">{{ "%.1f"|format(overview.parse_success_rate * 100) }}%</div>
+            <div class="label">Parse Success Rate</div>
+        </div>
+    </div>
+
+    <h2>Professor Details</h2>
+    <table>
+        <tr>
+            <th>Professor</th>
+            <th>Videos</th>
+            <th>Courses</th>
+            <th>Weekly Coverage</th>
+            <th>Session Completeness</th>
+            <th>Avg Duration (min)</th>
+            <th>Total Views</th>
+            <th>Avg Views</th>
+            <th>Validation Errors</th>
+        </tr>
+        {% for d in professor_details %}
+        <tr>
+            <td>{{ d.professor_name }}</td>
+            <td>{{ d.video_count }}</td>
+            <td>{{ d.courses | join(", ") }}</td>
+            <td>{{ "%.1f"|format(d.weekly_coverage * 100) }}%</td>
+            <td>{{ "%.1f"|format(d.session_completeness * 100) }}%</td>
+            <td>{{ "%.1f"|format(d.avg_duration_minutes) }}</td>
+            <td>{{ d.total_views }}</td>
+            <td>{{ "%.1f"|format(d.avg_views) }}</td>
+            <td>{{ d.validation_error_count }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    {% if heatmap_html %}
+    <h2>Upload Compliance Heatmap</h2>
+    {{ heatmap_html | safe }}
+    {% endif %}
+
+    {% if compliance_entries %}
+    <h2>Compliance Details</h2>
+    <table>
+        <tr>
+            <th>Professor</th>
+            {% for w in range(1, 17) %}
+            <th>W{{ w }}</th>
+            {% endfor %}
+            <th>Compliance</th>
+        </tr>
+        {% for c in compliance_entries %}
+        <tr>
+            <td>{{ c.professor_name }}</td>
+            {% for w in range(1, 17) %}
+            {% set status = c.week_statuses.get(w, "missing") %}
+            <td class="status-{{ status }}">{{ status }}</td>
+            {% endfor %}
+            <td>{{ "%.1f"|format(c.upload_deadline_compliance * 100) }}%</td>
+        </tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if validation_findings %}
+    <h2>Validation Findings</h2>
+    {% for f in validation_findings %}
+    <div class="finding {{ f.severity }}">
+        <strong>[{{ f.rule_id }}] {{ f.severity }}</strong>
+        {% if f.professor %} | {{ f.professor }}{% endif %}
+        <p>{{ f.description }}</p>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <footer style="margin-top: 40px; color: #888; font-size: 12px;">
+        Generated by Tube Scout | {{ generated_at }}
+    </footer>
+</body>
+</html>

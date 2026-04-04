@@ -1,6 +1,6 @@
 """Tests for SentimentService."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -8,6 +8,56 @@ from tube_scout.services.sentiment import (
     SentimentService,
     cross_reference_questions_hotspots,
 )
+
+
+class TestSentimentDeviceConfig:
+    """Tests for GPU device configuration in local sentiment backend (US5)."""
+
+    def test_local_pipeline_uses_cpu_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Local pipeline should pass device='cpu' by default."""
+        import tube_scout.services.sentiment as sentiment_mod
+
+        monkeypatch.delenv("TUBE_SCOUT_DEVICE", raising=False)
+        sentiment_mod._local_pipeline = None  # Reset cache
+
+        mock_pipeline_fn = MagicMock(return_value=MagicMock())
+        mock_transformers = MagicMock()
+        mock_transformers.pipeline = mock_pipeline_fn
+
+        with patch.dict("sys.modules", {"transformers": mock_transformers}):
+            sentiment_mod._load_local_pipeline()
+
+        mock_pipeline_fn.assert_called_once_with(
+            "sentiment-analysis",
+            model="snunlp/KR-FinBert-SC",
+            device="cpu",
+        )
+        sentiment_mod._local_pipeline = None  # Cleanup
+
+    def test_local_pipeline_uses_cuda_when_configured(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Local pipeline should pass device='cuda' when TUBE_SCOUT_DEVICE=cuda."""
+        import tube_scout.services.sentiment as sentiment_mod
+
+        monkeypatch.setenv("TUBE_SCOUT_DEVICE", "cuda")
+        sentiment_mod._local_pipeline = None  # Reset cache
+
+        mock_pipeline_fn = MagicMock(return_value=MagicMock())
+        mock_transformers = MagicMock()
+        mock_transformers.pipeline = mock_pipeline_fn
+
+        with patch.dict("sys.modules", {"transformers": mock_transformers}):
+            sentiment_mod._load_local_pipeline()
+
+        mock_pipeline_fn.assert_called_once_with(
+            "sentiment-analysis",
+            model="snunlp/KR-FinBert-SC",
+            device="cuda",
+        )
+        sentiment_mod._local_pipeline = None  # Cleanup
 
 
 @pytest.fixture

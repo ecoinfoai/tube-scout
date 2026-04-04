@@ -101,7 +101,6 @@ def _mock_video_details_response() -> dict:
 class TestCollectVideosFlow:
     """Integration test: init -> collect videos -> verify data files."""
 
-    @patch.dict("os.environ", {"YOUTUBE_API_KEY": "fake-key"})
     @patch("tube_scout.services.auth.build_data_client")
     def test_collect_creates_data_files(
         self, mock_build_client: MagicMock, tmp_path: Path

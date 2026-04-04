@@ -1,10 +1,84 @@
 """Configuration and state models for tube-scout."""
 
+import os
 import re
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+_VALID_DEVICES = {"cpu", "cuda"}
+
+
+def get_device() -> str:
+    """Read TUBE_SCOUT_DEVICE env var and return validated device string.
+
+    Returns:
+        Device string: "cpu" (default) or "cuda".
+
+    Raises:
+        ValueError: If env var is set to an invalid value.
+    """
+    device = os.environ.get("TUBE_SCOUT_DEVICE")
+    if device is None:
+        return "cpu"
+    if device not in _VALID_DEVICES:
+        raise ValueError(
+            f"TUBE_SCOUT_DEVICE must be one of {sorted(_VALID_DEVICES)}, "
+            f"got {device!r}"
+        )
+    return device
+
+
+class RateLimitProfile(BaseModel):
+    """Per-service rate limiting configuration."""
+
+    base_delay: float = Field(..., ge=0.0, description="Seconds between requests")
+    max_retries: int = Field(..., ge=0, description="Maximum retry attempts on error")
+    backoff_multiplier: float = Field(
+        ..., ge=1.0, description="Multiplier for exponential backoff"
+    )
+    jitter: float = Field(
+        default=0.5, ge=0.0, description="Random delay variance (± seconds)"
+    )
+
+
+TRANSCRIPT_PROFILE = RateLimitProfile(
+    base_delay=2.0,
+    max_retries=5,
+    backoff_multiplier=3.0,
+    jitter=0.5,
+)
+
+YOUTUBE_API_PROFILE = RateLimitProfile(
+    base_delay=0.1,
+    max_retries=3,
+    backoff_multiplier=2.0,
+    jitter=0.0,
+)
+
+
+class StageResult(BaseModel):
+    """Outcome of a single pipeline stage execution."""
+
+    stage_name: str = Field(..., description="Pipeline stage identifier")
+    status: Literal["completed", "failed", "skipped"] = Field(
+        ..., description="Execution outcome"
+    )
+    error_message: str | None = None
+    items_processed: int = 0
+    duration_seconds: float = 0.0
+
+
+class PipelineResult(BaseModel):
+    """Summary of a full collect-all pipeline run."""
+
+    channel_alias: str | None = None
+    stages: list[StageResult] = Field(default_factory=list)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    completed_at: datetime | None = None
+    resumed: bool = False
 
 
 class ChannelConfig(BaseModel):
@@ -42,6 +116,12 @@ class Settings(BaseModel):
     default_report_format: str = "html"
     llm_provider: str = "claude"
     analytics_start_date: str | None = None
+    rate_limit_transcript: RateLimitProfile = Field(
+        default_factory=lambda: TRANSCRIPT_PROFILE.model_copy()
+    )
+    rate_limit_youtube_api: RateLimitProfile = Field(
+        default_factory=lambda: YOUTUBE_API_PROFILE.model_copy()
+    )
 
 
 class AppConfig(BaseModel):
@@ -72,6 +152,7 @@ class CollectionState(BaseModel):
     updated_at: datetime | None = None
     status: str = "in_progress"
     analytics_last_dates: dict[str, str] = {}
+    stage_completed: bool = False
 
 
 VALID_EVENT_TYPES = frozenset({
