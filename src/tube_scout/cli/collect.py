@@ -792,7 +792,10 @@ def collect_all_command(
         console.print(f"[bold cyan]Step {idx}/5: {label}...[/bold cyan]")
         stage_start = _time.monotonic()
 
-        # Build kwargs for each stage
+        # Build kwargs for each stage.
+        # Typer.Option defaults don't resolve when calling functions
+        # directly (they stay as OptionInfo objects), so we must pass
+        # explicit None/False for all optional params.
         kwargs: dict = {
             "data_dir": data_dir,
             "project_dir": project_dir,
@@ -801,8 +804,19 @@ def collect_all_command(
         if stage_name == "videos":
             kwargs["force_refresh"] = force_refresh
             kwargs["channel"] = channel
+        elif stage_name == "comments":
+            kwargs["video_id"] = None
+            kwargs["include_replies"] = False
+        elif stage_name == "transcripts":
+            kwargs["video_id"] = None
+        elif stage_name == "retention":
+            kwargs["video_id"] = None
         elif stage_name == "analytics":
             kwargs["channel"] = channel
+            kwargs["start_date"] = None
+            kwargs["report_type"] = None
+            kwargs["video_id"] = None
+            kwargs["incremental"] = True
 
         try:
             stage_fn(**kwargs)
