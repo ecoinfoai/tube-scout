@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+            @bottom-center {
+                content: "p. " counter(page) " / " counter(pages);
+                font-size: 10px;
+                color: #888;
+            }
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+        }
+        h1 { color: #1a73e8; }
+        h2 { color: #555; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        h3 { color: #666; }
+        .cover {
+            text-align: center;
+            padding: 80px 0;
+            page-break-after: always;
+        }
+        .cover h1 {
+            font-size: 28px;
+            margin-bottom: 40px;
+        }
+        .cover .meta {
+            font-size: 14px;
+            color: #666;
+            line-height: 2;
+        }
+        .toc {
+            page-break-after: always;
+        }
+        .toc ul {
+            list-style: none;
+            padding: 0;
+        }
+        .toc li {
+            padding: 6px 0;
+            border-bottom: 1px dotted #ddd;
+        }
+        .toc a {
+            text-decoration: none;
+            color: #1a73e8;
+        }
+        .video-section {
+            page-break-before: always;
+        }
+        .metric {
+            display: inline-block;
+            background: #f5f5f5;
+            padding: 12px 20px;
+            margin: 5px;
+            border-radius: 8px;
+        }
+        .metric .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1a73e8;
+        }
+        .metric .label {
+            font-size: 12px;
+            color: #888;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            page-break-inside: avoid;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+        }
+        th { background: #f5f5f5; }
+        .hotspot { color: #d93025; }
+        .skip { color: #888; }
+        .no-data {
+            color: #999;
+            font-style: italic;
+            padding: 12px;
+            background: #fafafa;
+            border-radius: 8px;
+        }
+        footer {
+            margin-top: 40px;
+            color: #888;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    {# ===== COVER PAGE ===== #}
+    <div class="cover">
+        <h1>{{ title }}</h1>
+        <div class="meta">
+            <p>Channel: {{ channel_id }}</p>
+            {% if filter_description %}
+            <p>Filter: {{ filter_description }}</p>
+            {% endif %}
+            <p>Videos: {{ videos | length }}</p>
+            <p>Generated: {{ generated_at }}</p>
+        </div>
+    </div>
+
+    {# ===== SUMMARY ===== #}
+    {% if summary %}
+    <div class="summary" style="page-break-after: always;">
+        <h2>Summary</h2>
+        <div>
+            <div class="metric">
+                <div class="value">{{ summary.video_count }}</div>
+                <div class="label">Videos</div>
+            </div>
+            <div class="metric">
+                <div class="value">{{ summary.total_duration_minutes }}m</div>
+                <div class="label">Total Duration</div>
+            </div>
+            <div class="metric">
+                <div class="value">{{ summary.avg_views }}</div>
+                <div class="label">Avg Views</div>
+            </div>
+            <div class="metric">
+                <div class="value">{{ summary.total_likes }}</div>
+                <div class="label">Total Likes</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ===== TABLE OF CONTENTS ===== #}
+    {% if videos | length > 1 %}
+    <div class="toc">
+        <h2>Table of Contents</h2>
+        <ul>
+            {% for video in videos %}
+            <li>
+                <a href="#video-{{ video.meta.video_id }}">
+                    {{ loop.index }}. {{ video.meta.title }}
+                </a>
+                <span style="float: right; color: #888;">{{ video.meta.published_at[:10] }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {# ===== VIDEO SECTIONS ===== #}
+    {% for video in videos %}
+    <div class="video-section" id="video-{{ video.meta.video_id }}">
+        <h1>{{ video.meta.title }}</h1>
+        <p>Video ID: {{ video.meta.video_id }} | Published: {{ video.meta.published_at }}</p>
+
+        <h2>Performance Summary</h2>
+        <div>
+            <div class="metric">
+                <div class="value">{{ video.meta.view_count | default(0) }}</div>
+                <div class="label">Views</div>
+            </div>
+            <div class="metric">
+                <div class="value">{{ video.meta.like_count | default(0) }}</div>
+                <div class="label">Likes</div>
+            </div>
+            <div class="metric">
+                <div class="value">{{ video.meta.comment_count | default(0) }}</div>
+                <div class="label">Comments</div>
+            </div>
+            <div class="metric">
+                <div class="value">{{ video.meta.duration_seconds | default(0) // 60 }}m</div>
+                <div class="label">Duration</div>
+            </div>
+        </div>
+
+        {% if video.retention %}
+        <h2>Retention Analysis</h2>
+        {% if video.retention.hotspots %}
+        <h3 class="hotspot">Rewatch Hotspots</h3>
+        <table>
+            <tr><th>Position</th><th>Watch Ratio</th></tr>
+            {% for h in video.retention.hotspots %}
+            <tr>
+                <td>{{ "%.0f" | format(h.elapsed_ratio * 100) }}%</td>
+                <td>{{ "%.2f" | format(h.audience_watch_ratio) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        {% if video.retention.skip_zones %}
+        <h3 class="skip">Skip Zones</h3>
+        <table>
+            <tr><th>Position</th><th>Watch Ratio</th></tr>
+            {% for s in video.retention.skip_zones %}
+            <tr>
+                <td>{{ "%.0f" | format(s.elapsed_ratio * 100) }}%</td>
+                <td>{{ "%.2f" | format(s.audience_watch_ratio) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        {% else %}
+        <div class="no-data">Retention data not available for this video.</div>
+        {% endif %}
+
+        {% if video.segments %}
+        <h2>Content Segments</h2>
+        <table>
+            <tr><th>#</th><th>Title</th><th>Time</th><th>Difficulty</th></tr>
+            {% for seg in video.segments %}
+            <tr>
+                <td>{{ seg.segment_index }}</td>
+                <td>{{ seg.title }}</td>
+                <td>{{ seg.start_seconds // 60 }}:{{ "%02d" | format(seg.start_seconds % 60) }} - {{ seg.end_seconds // 60 }}:{{ "%02d" | format(seg.end_seconds % 60) }}</td>
+                <td>{{ "%.1f" | format(seg.difficulty_score | default(0)) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    <footer>
+        Generated by Tube Scout | {{ generated_at }}
+    </footer>
+</body>
+</html>

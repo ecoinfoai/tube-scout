@@ -1,13 +1,17 @@
 """Report generation CLI commands."""
 
+import re
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import typer
 from rich.console import Console
 
 from tube_scout.models.config import AppConfig
+from tube_scout.models.video_filter import VideoFilter
 from tube_scout.reporting.channel_report import ChannelReportGenerator
 from tube_scout.reporting.video_report import VideoReportGenerator
+from tube_scout.services.video_filter_service import VideoFilterService
 from tube_scout.storage.json_store import read_json
 
 console = Console()
@@ -20,6 +24,77 @@ def _load_config(data_dir: Path) -> AppConfig:
         console.print("[red]No configuration found. Run 'tube-scout init' first.[/red]")
         raise typer.Exit(code=1)
     return AppConfig(**config_data)
+
+
+def _has_filter_options(
+    keyword: str | None,
+    published_after: str | None,
+    published_before: str | None,
+    video_ids_csv: str | None,
+) -> bool:
+    """Check if any filter option is specified.
+
+    Args:
+        keyword: Keyword filter value.
+        published_after: Start date string.
+        published_before: End date string.
+        video_ids_csv: Comma-separated video IDs.
+
+    Returns:
+        True if at least one filter option is set.
+    """
+    return any([keyword, published_after, published_before, video_ids_csv])
+
+
+def _sanitize_filename_part(value: str) -> str:
+    """Sanitize a string for safe use in filenames.
+
+    Removes path separators, parent directory references, and control characters.
+    Preserves alphanumeric, Korean, and common punctuation.
+
+    Args:
+        value: Raw string to sanitize.
+
+    Returns:
+        Sanitized string safe for filename use.
+    """
+    # Remove path separators and parent dir references
+    sanitized = value.replace("/", "_").replace("\\", "_")
+    sanitized = sanitized.replace("..", "_")
+    # Keep only word characters (letters, digits, underscore) and hyphens
+    sanitized = re.sub(r"[^\w\-]", "_", sanitized)
+    # Collapse multiple underscores
+    sanitized = re.sub(r"_+", "_", sanitized).strip("_")
+    return sanitized or "unnamed"
+
+
+def _print_dry_run_table(filtered_videos: list[dict]) -> None:
+    """Print a Rich table of filtered videos for dry-run preview.
+
+    Args:
+        filtered_videos: List of video metadata dicts.
+    """
+    from rich.table import Table
+
+    table = Table(title=f"Found {len(filtered_videos)} videos matching filters")
+    table.add_column("Video ID", style="cyan")
+    table.add_column("Title", style="white")
+    table.add_column("Published", style="green")
+
+    for v in filtered_videos:
+        table.add_row(
+            v.get("video_id", ""),
+            v.get("title", ""),
+            v.get("published_at", "")[:10],
+        )
+
+    if len(filtered_videos) > 200:
+        console.print(
+            f"[yellow]Warning: {len(filtered_videos)} videos selected "
+            "(> 200). PDF generation may be slow and produce a large file.[/yellow]"
+        )
+
+    console.print(table)
 
 
 def report_video_command(
@@ -43,6 +118,31 @@ def report_video_command(
         "--output-dir",
         help="Output directory.",
     ),
+    keyword: str | None = typer.Option(
+        None,
+        "--keyword",
+        help="Filter by title keyword (substring match).",
+    ),
+    published_after: str | None = typer.Option(
+        None,
+        "--published-after",
+        help="Filter by publish date start (YYYY-MM-DD, inclusive).",
+    ),
+    published_before: str | None = typer.Option(
+        None,
+        "--published-before",
+        help="Filter by publish date end (YYYY-MM-DD, inclusive).",
+    ),
+    video_ids_csv: str | None = typer.Option(
+        None,
+        "--video-ids",
+        help="Comma-separated video IDs to filter.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview filtered video list without generating reports.",
+    ),
 ) -> None:
     """Generate a video analysis report.
 
@@ -51,10 +151,25 @@ def report_video_command(
         video_id: Specific video ID, or generate for all.
         format: Output format.
         output_dir: Custom output directory.
+        keyword: Title keyword filter.
+        published_after: Publish date start filter (YYYY-MM-DD).
+        published_before: Publish date end filter (YYYY-MM-DD).
+        video_ids_csv: Comma-separated video IDs.
+        dry_run: If True, show filtered list without generating reports.
     """
+    # Mutual exclusion: --video-id and --video-ids
+    if video_id and video_ids_csv:
+        console.print(
+            "[red]Cannot use --video-id and --video-ids together.[/red]"
+        )
+        raise typer.Exit(code=1)
+
     data_path = Path(data_dir)
     config = _load_config(data_path)
     out_dir = Path(output_dir) if output_dir else data_path / "reports" / "video"
+    use_filter = _has_filter_options(
+        keyword, published_after, published_before, video_ids_csv
+    )
 
     for channel_config in config.channels:
         vid_ids = []
@@ -75,7 +190,34 @@ def report_video_command(
                 )
                 continue
             vlist = videos if isinstance(videos, list) else videos.get("videos", [])
-            vid_ids = [v["video_id"] for v in vlist]
+
+            if use_filter:
+                pa = (
+                    date.fromisoformat(published_after) if published_after else None
+                )
+                pb = (
+                    date.fromisoformat(published_before) if published_before else None
+                )
+                video_filter = VideoFilter(
+                    keyword=keyword,
+                    published_after=pa,
+                    published_before=pb,
+                    video_ids=video_ids_csv.split(",") if video_ids_csv else None,
+                )
+                filtered = VideoFilterService.filter_videos(vlist, video_filter)
+                if not filtered:
+                    console.print(
+                        "[yellow]No videos matching the specified filters.[/yellow]"
+                    )
+                    raise typer.Exit(code=1)
+
+                if dry_run:
+                    _print_dry_run_table(filtered)
+                    return
+
+                vid_ids = [v["video_id"] for v in filtered]
+            else:
+                vid_ids = [v["video_id"] for v in vlist]
 
         for vid in vid_ids:
             path = _generate_video_report(
@@ -359,6 +501,158 @@ def report_department_command(
     else:
         console.print(f"[red]Unknown format: {format}. Use html, xlsx, or pdf.[/red]")
         raise typer.Exit(code=1)
+
+
+def report_bundle_command(
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Data storage directory.",
+    ),
+    keyword: str | None = typer.Option(
+        None,
+        "--keyword",
+        help="Filter by title keyword (substring match).",
+    ),
+    published_after: str | None = typer.Option(
+        None,
+        "--published-after",
+        help="Filter by publish date start (YYYY-MM-DD, inclusive).",
+    ),
+    published_before: str | None = typer.Option(
+        None,
+        "--published-before",
+        help="Filter by publish date end (YYYY-MM-DD, inclusive).",
+    ),
+    video_ids_csv: str | None = typer.Option(
+        None,
+        "--video-ids",
+        help="Comma-separated video IDs to filter.",
+    ),
+    output: str | None = typer.Option(
+        None,
+        "--output",
+        help="PDF output file path.",
+    ),
+    title: str | None = typer.Option(
+        None,
+        "--title",
+        help="Report cover title.",
+    ),
+    sort: str = typer.Option(
+        "date",
+        "--sort",
+        help="Sort order: date/course/views.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview filtered video list without generating bundle.",
+    ),
+    from_html: str | None = typer.Option(
+        None,
+        "--from-html",
+        help="Existing HTML report directory (harvest mode).",
+    ),
+) -> None:
+    """Generate a combined PDF bundle report from filtered videos.
+
+    Args:
+        data_dir: Data storage directory.
+        keyword: Title keyword filter.
+        published_after: Publish date start filter (YYYY-MM-DD).
+        published_before: Publish date end filter (YYYY-MM-DD).
+        video_ids_csv: Comma-separated video IDs.
+        output: PDF output file path.
+        title: Custom report cover title.
+        sort: Sort order for videos.
+        dry_run: If True, show filtered list without generating bundle.
+        from_html: Path to existing HTML reports directory.
+    """
+    from tube_scout.reporting.bundle_report import BundleReportGenerator
+
+    if not _has_filter_options(
+        keyword, published_after, published_before, video_ids_csv
+    ):
+        console.print(
+            "[red]At least one filter option is required "
+            "(--keyword, --published-after, --published-before, or --video-ids).[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    data_path = Path(data_dir)
+    config = _load_config(data_path)
+
+    video_filter = VideoFilter(
+        keyword=keyword,
+        published_after=(
+            date.fromisoformat(published_after) if published_after else None
+        ),
+        published_before=(
+            date.fromisoformat(published_before) if published_before else None
+        ),
+        video_ids=video_ids_csv.split(",") if video_ids_csv else None,
+    )
+
+    for channel_config in config.channels:
+        channel_id = channel_config.channel_id
+
+        if dry_run:
+            gen = BundleReportGenerator(data_dir=data_path)
+            videos_meta = gen._load_videos_meta(channel_id)
+            filtered = VideoFilterService.filter_videos(videos_meta, video_filter)
+            if not filtered:
+                console.print(
+                    "[yellow]No videos matching the specified filters.[/yellow]"
+                )
+                raise typer.Exit(code=1)
+            _print_dry_run_table(filtered)
+            return
+
+        if output:
+            output_path = Path(output)
+        else:
+            suffix = _sanitize_filename_part(keyword) if keyword else "all"
+            date_str = datetime.now(UTC).strftime("%Y%m%d")
+            output_path = (
+                data_path / "reports" / "bundle" / f"bundle_{suffix}_{date_str}.html"
+            )
+
+        gen = BundleReportGenerator(data_dir=data_path)
+        try:
+            if from_html:
+                html_path = gen.generate_from_html(
+                    html_dir=Path(from_html),
+                    video_filter=video_filter,
+                    channel_id=channel_id,
+                    output_path=output_path,
+                    sort_by=sort,
+                    title=title,
+                )
+            else:
+                html_path = gen.generate(
+                    video_filter=video_filter,
+                    channel_id=channel_id,
+                    output_path=output_path,
+                    sort_by=sort,
+                    title=title,
+                )
+        except ValueError:
+            console.print(
+                "[yellow]No videos matching the specified filters.[/yellow]"
+            )
+            raise typer.Exit(code=1)
+
+        console.print(f"[green]Bundle HTML report generated: {html_path}[/green]")
+
+        pdf_path = gen.render_pdf(html_path)
+        if pdf_path:
+            console.print(f"[green]Bundle PDF report generated: {pdf_path}[/green]")
+        else:
+            console.print(
+                "[yellow]PDF generation skipped (weasyprint not available). "
+                f"HTML report saved: {html_path}[/yellow]"
+            )
 
 
 def report_channel_command(

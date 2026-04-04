@@ -25,6 +25,7 @@ from tube_scout.cli.collect import (
     collect_videos_command,
 )
 from tube_scout.cli.report import (
+    report_bundle_command,
     report_channel_command,
     report_comment_insight_command,
     report_department_command,
@@ -85,6 +86,7 @@ report_app.command(name="video")(report_video_command)
 report_app.command(name="channel")(report_channel_command)
 report_app.command(name="comment-insight")(report_comment_insight_command)
 report_app.command(name="department")(report_department_command)
+report_app.command(name="bundle")(report_bundle_command)
 
 
 def _version_callback(value: bool) -> None:
