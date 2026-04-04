@@ -1,0 +1,45 @@
+"""Tests for CLI project resolver."""
+
+from pathlib import Path
+
+import click.exceptions
+import pytest
+
+from tube_scout.cli.project import resolve_project
+from tube_scout.output.manager import ProjectManager
+
+
+class TestResolveProject:
+    """Tests for resolve_project helper."""
+
+    def test_none_creates_new_project(self, tmp_path: Path) -> None:
+        mgr = resolve_project(str(tmp_path / "projects"), project=None)
+        assert isinstance(mgr, ProjectManager)
+        assert mgr.project_dir.exists()
+
+    def test_latest_resolves_symlink(self, tmp_path: Path) -> None:
+        root = tmp_path / "projects"
+        first = ProjectManager(projects_root=root)
+        first.create_project()
+
+        mgr = resolve_project(str(root), project="latest")
+        assert mgr.project_dir == first.project_dir
+
+    def test_latest_raises_when_no_link(self, tmp_path: Path) -> None:
+        root = tmp_path / "projects"
+        root.mkdir(parents=True)
+        with pytest.raises((SystemExit, click.exceptions.Exit)):
+            resolve_project(str(root), project="latest")
+
+    def test_explicit_path_opens_project(self, tmp_path: Path) -> None:
+        root = tmp_path / "projects"
+        project_dir = root / "20260404-120000"
+        project_dir.mkdir(parents=True)
+
+        mgr = resolve_project(str(root), project=str(project_dir))
+        assert mgr.project_dir == project_dir
+
+    def test_explicit_path_raises_on_missing(self, tmp_path: Path) -> None:
+        root = tmp_path / "projects"
+        with pytest.raises((SystemExit, click.exceptions.Exit)):
+            resolve_project(str(root), project=str(root / "nonexistent"))
