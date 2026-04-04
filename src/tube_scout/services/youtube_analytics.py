@@ -143,9 +143,9 @@ class YouTubeAnalyticsService:
         for row in rows:
             result.append(
                 {
-                    "elapsed_ratio": row[2],
-                    "audience_watch_ratio": row[3],
-                    "relative_retention": row[4] if len(row) > 4 else 0.0,
+                    "elapsed_ratio": row[0],
+                    "audience_watch_ratio": row[1],
+                    "relative_retention": row[2] if len(row) > 2 else 0.0,
                 }
             )
         return result

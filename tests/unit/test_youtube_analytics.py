@@ -31,14 +31,12 @@ class TestGetRetentionData:
     ) -> None:
         mock_analytics_client.reports().query().execute.return_value = {
             "rows": [
-                ["vid001", 0, 0.0, 1.0, 1.0],
-                ["vid001", 1, 0.1, 0.9, 0.95],
-                ["vid001", 2, 0.2, 0.85, 0.9],
-                ["vid001", 3, 0.3, 0.7, 0.8],
+                [0.0, 1.0, 1.0],
+                [0.1, 0.9, 0.95],
+                [0.2, 0.85, 0.9],
+                [0.3, 0.7, 0.8],
             ],
             "columnHeaders": [
-                {"name": "video"},
-                {"name": "elapsedVideoTimeRatio"},
                 {"name": "elapsedVideoTimeRatio"},
                 {"name": "audienceWatchRatio"},
                 {"name": "relativeRetentionPerformance"},
