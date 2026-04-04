@@ -11,7 +11,7 @@ from tube_scout.storage.json_store import read_json
 
 console = Console()
 
-COLLECTION_PHASES = ["videos", "comments", "transcripts", "retention"]
+COLLECTION_PHASES = ["videos", "comments", "transcripts", "retention", "analytics"]
 
 
 def show_status(data_dir: Path) -> None:
@@ -41,8 +41,14 @@ def show_status(data_dir: Path) -> None:
             state = load_checkpoint(data_dir, channel.channel_id, phase)
             if state:
                 status_str = (
-                    f"{state.status} ({state.total_collected}/{state.total_expected})"
+                    f"{state.status} "
+                    f"({state.total_collected}/{state.total_expected})"
                 )
+                if phase == "analytics" and state.analytics_last_dates:
+                    report_types = ", ".join(
+                        sorted(state.analytics_last_dates.keys())
+                    )
+                    status_str += f" [{report_types}]"
             else:
                 status_str = "not started"
             table.add_row(f"Collection: {phase}", status_str)

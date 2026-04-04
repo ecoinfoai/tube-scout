@@ -21,6 +21,14 @@ class Video(BaseModel):
     transcript_type: str | None = None
     has_analytics: bool = False
     collected_at: datetime | None = None
+    description: str | None = None
+    tags: list[str] = []
+    category_id: str | None = None
+    thumbnail_url: str | None = None
+    default_language: str | None = None
+    privacy_status: str = "public"
+    topic_categories: list[str] = []
+    has_captions: bool = False
 
     def title_contains_professor(self, professor_name: str) -> bool:
         """Check if the video title contains the professor name (partial match).

@@ -22,6 +22,10 @@
 
           env = {
             UV_PYTHON = "${python}/bin/python";
+            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
+              pkgs.stdenv.cc.cc.lib
+              pkgs.zlib
+            ];
           };
 
           shellHook = ''

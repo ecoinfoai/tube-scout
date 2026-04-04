@@ -48,7 +48,7 @@ class TestSentimentService:
             {"comment_id": "c3", "text": "Audio is terrible"},
         ]
         with patch.object(
-            service, "_call_llm", return_value=mock_llm_response["results"]
+            service, "_analyze_llm", return_value=mock_llm_response["results"]
         ):
             results = service.analyze_batch(comments)
         assert len(results) == 3
@@ -67,7 +67,9 @@ class TestSentimentService:
             }
         ]
 
-        with patch.object(service, "_call_llm", return_value=mock_result) as mock_call:
+        with patch.object(
+            service, "_analyze_llm", return_value=mock_result
+        ) as mock_call:
             result1 = service.analyze_batch(comments)
             result2 = service.analyze_batch(comments)
 

@@ -7,7 +7,15 @@ from pydantic import ValidationError
 
 from tube_scout.models.channel import Channel
 from tube_scout.models.comment import Comment
-from tube_scout.models.config import AppConfig, ChannelConfig, Report, Settings
+from tube_scout.models.config import (
+    AcademicCalendar,
+    AppConfig,
+    CalendarEvent,
+    ChannelConfig,
+    CollectionState,
+    Report,
+    Settings,
+)
 from tube_scout.models.video import (
     Forecast,
     QualityScore,
@@ -533,3 +541,256 @@ class TestForecast:
         )
         assert fc.is_anomaly is True
         assert fc.anomaly_reason is not None
+
+
+class TestVideoExtendedFields:
+    """Tests for Video model extended fields (T006)."""
+
+    def test_new_optional_fields_default(self) -> None:
+        video = Video(
+            video_id="dQw4w9WgXcQ",
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            title="Test",
+            published_at=datetime(2024, 1, 1),
+            duration_seconds=100,
+        )
+        assert video.description is None
+        assert video.tags == []
+        assert video.category_id is None
+        assert video.thumbnail_url is None
+        assert video.default_language is None
+        assert video.privacy_status == "public"
+        assert video.topic_categories == []
+        assert video.has_captions is False
+
+    def test_new_fields_with_values(self) -> None:
+        video = Video(
+            video_id="dQw4w9WgXcQ",
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            title="Test",
+            published_at=datetime(2024, 1, 1),
+            duration_seconds=100,
+            description="A detailed description",
+            tags=["lecture", "anatomy"],
+            category_id="27",
+            thumbnail_url="https://example.com/thumb.jpg",
+            default_language="ko",
+            privacy_status="unlisted",
+            topic_categories=["Science"],
+            has_captions=True,
+        )
+        assert video.description == "A detailed description"
+        assert len(video.tags) == 2
+        assert video.category_id == "27"
+        assert video.has_captions is True
+
+
+class TestChannelExtendedFields:
+    """Tests for Channel model extended fields (T007)."""
+
+    def test_new_fields_default(self) -> None:
+        channel = Channel(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            channel_name="Test",
+            professor_name="Prof",
+        )
+        assert channel.subscriber_count == 0
+        assert channel.total_view_count == 0
+        assert channel.description is None
+
+    def test_new_fields_with_values(self) -> None:
+        channel = Channel(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            channel_name="Test",
+            professor_name="Prof",
+            subscriber_count=5000,
+            total_view_count=100000,
+            description="A channel about anatomy",
+        )
+        assert channel.subscriber_count == 5000
+        assert channel.total_view_count == 100000
+        assert channel.description == "A channel about anatomy"
+
+    def test_subscriber_count_must_be_non_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            Channel(
+                channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+                channel_name="Test",
+                professor_name="Prof",
+                subscriber_count=-1,
+            )
+
+    def test_total_view_count_must_be_non_negative(self) -> None:
+        with pytest.raises(ValidationError):
+            Channel(
+                channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+                channel_name="Test",
+                professor_name="Prof",
+                total_view_count=-1,
+            )
+
+
+class TestCommentExtendedFields:
+    """Tests for Comment model extended fields (T008)."""
+
+    def test_new_fields_default(self) -> None:
+        comment = Comment(
+            comment_id="c1",
+            video_id="v1",
+            author="A",
+            text="text",
+            published_at=datetime(2024, 1, 1),
+        )
+        assert comment.parent_comment_id is None
+        assert comment.reply_count == 0
+
+    def test_new_fields_with_values(self) -> None:
+        comment = Comment(
+            comment_id="c2",
+            video_id="v1",
+            author="B",
+            text="reply text",
+            published_at=datetime(2024, 1, 1),
+            parent_comment_id="c1",
+            reply_count=3,
+        )
+        assert comment.parent_comment_id == "c1"
+        assert comment.reply_count == 3
+
+
+class TestSettingsExtendedFields:
+    """Tests for Settings model extended fields (T005)."""
+
+    def test_new_fields_default(self) -> None:
+        settings = Settings()
+        assert settings.llm_provider == "claude"
+        assert settings.analytics_start_date is None
+
+    def test_new_fields_with_values(self) -> None:
+        settings = Settings(
+            llm_provider="openai",
+            analytics_start_date="2024-01-01",
+        )
+        assert settings.llm_provider == "openai"
+        assert settings.analytics_start_date == "2024-01-01"
+
+
+class TestCollectionStateExtendedFields:
+    """Tests for CollectionState model extended fields (T005)."""
+
+    def test_analytics_last_dates_default(self) -> None:
+        state = CollectionState(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            phase="videos",
+        )
+        assert state.analytics_last_dates == {}
+
+    def test_analytics_last_dates_with_values(self) -> None:
+        state = CollectionState(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            phase="analytics",
+            analytics_last_dates={
+                "daily_metrics": "2024-03-01",
+                "traffic_sources": "2024-03-01",
+            },
+        )
+        assert len(state.analytics_last_dates) == 2
+        assert state.analytics_last_dates["daily_metrics"] == "2024-03-01"
+
+
+class TestCalendarEvent:
+    """Tests for CalendarEvent model (T005)."""
+
+    def test_valid_calendar_event(self) -> None:
+        event = CalendarEvent(
+            name="Mid-term Exam",
+            start_date="2024-04-15",
+            end_date="2024-04-19",
+            event_type="exam",
+        )
+        assert event.name == "Mid-term Exam"
+        assert event.event_type == "exam"
+
+    def test_name_must_not_be_blank(self) -> None:
+        with pytest.raises(ValidationError, match="name"):
+            CalendarEvent(
+                name="",
+                start_date="2024-04-15",
+                end_date="2024-04-19",
+                event_type="exam",
+            )
+
+    def test_name_whitespace_only_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="name"):
+            CalendarEvent(
+                name="   ",
+                start_date="2024-04-15",
+                end_date="2024-04-19",
+                event_type="exam",
+            )
+
+    def test_event_type_must_be_valid(self) -> None:
+        with pytest.raises(ValidationError, match="event_type"):
+            CalendarEvent(
+                name="Test Event",
+                start_date="2024-04-15",
+                end_date="2024-04-19",
+                event_type="invalid",
+            )
+
+    def test_all_valid_event_types(self) -> None:
+        valid_types = [
+            "semester_start",
+            "semester_end",
+            "exam",
+            "assignment",
+            "holiday",
+            "other",
+        ]
+        for et in valid_types:
+            event = CalendarEvent(
+                name="Test",
+                start_date="2024-01-01",
+                end_date="2024-01-02",
+                event_type=et,
+            )
+            assert event.event_type == et
+
+    def test_end_date_must_be_gte_start_date(self) -> None:
+        with pytest.raises(ValidationError, match="end_date"):
+            CalendarEvent(
+                name="Bad Event",
+                start_date="2024-04-20",
+                end_date="2024-04-15",
+                event_type="exam",
+            )
+
+    def test_same_start_end_date_allowed(self) -> None:
+        event = CalendarEvent(
+            name="One Day Event",
+            start_date="2024-04-15",
+            end_date="2024-04-15",
+            event_type="holiday",
+        )
+        assert event.start_date == "2024-04-15"
+
+
+class TestAcademicCalendar:
+    """Tests for AcademicCalendar model (T005)."""
+
+    def test_valid_calendar(self) -> None:
+        cal = AcademicCalendar(
+            events=[
+                CalendarEvent(
+                    name="Semester Start",
+                    start_date="2024-03-01",
+                    end_date="2024-03-01",
+                    event_type="semester_start",
+                )
+            ]
+        )
+        assert len(cal.events) == 1
+
+    def test_events_must_not_be_empty(self) -> None:
+        with pytest.raises(ValidationError, match="events"):
+            AcademicCalendar(events=[])

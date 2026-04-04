@@ -1,0 +1,24 @@
+# Sample search configuration for tube-scout structured search
+# Demonstrates AND filters, OR queries, and exclusion rules
+
+# Single AND filter: all conditions must match
+filters:
+  professor: "홍길동"
+  year: 2024
+  semester: 2
+
+# Multiple OR queries: videos matching ANY query group are included
+queries:
+  - professor: "홍길동"
+    course: "감염미생물학"
+    year: 2024
+  - professor: "홍길동"
+    course: "인체구조와기능"
+    week_range: [1, 8]
+
+# Exclusion rules: videos matching these patterns are removed from results
+exclude:
+  title_contains:
+    - "질문응답"
+    - "보완영상"
+    - "OT"

@@ -1,10 +1,14 @@
 """YouTube Data API service for video collection."""
 
+import logging
 import os
 import re
 from typing import Any
 
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_iso8601_duration(duration: str) -> int:
@@ -72,6 +76,11 @@ class YouTubeDataService:
                 "uploads"
             ],
             "total_video_count": int(item["statistics"].get("videoCount", 0)),
+            "subscriber_count": int(
+                item["statistics"].get("subscriberCount", 0)
+            ),
+            "total_view_count": int(item["statistics"].get("viewCount", 0)),
+            "description": item["snippet"].get("description"),
         }
 
     def list_all_videos(
@@ -134,7 +143,7 @@ class YouTubeDataService:
             response = (
                 self._client.videos()
                 .list(
-                    part="contentDetails,statistics",
+                    part="snippet,contentDetails,statistics,status,topicDetails",
                     id=",".join(batch),
                 )
                 .execute()
@@ -142,13 +151,28 @@ class YouTubeDataService:
 
             for item in response.get("items", []):
                 vid_id = item["id"]
-                duration = item["contentDetails"].get("duration", "PT0S")
+                duration = item.get("contentDetails", {}).get("duration", "PT0S")
                 stats = item.get("statistics", {})
+                snippet = item.get("snippet", {})
+                status = item.get("status", {})
+                topic_details = item.get("topicDetails", {})
+                thumbnails = snippet.get("thumbnails", {})
+                default_thumb = thumbnails.get("default", {})
+                caption_str = item.get("contentDetails", {}).get("caption", "false")
+
                 results[vid_id] = {
                     "duration_seconds": _parse_iso8601_duration(duration),
                     "view_count": int(stats.get("viewCount", 0)),
                     "like_count": int(stats.get("likeCount", 0)),
                     "comment_count": int(stats.get("commentCount", 0)),
+                    "description": snippet.get("description"),
+                    "tags": snippet.get("tags", []),
+                    "category_id": snippet.get("categoryId"),
+                    "thumbnail_url": default_thumb.get("url"),
+                    "default_language": snippet.get("defaultLanguage"),
+                    "privacy_status": status.get("privacyStatus", "unknown"),
+                    "topic_categories": topic_details.get("topicCategories", []),
+                    "has_captions": caption_str == "true",
                 }
 
         return results
@@ -168,43 +192,125 @@ class YouTubeDataService:
         return [v for v in videos if professor_name in v.get("title", "")]
 
     def get_comments(
-        self, video_id: str, max_results: int = 100
+        self,
+        video_id: str,
+        max_results: int = 100,
+        include_replies: bool = False,
     ) -> list[dict[str, Any]]:
         """Fetch comments for a video via commentThreads.list with pagination.
 
         Args:
             video_id: YouTube video ID.
-            max_results: Maximum number of comments to fetch.
+            max_results: Maximum number of top-level comments to fetch.
+            include_replies: Whether to also fetch replies for each comment.
 
         Returns:
-            List of comment dicts.
+            List of comment dicts. Replies have parent_comment_id set.
         """
         comments: list[dict[str, Any]] = []
         token: str | None = None
 
-        while len(comments) < max_results:
-            page_size = min(100, max_results - len(comments))
+        try:
+            while len(comments) < max_results:
+                page_size = min(100, max_results - len(comments))
+                request_params: dict[str, Any] = {
+                    "part": "snippet",
+                    "videoId": video_id,
+                    "maxResults": page_size,
+                    "textFormat": "plainText",
+                }
+                if token:
+                    request_params["pageToken"] = token
+
+                response = (
+                    self._client.commentThreads().list(**request_params).execute()
+                )
+
+                for item in response.get("items", []):
+                    thread_snippet = item["snippet"]
+                    top_comment = thread_snippet["topLevelComment"]
+                    comment_snippet = top_comment["snippet"]
+                    reply_count = thread_snippet.get("totalReplyCount", 0)
+
+                    comments.append(
+                        {
+                            "comment_id": top_comment["id"],
+                            "video_id": video_id,
+                            "author": comment_snippet.get(
+                                "authorDisplayName", ""
+                            ),
+                            "text": comment_snippet.get("textDisplay", ""),
+                            "published_at": comment_snippet.get(
+                                "publishedAt", ""
+                            ),
+                            "like_count": comment_snippet.get("likeCount", 0),
+                            "parent_comment_id": None,
+                            "reply_count": reply_count,
+                        }
+                    )
+
+                token = response.get("nextPageToken")
+                if not token:
+                    break
+        except HttpError as e:
+            if e.resp.status in (403, 404):
+                logger.warning(
+                    "Cannot fetch comments for %s: %s", video_id, e
+                )
+                return []
+            raise
+
+        if include_replies:
+            threads_with_replies = [
+                c for c in comments if c["reply_count"] > 0
+            ]
+            for thread in threads_with_replies:
+                replies = self.get_comment_replies(
+                    thread["comment_id"], video_id
+                )
+                comments.extend(replies)
+
+        return comments
+
+    def get_comment_replies(
+        self, parent_id: str, video_id: str
+    ) -> list[dict[str, Any]]:
+        """Fetch replies for a comment thread.
+
+        Args:
+            parent_id: Parent comment ID.
+            video_id: Video ID the comment belongs to.
+
+        Returns:
+            List of reply comment dicts with parent_comment_id set.
+        """
+        replies: list[dict[str, Any]] = []
+        token: str | None = None
+
+        while True:
             request_params: dict[str, Any] = {
                 "part": "snippet",
-                "videoId": video_id,
-                "maxResults": page_size,
+                "parentId": parent_id,
+                "maxResults": 100,
                 "textFormat": "plainText",
             }
             if token:
                 request_params["pageToken"] = token
 
-            response = self._client.commentThreads().list(**request_params).execute()
+            response = self._client.comments().list(**request_params).execute()
 
             for item in response.get("items", []):
-                snippet = item["snippet"]["topLevelComment"]["snippet"]
-                comments.append(
+                snippet = item["snippet"]
+                replies.append(
                     {
-                        "comment_id": item["snippet"]["topLevelComment"]["id"],
+                        "comment_id": item["id"],
                         "video_id": video_id,
                         "author": snippet.get("authorDisplayName", ""),
                         "text": snippet.get("textDisplay", ""),
                         "published_at": snippet.get("publishedAt", ""),
                         "like_count": snippet.get("likeCount", 0),
+                        "parent_comment_id": parent_id,
+                        "reply_count": 0,
                     }
                 )
 
@@ -212,4 +318,20 @@ class YouTubeDataService:
             if not token:
                 break
 
-        return comments
+        return replies
+
+    def detect_new_videos(
+        self,
+        api_videos: list[dict[str, Any]],
+        existing_ids: set[str],
+    ) -> list[dict[str, Any]]:
+        """Detect videos from the API that are not in the existing set.
+
+        Args:
+            api_videos: List of video dicts from the API.
+            existing_ids: Set of already-collected video IDs.
+
+        Returns:
+            List of new video dicts not in existing_ids.
+        """
+        return [v for v in api_videos if v["video_id"] not in existing_ids]

@@ -95,3 +95,89 @@ class TestCheckpointManager:
         loaded_c = load_checkpoint(tmp_data_dir, "UCxxxxxxxxxxxxxxxxxxxxxx", "comments")
         assert loaded_v.status == "completed"
         assert loaded_c.status == "in_progress"
+
+
+class TestAnalyticsIncrementalTracking:
+    """Tests for incremental analytics date tracking (T016)."""
+
+    def test_save_analytics_last_dates(self, tmp_data_dir: Path) -> None:
+        state = CollectionState(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            phase="analytics",
+            status="completed",
+            analytics_last_dates={
+                "daily_metrics": "2024-03-01",
+                "traffic_sources": "2024-03-01",
+            },
+        )
+        save_checkpoint(tmp_data_dir, state)
+        loaded = load_checkpoint(tmp_data_dir, "UCxxxxxxxxxxxxxxxxxxxxxx", "analytics")
+        assert loaded is not None
+        assert loaded.analytics_last_dates["daily_metrics"] == "2024-03-01"
+        assert loaded.analytics_last_dates["traffic_sources"] == "2024-03-01"
+
+    def test_update_analytics_last_dates(self, tmp_data_dir: Path) -> None:
+        state = CollectionState(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            phase="analytics",
+            status="completed",
+            analytics_last_dates={"daily_metrics": "2024-01-01"},
+        )
+        save_checkpoint(tmp_data_dir, state)
+
+        # Update with new date
+        state.analytics_last_dates["daily_metrics"] = "2024-03-15"
+        state.analytics_last_dates["geography"] = "2024-03-15"
+        save_checkpoint(tmp_data_dir, state)
+
+        loaded = load_checkpoint(tmp_data_dir, "UCxxxxxxxxxxxxxxxxxxxxxx", "analytics")
+        assert loaded.analytics_last_dates["daily_metrics"] == "2024-03-15"
+        assert loaded.analytics_last_dates["geography"] == "2024-03-15"
+
+    def test_empty_analytics_last_dates_on_first_run(
+        self, tmp_data_dir: Path
+    ) -> None:
+        state = CollectionState(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            phase="analytics",
+            status="in_progress",
+        )
+        save_checkpoint(tmp_data_dir, state)
+        loaded = load_checkpoint(tmp_data_dir, "UCxxxxxxxxxxxxxxxxxxxxxx", "analytics")
+        assert loaded.analytics_last_dates == {}
+
+    def test_analytics_phase_independent_from_videos(
+        self, tmp_data_dir: Path
+    ) -> None:
+        state_v = CollectionState(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            phase="videos",
+            status="completed",
+        )
+        state_a = CollectionState(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            phase="analytics",
+            status="completed",
+            analytics_last_dates={"daily_metrics": "2024-03-01"},
+        )
+        save_checkpoint(tmp_data_dir, state_v)
+        save_checkpoint(tmp_data_dir, state_a)
+
+        loaded_v = load_checkpoint(tmp_data_dir, "UCxxxxxxxxxxxxxxxxxxxxxx", "videos")
+        loaded_a = load_checkpoint(
+            tmp_data_dir, "UCxxxxxxxxxxxxxxxxxxxxxx", "analytics"
+        )
+        assert loaded_v.analytics_last_dates == {}
+        assert loaded_a.analytics_last_dates["daily_metrics"] == "2024-03-01"
+
+    def test_clear_analytics_checkpoint(self, tmp_data_dir: Path) -> None:
+        state = CollectionState(
+            channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
+            phase="analytics",
+            status="completed",
+            analytics_last_dates={"daily_metrics": "2024-03-01"},
+        )
+        save_checkpoint(tmp_data_dir, state)
+        clear_checkpoint(tmp_data_dir, "UCxxxxxxxxxxxxxxxxxxxxxx", "analytics")
+        loaded = load_checkpoint(tmp_data_dir, "UCxxxxxxxxxxxxxxxxxxxxxx", "analytics")
+        assert loaded is None

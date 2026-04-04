@@ -15,6 +15,9 @@ class Channel(BaseModel):
     total_video_count: int = 0
     filtered_video_count: int = 0
     last_collected_at: datetime | None = None
+    subscriber_count: int = Field(default=0, ge=0)
+    total_view_count: int = Field(default=0, ge=0)
+    description: str | None = None
 
     @field_validator("channel_id")
     @classmethod

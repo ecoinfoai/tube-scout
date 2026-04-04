@@ -47,22 +47,42 @@ def collect_videos_command(
         "--force-refresh",
         help="Ignore checkpoint, re-collect all.",
     ),
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias (uses multi-channel token).",
+    ),
 ) -> None:
     """Collect video metadata from YouTube Data API.
 
     Args:
         data_dir: Data storage directory path.
         force_refresh: Whether to ignore existing checkpoints.
+        channel: Optional channel alias for multi-channel auth.
     """
     data_path = Path(data_dir)
     config = _load_config(data_path)
 
     try:
-        from tube_scout.services.auth import build_data_client
+        if channel:
+            from tube_scout.services.auth import authenticate_channel
 
-        client = build_data_client()
-        service = YouTubeDataService(client=client)
-        console.print("[dim]Using OAuth authentication (unlisted videos accessible)[/dim]")
+            creds = authenticate_channel(channel)
+            from googleapiclient.discovery import build as build_api
+
+            client = build_api("youtube", "v3", credentials=creds)
+            service = YouTubeDataService(client=client)
+            console.print(
+                f"[dim]Using multi-channel auth for '{channel}'[/dim]"
+            )
+        else:
+            from tube_scout.services.auth import build_data_client
+
+            client = build_data_client()
+            service = YouTubeDataService(client=client)
+            console.print(
+                "[dim]Using OAuth authentication (unlisted videos accessible)[/dim]"
+            )
     except (FileNotFoundError, Exception):
         try:
             service = YouTubeDataService()
@@ -292,12 +312,18 @@ def collect_comments_command(
         "--video-id",
         help="Specific video ID to collect comments for.",
     ),
+    include_replies: bool = typer.Option(
+        False,
+        "--include-replies",
+        help="Also collect replies for each comment thread.",
+    ),
 ) -> None:
     """Collect comments for videos from YouTube Data API.
 
     Args:
         data_dir: Data storage directory path.
         video_id: Optional specific video ID.
+        include_replies: Whether to collect reply threads.
     """
     data_path = Path(data_dir)
     config = _load_config(data_path)
@@ -348,7 +374,7 @@ def collect_comments_command(
 
     for vid_id in video_ids_to_collect:
         try:
-            comments = service.get_comments(vid_id)
+            comments = service.get_comments(vid_id, include_replies=include_replies)
             if comments:
                 output_path = data_path / "raw" / "comments" / f"{vid_id}.json"
                 output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -436,6 +462,200 @@ def collect_transcripts_command(
             console.print(f"  [red]{vid_id}: {e}[/red]")
 
 
+def collect_analytics_command(
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Data storage directory.",
+    ),
+    start_date: str | None = typer.Option(
+        None,
+        "--start-date",
+        help="Override default 2-year lookback (ISO date: YYYY-MM-DD).",
+    ),
+    report_type: str | None = typer.Option(
+        None,
+        "--report-type",
+        help="Collect only a specific report type.",
+    ),
+    video_id: str | None = typer.Option(
+        None,
+        "--video-id",
+        help="Collect for a specific video only.",
+    ),
+    incremental: bool = typer.Option(
+        True,
+        "--incremental/--full",
+        help="Incremental (default) or full re-collection.",
+    ),
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias (uses multi-channel token).",
+    ),
+) -> None:
+    """Collect YouTube Analytics report data.
+
+    Args:
+        data_dir: Data storage directory path.
+        start_date: Override start date (ISO format).
+        report_type: Specific report type to collect.
+        video_id: Optional specific video ID.
+        incremental: Whether to use incremental sync.
+        channel: Optional channel alias for multi-channel auth.
+    """
+    import polars as pl
+
+    from tube_scout.storage.parquet_store import write_parquet
+
+    data_path = Path(data_dir)
+    config = _load_config(data_path)
+
+    try:
+        if channel:
+            from tube_scout.services.auth import authenticate_channel
+
+            creds = authenticate_channel(channel)
+            from googleapiclient.discovery import build as build_api
+
+            client = build_api("youtubeAnalytics", "v2", credentials=creds)
+            service = YouTubeAnalyticsService(client=client)
+        else:
+            from tube_scout.services.auth import build_analytics_client
+
+            client = build_analytics_client()
+            service = YouTubeAnalyticsService(client=client)
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]OAuth authentication failed: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    # Determine date range
+    from datetime import date as date_type
+    from datetime import timedelta
+
+    end = date_type.today() - timedelta(days=3)  # 2-3 day data delay
+
+    if start_date:
+        start = date_type.fromisoformat(start_date)
+    elif config.settings.analytics_start_date:
+        start = date_type.fromisoformat(config.settings.analytics_start_date)
+    else:
+        start = end - timedelta(days=730)  # Default 2-year lookback
+
+    report_types = [report_type] if report_type else None
+
+    for channel_config in config.channels:
+        channel_id = channel_config.channel_id
+
+        # Incremental: adjust start date per report type
+        actual_start = start
+        if incremental:
+            checkpoint = load_checkpoint(data_path, channel_id, "analytics")
+            if checkpoint and checkpoint.analytics_last_dates:
+                last_dates = checkpoint.analytics_last_dates
+                if report_type and report_type in last_dates:
+                    last = date_type.fromisoformat(last_dates[report_type])
+                    actual_start = last + timedelta(days=1)
+                elif not report_type and last_dates:
+                    dates = [
+                        date_type.fromisoformat(d) for d in last_dates.values()
+                    ]
+                    actual_start = min(dates) + timedelta(days=1)
+
+        if actual_start > end:
+            console.print(
+                f"[yellow]Analytics for {channel_id} already up to date.[/yellow]"
+            )
+            continue
+
+        console.print(
+            f"[bold]Collecting analytics for {channel_id} "
+            f"({actual_start} to {end})...[/bold]"
+        )
+
+        # Save in-progress checkpoint
+        state = load_checkpoint(
+            data_path, channel_id, "analytics"
+        ) or CollectionState(
+            channel_id=channel_id,
+            phase="analytics",
+            started_at=datetime.now(UTC),
+            status="in_progress",
+        )
+        state.status = "in_progress"
+        save_checkpoint(data_path, state)
+
+        try:
+            result = service.collect_all_reports(
+                channel_id=channel_id,
+                start_date=actual_start,
+                end_date=end,
+                report_types=report_types,
+                video_id=video_id,
+            )
+
+            # Store results
+            analytics_dir = data_path / "raw" / "analytics" / channel_id
+            analytics_dir.mkdir(parents=True, exist_ok=True)
+
+            collected_types: list[str] = []
+            for rtype, data in result.items():
+                if rtype == "errors" or not data:
+                    continue
+                collected_types.append(rtype)
+
+                # Time-series data -> Parquet, dimensional -> JSON
+                if rtype in ("daily_metrics", "subscriber_changes"):
+                    df = pl.DataFrame(data)
+                    write_parquet(analytics_dir / f"{rtype}.parquet", df)
+                else:
+                    write_json(analytics_dir / f"{rtype}.json", data)
+
+            # Update checkpoint with last dates
+            for rtype in collected_types:
+                state.analytics_last_dates[rtype] = end.isoformat()
+            state.status = "completed"
+            state.updated_at = datetime.now(UTC)
+            save_checkpoint(data_path, state)
+
+            # Report errors
+            errors = result.get("errors", [])
+            if errors:
+                for err in errors:
+                    console.print(
+                        f"  [yellow]Warning: {err['report_type']}: "
+                        f"{err['error']}[/yellow]"
+                    )
+
+            console.print(
+                f"[green]Collected {len(collected_types)} analytics report type(s) "
+                f"for {channel_id}.[/green]"
+            )
+
+        except PermissionError as e:
+            state.status = "interrupted"
+            state.updated_at = datetime.now(UTC)
+            save_checkpoint(data_path, state)
+            console.print(f"[red]{e}[/red]")
+            raise typer.Exit(code=1)
+        except Exception as e:
+            error_msg = str(e)
+            state.status = "interrupted"
+            state.updated_at = datetime.now(UTC)
+            save_checkpoint(data_path, state)
+            if "quota" in error_msg.lower():
+                console.print(
+                    "[red]YouTube API quota exhausted. "
+                    "Retry after midnight Pacific Time.[/red]"
+                )
+                raise typer.Exit(code=2)
+            console.print(f"[red]API error: {e}[/red]")
+            raise typer.Exit(code=3)
+
+
 def collect_all_command(
     data_dir: str = typer.Option(
         "./data",
@@ -456,28 +676,113 @@ def collect_all_command(
     """
     console.print("[bold]Running full collection pipeline...[/bold]\n")
 
-    console.print("[bold cyan]Step 1/4: Collecting videos...[/bold cyan]")
+    console.print("[bold cyan]Step 1/5: Collecting videos...[/bold cyan]")
     try:
         collect_videos_command(data_dir=data_dir, force_refresh=force_refresh)
     except SystemExit:
         pass
 
-    console.print("\n[bold cyan]Step 2/4: Collecting comments...[/bold cyan]")
+    console.print("\n[bold cyan]Step 2/5: Collecting comments...[/bold cyan]")
     try:
         collect_comments_command(data_dir=data_dir)
     except SystemExit:
         pass
 
-    console.print("\n[bold cyan]Step 3/4: Collecting transcripts...[/bold cyan]")
+    console.print("\n[bold cyan]Step 3/5: Collecting transcripts...[/bold cyan]")
     try:
         collect_transcripts_command(data_dir=data_dir)
     except SystemExit:
         pass
 
-    console.print("\n[bold cyan]Step 4/4: Collecting retention data...[/bold cyan]")
+    console.print("\n[bold cyan]Step 4/5: Collecting retention data...[/bold cyan]")
     try:
         collect_retention_command(data_dir=data_dir)
     except SystemExit:
         pass
 
+    console.print("\n[bold cyan]Step 5/5: Collecting analytics...[/bold cyan]")
+    try:
+        collect_analytics_command(data_dir=data_dir)
+    except SystemExit:
+        pass
+
     console.print("\n[bold green]Collection pipeline complete.[/bold green]")
+
+
+def collect_bulk_command(
+    report_type: str = typer.Option(
+        ...,
+        "--report-type",
+        help="Reporting API report type ID (e.g., channel_basic_a2).",
+    ),
+    status: bool = typer.Option(
+        False,
+        "--status",
+        help="Show status of existing jobs instead of creating new.",
+    ),
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Data storage directory.",
+    ),
+) -> None:
+    """Create or check bulk reporting jobs via YouTube Reporting API.
+
+    Args:
+        report_type: Reporting API report type ID.
+        status: If True, show existing job status instead of creating.
+        data_dir: Data storage directory path.
+    """
+    data_path = Path(data_dir)
+
+    try:
+        from tube_scout.services.auth import build_reporting_client
+
+        client = build_reporting_client()
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]OAuth authentication failed: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    from tube_scout.services.youtube_reporting import YouTubeReportingService
+
+    service = YouTubeReportingService(client=client)
+
+    if status:
+        console.print(f"[bold]Checking status for report type: {report_type}[/bold]")
+        try:
+            types = service.list_report_types()
+            console.print(f"  Available report types: {len(types)}")
+            for rt in types:
+                console.print(
+                    f"    - {rt.get('id', 'unknown')}: {rt.get('name', '')}"
+                )
+        except Exception as e:
+            console.print(f"[red]Error listing report types: {e}[/red]")
+            raise typer.Exit(code=1)
+        return
+
+    console.print(f"[bold]Creating bulk reporting job: {report_type}[/bold]")
+    try:
+        job = service.create_job(report_type)
+        console.print(
+            f"  [green]Job created: {job.job_id} (status: {job.status})[/green]"
+        )
+        console.print(
+            "  Use 'tube-scout collect bulk --report-type "
+            f"{report_type} --status' to check progress."
+        )
+
+        from tube_scout.storage.json_store import write_json
+
+        jobs_dir = data_path / "raw" / "reporting"
+        jobs_dir.mkdir(parents=True, exist_ok=True)
+        write_json(
+            jobs_dir / f"job_{job.job_id}.json",
+            job.model_dump(mode="json"),
+        )
+    except (PermissionError, RuntimeError, ValueError) as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)

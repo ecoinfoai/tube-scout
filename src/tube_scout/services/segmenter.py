@@ -1,10 +1,70 @@
 """LLM-based transcript segmentation and difficulty scoring service."""
 
+from __future__ import annotations
+
+import logging
 from typing import Any
+
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Pydantic schema for LLM JSON output
+# ---------------------------------------------------------------------------
+
+class _ChapterSchema(BaseModel):
+    """Schema for a single chapter produced by the LLM."""
+
+    segment_index: int
+    start_seconds: float
+    end_seconds: float
+    title: str
+    summary: str
+    difficulty_score: float = Field(ge=0.0, le=1.0)
+    tags: list[str]
+
+
+class _SegmentationResult(BaseModel):
+    """Top-level schema for LLM segmentation response."""
+
+    chapters: list[_ChapterSchema]
+
+
+# ---------------------------------------------------------------------------
+# System prompt
+# ---------------------------------------------------------------------------
+
+_SYSTEM_PROMPT = """\
+You are an expert educational content analyst. Given a video transcript, \
+divide it into semantically coherent chapters.
+
+For each chapter provide:
+- segment_index: 0-based sequential index
+- start_seconds / end_seconds: approximate time boundaries
+- title: short descriptive title
+- summary: 1-2 sentence summary of the content
+- difficulty_score: float 0.0-1.0 based on vocabulary complexity and concept density
+- tags: 3-5 topic tags for the segment
+
+If the transcript is in Korean, produce titles, summaries, and tags in Korean.
+
+Return a JSON object with a single key "chapters" containing a list \
+of chapter objects. Do NOT include any text outside the JSON object."""
 
 
 class SegmenterService:
     """Service for segmenting transcripts into chapters with difficulty scores."""
+
+    def __init__(self, llm: Any | None = None) -> None:
+        """Initialize segmenter with optional LLM adapter.
+
+        Args:
+            llm: LLMAdapter instance. If None, segment_transcript will raise
+                NotImplementedError when called on non-empty transcripts.
+        """
+        self._llm = llm
 
     def segment_transcript(
         self,
@@ -20,6 +80,10 @@ class SegmenterService:
         Returns:
             List of segment dicts with segment_index, start_seconds, end_seconds,
             title, summary, difficulty_score, tags.
+
+        Raises:
+            NotImplementedError: If no LLM adapter is configured.
+            ValueError: If LLM response cannot be parsed after retries.
         """
         if not transcript_text.strip():
             return []
@@ -38,12 +102,26 @@ class SegmenterService:
 
         Raises:
             NotImplementedError: When no LLM client is configured.
+            ValueError: If LLM response cannot be parsed.
         """
-        # [VERIFY] This will be connected to actual LLM API (Anthropic/OpenAI)
-        raise NotImplementedError(
-            "LLM backend requires API configuration. "
-            "Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable."
+        if self._llm is None:
+            raise NotImplementedError(
+                "LLM backend requires API configuration. "
+                "Set ANTHROPIC_API_KEY or OPENAI_API_KEY environment variable."
+            )
+
+        user_prompt = (
+            f"Segment the following transcript for video {video_id}:\n\n"
+            f"{transcript_text}"
         )
+
+        result: _SegmentationResult = self._llm.complete_json(
+            _SYSTEM_PROMPT,
+            user_prompt,
+            _SegmentationResult,
+        )
+
+        return [chapter.model_dump() for chapter in result.chapters]
 
 
 def compare_with_retention(

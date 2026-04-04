@@ -14,6 +14,7 @@ def tmp_data_dir(tmp_path: Path) -> Path:
     (data_dir / "raw" / "comments").mkdir(parents=True)
     (data_dir / "raw" / "retention").mkdir(parents=True)
     (data_dir / "raw" / "transcripts").mkdir(parents=True)
+    (data_dir / "raw" / "analytics").mkdir(parents=True)
     (data_dir / "processed" / "sentiment").mkdir(parents=True)
     (data_dir / "processed" / "segments").mkdir(parents=True)
     (data_dir / "processed" / "eqs").mkdir(parents=True)

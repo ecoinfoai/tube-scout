@@ -11,10 +11,14 @@ from tube_scout.cli.analyze import (
     analyze_forecast_command,
     analyze_retention_command,
     analyze_sentiment_command,
+    analyze_topic_command,
     analyze_transcript_command,
 )
+from tube_scout.cli.auth_cli import auth_command
 from tube_scout.cli.collect import (
     collect_all_command,
+    collect_analytics_command,
+    collect_bulk_command,
     collect_comments_command,
     collect_retention_command,
     collect_transcripts_command,
@@ -22,10 +26,19 @@ from tube_scout.cli.collect import (
 )
 from tube_scout.cli.report import (
     report_channel_command,
+    report_comment_insight_command,
+    report_department_command,
     report_video_command,
 )
-from tube_scout.models.config import AppConfig, ChannelConfig, Settings
-from tube_scout.storage.json_store import write_json
+from tube_scout.cli.search_cli import search_command
+from tube_scout.cli.validate_cli import validate_command
+from tube_scout.models.config import (
+    AcademicCalendar,
+    AppConfig,
+    ChannelConfig,
+    Settings,
+)
+from tube_scout.storage.json_store import read_json, write_json
 
 app = typer.Typer(
     name="tube-scout",
@@ -39,15 +52,23 @@ collect_app = typer.Typer(help="Collect data from YouTube APIs.")
 analyze_app = typer.Typer(help="Analyze collected data.")
 report_app = typer.Typer(help="Generate analysis reports.")
 
+calendar_app = typer.Typer(help="Manage academic calendar for forecasting.")
+
+app.command(name="auth")(auth_command)
+app.command(name="search")(search_command)
+app.command(name="validate")(validate_command)
 app.add_typer(collect_app, name="collect")
 app.add_typer(analyze_app, name="analyze")
 app.add_typer(report_app, name="report")
+app.add_typer(calendar_app, name="calendar")
 
 # Register collect subcommands
 collect_app.command(name="videos")(collect_videos_command)
 collect_app.command(name="retention")(collect_retention_command)
 collect_app.command(name="comments")(collect_comments_command)
 collect_app.command(name="transcripts")(collect_transcripts_command)
+collect_app.command(name="analytics")(collect_analytics_command)
+collect_app.command(name="bulk")(collect_bulk_command)
 collect_app.command(name="all")(collect_all_command)
 
 # Register analyze subcommands
@@ -55,12 +76,15 @@ analyze_app.command(name="retention")(analyze_retention_command)
 analyze_app.command(name="sentiment")(analyze_sentiment_command)
 analyze_app.command(name="transcript")(analyze_transcript_command)
 analyze_app.command(name="eqs")(analyze_eqs_command)
+analyze_app.command(name="topic")(analyze_topic_command)
 analyze_app.command(name="forecast")(analyze_forecast_command)
 analyze_app.command(name="all")(analyze_all_command)
 
 # Register report subcommands
 report_app.command(name="video")(report_video_command)
 report_app.command(name="channel")(report_channel_command)
+report_app.command(name="comment-insight")(report_comment_insight_command)
+report_app.command(name="department")(report_department_command)
 
 
 def _version_callback(value: bool) -> None:
@@ -167,3 +191,91 @@ def list_videos(
     from tube_scout.cli.status import show_list
 
     show_list(Path(data_dir), sort=sort, limit=limit)
+
+
+@calendar_app.command(name="set")
+def calendar_set(
+    file: str = typer.Option(
+        ...,
+        "--file",
+        help="Path to academic calendar JSON file.",
+    ),
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Data storage directory.",
+    ),
+) -> None:
+    """Set academic calendar for forecasting.
+
+    Args:
+        file: Path to calendar JSON file.
+        data_dir: Data storage directory path.
+    """
+    from pydantic import ValidationError
+
+    calendar_path = Path(file)
+    if not calendar_path.exists():
+        console.print(f"[red]Calendar file not found: {file}[/red]")
+        raise typer.Exit(code=1)
+
+    calendar_data = read_json(calendar_path)
+    if calendar_data is None:
+        console.print("[red]Failed to read calendar file.[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        calendar = AcademicCalendar(**calendar_data)
+    except ValidationError as e:
+        console.print(f"[red]Academic calendar file is invalid: {e}[/red]")
+        raise typer.Exit(code=1)
+
+    data_path = Path(data_dir)
+    data_path.mkdir(parents=True, exist_ok=True)
+    write_json(data_path / "calendar.json", calendar.model_dump(mode="json"))
+    console.print(
+        f"[green]Academic calendar saved with "
+        f"{len(calendar.events)} event(s).[/green]"
+    )
+
+
+@calendar_app.command(name="show")
+def calendar_show(
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Data storage directory.",
+    ),
+) -> None:
+    """Display current academic calendar.
+
+    Args:
+        data_dir: Data storage directory path.
+    """
+    from rich.table import Table
+
+    data_path = Path(data_dir)
+    calendar_data = read_json(data_path / "calendar.json")
+    if calendar_data is None:
+        console.print(
+            "[yellow]No academic calendar set. "
+            "Use 'tube-scout calendar set --file PATH' to configure.[/yellow]"
+        )
+        raise typer.Exit(code=1)
+
+    events = calendar_data.get("events", [])
+    table = Table(title="Academic Calendar")
+    table.add_column("Name", style="cyan")
+    table.add_column("Start Date", style="green")
+    table.add_column("End Date", style="green")
+    table.add_column("Type", style="yellow")
+
+    for event in events:
+        table.add_row(
+            event.get("name", ""),
+            event.get("start_date", ""),
+            event.get("end_date", ""),
+            event.get("event_type", ""),
+        )
+
+    console.print(table)

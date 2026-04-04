@@ -19,3 +19,5 @@ class Comment(BaseModel):
     is_question: bool = False
     analysis_backend: str | None = None
     analyzed_at: datetime | None = None
+    parent_comment_id: str | None = None
+    reply_count: int = 0

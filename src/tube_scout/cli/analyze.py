@@ -123,7 +123,7 @@ def analyze_sentiment_command(
     sentiment_backend: str = typer.Option(
         "llm",
         "--sentiment-backend",
-        help="Backend: llm/local/skip.",
+        help="Backend: llm (cloud LLM) or local (on-device NLP).",
     ),
 ) -> None:
     """Analyze comment sentiment, topics, and questions.
@@ -189,6 +189,119 @@ def analyze_sentiment_command(
         console.print(
             f"  [green]{vid}: {len(results)} comments analyzed, "
             f"{len(questions)} questions found[/green]"
+        )
+
+
+def analyze_topic_command(
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Data storage directory.",
+    ),
+    video_id: str | None = typer.Option(
+        None,
+        "--video-id",
+        help="Specific video ID.",
+    ),
+) -> None:
+    """Extract topics and questions from comments, cross-reference with hotspots.
+
+    Args:
+        data_dir: Data storage directory path.
+        video_id: Optional specific video ID.
+    """
+    from tube_scout.services.topic_extractor import TopicExtractorService
+
+    data_path = Path(data_dir)
+    comments_dir = data_path / "raw" / "comments"
+
+    if not comments_dir.exists():
+        console.print(
+            "[red]No comment data found. Run 'tube-scout collect comments' first.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    files = (
+        [comments_dir / f"{video_id}.json"]
+        if video_id
+        else list(comments_dir.glob("*.json"))
+    )
+
+    if not files:
+        console.print("[yellow]No comment data files found.[/yellow]")
+        raise typer.Exit(code=1)
+
+    service = TopicExtractorService()
+
+    for filepath in files:
+        if not filepath.exists():
+            console.print(f"[yellow]No comments for {filepath.stem}[/yellow]")
+            continue
+
+        comments_data = read_json(filepath)
+        if not comments_data:
+            continue
+
+        vid = filepath.stem
+        comments = comments_data if isinstance(comments_data, list) else []
+
+        try:
+            clusters = service.extract_topics(vid, comments)
+            questions = service.extract_questions(vid, comments)
+        except ValueError as e:
+            console.print(f"[yellow]{vid}: {e}[/yellow]")
+            continue
+
+        # Load hotspots for cross-reference if available
+        retention_path = data_path / "processed" / "retention" / f"{vid}.json"
+        retention_data = read_json(retention_path) or {}
+        hotspots = retention_data.get("hotspots", [])
+
+        matches: list[dict] = []
+        if hotspots and questions:
+            try:
+                matches = service.cross_reference_with_hotspots(
+                    vid, comments, hotspots
+                )
+            except ValueError:
+                pass
+
+        # Save results
+        topics_dir = data_path / "processed" / "topics"
+        topics_dir.mkdir(parents=True, exist_ok=True)
+        write_json(topics_dir / f"{vid}.json", clusters)
+
+        questions_dir = data_path / "processed" / "questions"
+        questions_dir.mkdir(parents=True, exist_ok=True)
+        write_json(questions_dir / f"{vid}.json", {
+            "questions": questions,
+            "hotspot_matches": matches,
+        })
+
+        # Display topic summary
+        table = Table(title=f"Topic Clusters: {vid}")
+        table.add_column("Topic", style="cyan")
+        table.add_column("Comments", style="yellow")
+        table.add_column("Sentiment", style="green")
+
+        for cluster in clusters:
+            dist = cluster.get("sentiment_distribution", {})
+            sentiment_str = ", ".join(
+                f"{k}: {v:.0%}" for k, v in dist.items() if v > 0
+            )
+            table.add_row(
+                cluster["topic_label"],
+                str(len(cluster["comment_ids"])),
+                sentiment_str,
+            )
+
+        if clusters:
+            console.print(table)
+
+        console.print(
+            f"  [green]{vid}: {len(clusters)} topics, "
+            f"{len(questions)} questions, "
+            f"{len(matches)} hotspot matches[/green]"
         )
 
 
@@ -369,11 +482,35 @@ def analyze_forecast_command(
         "--data-dir",
         help="Data storage directory.",
     ),
+    video_id: str | None = typer.Option(
+        None,
+        "--video-id",
+        help="Forecast for a specific video.",
+    ),
+    model: str = typer.Option(
+        "auto",
+        "--model",
+        help="Model: auto (default) | linear | arima | prophet.",
+    ),
+    calendar: str | None = typer.Option(
+        None,
+        "--calendar",
+        help="Path to academic calendar JSON file.",
+    ),
+    horizon_days: int = typer.Option(
+        30,
+        "--horizon-days",
+        help="Forecast horizon in days.",
+    ),
 ) -> None:
     """Run time series forecasting and anomaly detection.
 
     Args:
         data_dir: Data storage directory path.
+        video_id: Optional specific video ID.
+        model: Forecasting model to use.
+        calendar: Optional path to academic calendar JSON.
+        horizon_days: Number of days to forecast.
     """
     from tube_scout.services.forecaster import ForecasterService
 
@@ -388,37 +525,35 @@ def analyze_forecast_command(
     config = AppConfig(**config_data)
     service = ForecasterService()
 
+    # Load calendar events
+    calendar_events = None
+    if calendar:
+        cal_data = read_json(Path(calendar))
+        if cal_data:
+            calendar_events = cal_data.get("events", [])
+    else:
+        # Try loading from default location
+        cal_data = read_json(data_path / "calendar.json")
+        if cal_data:
+            calendar_events = cal_data.get("events", [])
+
     for channel_config in config.channels:
         channel_id = channel_config.channel_id
-        videos_path = data_path / "raw" / "channels" / channel_id / "videos_meta.json"
-        videos_data = read_json(videos_path)
-        if not videos_data:
-            console.print(f"[yellow]No video data for {channel_id}[/yellow]")
+
+        # Prefer daily_metrics from analytics (US1) over video-level data
+        historical = _load_daily_metrics(data_path, channel_id)
+
+        if not historical:
+            # Fallback to video publish dates and view counts
+            historical = _load_video_time_series(data_path, channel_id)
+
+        if not historical:
+            console.print(
+                f"[yellow]No time-series data for {channel_id}. "
+                "Run 'tube-scout collect analytics' or "
+                "'tube-scout collect videos' first.[/yellow]"
+            )
             continue
-
-        videos = (
-            videos_data
-            if isinstance(videos_data, list)
-            else videos_data.get("videos", [])
-        )
-
-        # Build time series from video publish dates and view counts
-        historical = []
-        for v in videos:
-            if v.get("published_at") and v.get("view_count"):
-                from datetime import date as dt_date
-
-                pub = v["published_at"][:10]
-                try:
-                    d = dt_date.fromisoformat(pub)
-                    historical.append(
-                        {
-                            "date": d.toordinal(),
-                            "value": v["view_count"],
-                        }
-                    )
-                except (ValueError, TypeError):
-                    continue
 
         historical.sort(key=lambda x: x["date"])
 
@@ -427,7 +562,9 @@ def analyze_forecast_command(
                 channel_id=channel_id,
                 metric_name="view_count",
                 historical_data=historical,
-                horizon_days=30,
+                horizon_days=horizon_days,
+                model=model,
+                calendar_events=calendar_events,
             )
         except ValueError as e:
             console.print(f"[yellow]{channel_id}: {e}[/yellow]")
@@ -442,10 +579,88 @@ def analyze_forecast_command(
         anomalies = service.detect_anomalies(historical)
         anomaly_count = sum(1 for a in anomalies if a["is_anomaly"])
 
+        model_used = forecasts[0].get("model_used", model) if forecasts else model
         console.print(
-            f"[green]{channel_id}: {len(forecasts)} days forecasted, "
+            f"[green]{channel_id}: {len(forecasts)} days forecasted "
+            f"(model={model_used}), "
             f"{anomaly_count} anomalies detected[/green]"
         )
+
+
+def _load_daily_metrics(
+    data_path: Path, channel_id: str
+) -> list[dict[str, object]]:
+    """Load daily metrics from analytics Parquet data (T071).
+
+    Args:
+        data_path: Root data directory.
+        channel_id: YouTube channel ID.
+
+    Returns:
+        List of dicts with 'date' (ordinal) and 'value'.
+    """
+    from tube_scout.storage.parquet_store import read_parquet
+
+    parquet_path = (
+        data_path / "raw" / "analytics" / channel_id / "daily_metrics.parquet"
+    )
+    df = read_parquet(parquet_path)
+    if df is None:
+        return []
+
+    from datetime import date as dt_date
+
+    result = []
+    for row in df.to_dicts():
+        try:
+            d = dt_date.fromisoformat(str(row["date"]))
+            result.append({
+                "date": d.toordinal(),
+                "value": row.get("views", 0),
+            })
+        except (ValueError, TypeError, KeyError):
+            continue
+    return result
+
+
+def _load_video_time_series(
+    data_path: Path, channel_id: str
+) -> list[dict[str, object]]:
+    """Load time series from video metadata (legacy fallback).
+
+    Args:
+        data_path: Root data directory.
+        channel_id: YouTube channel ID.
+
+    Returns:
+        List of dicts with 'date' (ordinal) and 'value'.
+    """
+    from datetime import date as dt_date
+
+    videos_path = data_path / "raw" / "channels" / channel_id / "videos_meta.json"
+    videos_data = read_json(videos_path)
+    if not videos_data:
+        return []
+
+    videos = (
+        videos_data
+        if isinstance(videos_data, list)
+        else videos_data.get("videos", [])
+    )
+
+    result = []
+    for v in videos:
+        if v.get("published_at") and v.get("view_count"):
+            pub = v["published_at"][:10]
+            try:
+                d = dt_date.fromisoformat(pub)
+                result.append({
+                    "date": d.toordinal(),
+                    "value": v["view_count"],
+                })
+            except (ValueError, TypeError):
+                continue
+    return result
 
 
 def analyze_all_command(
@@ -457,7 +672,7 @@ def analyze_all_command(
     sentiment_backend: str = typer.Option(
         "llm",
         "--sentiment-backend",
-        help="Backend: llm/local/skip.",
+        help="Backend: llm (cloud LLM) or local (on-device NLP).",
     ),
 ) -> None:
     """Run all analysis steps in sequence.
@@ -476,6 +691,7 @@ def analyze_all_command(
                 sentiment_backend=sentiment_backend,
             ),
         ),
+        ("Topic extraction", lambda: analyze_topic_command(data_dir=data_dir)),
         ("Transcript analysis", lambda: analyze_transcript_command(data_dir=data_dir)),
         ("Retention analysis", lambda: analyze_retention_command(data_dir=data_dir)),
         ("EQS scoring", lambda: analyze_eqs_command(data_dir=data_dir)),

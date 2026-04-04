@@ -64,7 +64,9 @@ class TranscriptService:
                     {
                         "text": s.text if hasattr(s, "text") else s["text"],
                         "start": s.start if hasattr(s, "start") else s["start"],
-                        "duration": s.duration if hasattr(s, "duration") else s["duration"],
+                        "duration": (
+                            s.duration if hasattr(s, "duration") else s["duration"]
+                        ),
                     }
                     for s in snippets
                 ],
@@ -84,7 +86,9 @@ class TranscriptService:
                     {
                         "text": s.text if hasattr(s, "text") else s["text"],
                         "start": s.start if hasattr(s, "start") else s["start"],
-                        "duration": s.duration if hasattr(s, "duration") else s["duration"],
+                        "duration": (
+                            s.duration if hasattr(s, "duration") else s["duration"]
+                        ),
                     }
                     for s in snippets
                 ],

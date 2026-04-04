@@ -40,6 +40,8 @@ class Settings(BaseModel):
     data_dir: str = "./data"
     sentiment_backend: str = "llm"
     default_report_format: str = "html"
+    llm_provider: str = "claude"
+    analytics_start_date: str | None = None
 
 
 class AppConfig(BaseModel):
@@ -69,6 +71,106 @@ class CollectionState(BaseModel):
     started_at: datetime | None = None
     updated_at: datetime | None = None
     status: str = "in_progress"
+    analytics_last_dates: dict[str, str] = {}
+
+
+VALID_EVENT_TYPES = frozenset({
+    "semester_start",
+    "semester_end",
+    "exam",
+    "assignment",
+    "holiday",
+    "other",
+})
+
+
+class CalendarEvent(BaseModel):
+    """A single academic calendar event."""
+
+    name: str = Field(..., min_length=1)
+    start_date: str
+    end_date: str
+    event_type: str
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, v: str) -> str:
+        """Validate that name is not blank."""
+        if not v.strip():
+            raise ValueError("name must not be blank")
+        return v.strip()
+
+    @field_validator("event_type")
+    @classmethod
+    def event_type_must_be_valid(cls, v: str) -> str:
+        """Validate that event_type is one of the allowed values."""
+        if v not in VALID_EVENT_TYPES:
+            raise ValueError(
+                f"event_type must be one of {sorted(VALID_EVENT_TYPES)}"
+            )
+        return v
+
+    @field_validator("end_date")
+    @classmethod
+    def end_date_must_be_gte_start_date(cls, v: str, info: object) -> str:
+        """Validate that end_date >= start_date."""
+        start = getattr(info, "data", {}).get("start_date")
+        if start and v < start:
+            raise ValueError("end_date must be >= start_date")
+        return v
+
+
+class AcademicCalendar(BaseModel):
+    """Academic calendar with a list of events."""
+
+    events: list[CalendarEvent] = Field(..., min_length=1)
+
+    @field_validator("events")
+    @classmethod
+    def events_must_not_be_empty(
+        cls, v: list[CalendarEvent],
+    ) -> list[CalendarEvent]:
+        """Validate that at least one event is configured."""
+        if not v:
+            raise ValueError("events must contain at least one entry")
+        return v
+
+
+class ChannelRegistration(BaseModel):
+    """A registered department channel for multi-channel management."""
+
+    alias: str = Field(..., min_length=1)
+    channel_id: str = Field(..., min_length=1)
+    channel_name: str = Field(..., min_length=1)
+    registered_at: str
+    last_used_at: str
+    token_path: str
+
+    @field_validator("alias")
+    @classmethod
+    def alias_must_not_be_blank(cls, v: str) -> str:
+        """Validate that alias is not blank."""
+        if not v.strip():
+            raise ValueError("alias must not be blank")
+        return v
+
+    @field_validator("channel_id")
+    @classmethod
+    def channel_id_must_start_with_uc(cls, v: str) -> str:
+        """Validate that channel_id starts with 'UC'."""
+        if not v.startswith("UC"):
+            raise ValueError(
+                "channel_id must start with 'UC'"
+            )
+        return v
+
+    @field_validator("channel_name")
+    @classmethod
+    def channel_name_must_not_be_blank(cls, v: str) -> str:
+        """Validate that channel_name is not blank."""
+        if not v.strip():
+            raise ValueError("channel_name must not be blank")
+        return v
 
 
 class Report(BaseModel):

@@ -711,9 +711,9 @@ class TestLLMBackendsNotConfigured:
     """Persona: LLM API keys not set, backends raise NotImplementedError."""
 
     def test_sentiment_llm_backend_raises(self) -> None:
-        """LLM sentiment backend should raise NotImplementedError."""
+        """LLM sentiment backend should raise ValueError when no API key."""
         service = SentimentService(backend="llm")
-        with pytest.raises(NotImplementedError, match="API configuration"):
+        with pytest.raises(ValueError, match="sentiment-backend local"):
             service.analyze_batch([{"comment_id": "c1", "text": "test"}])
 
     def test_segmenter_raises(self) -> None:

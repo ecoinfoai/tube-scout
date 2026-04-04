@@ -1,0 +1,24 @@
+{
+  "video_id": "ref_vid001",
+  "transcript": "Welcome to the lecture on machine learning. Today we will cover the basics of supervised learning, including linear regression and classification. Let us start with the fundamentals of what machine learning is. Machine learning is a subset of artificial intelligence that focuses on building systems that learn from data. Now let's move on to linear regression. Linear regression is a statistical method for modeling the relationship between a dependent variable and one or more independent variables. The cost function, also known as the loss function, measures the error between predicted and actual values. We use gradient descent to minimize this cost function iteratively. Finally, let's discuss classification. Classification is a type of supervised learning where the output is a category. Logistic regression, despite its name, is used for classification tasks. It uses the sigmoid function to map predictions to probabilities. Thank you for attending today's lecture.",
+  "reference_segments": [
+    {
+      "segment_index": 0,
+      "start_seconds": 0.0,
+      "end_seconds": 60.0,
+      "title": "Introduction to Machine Learning"
+    },
+    {
+      "segment_index": 1,
+      "start_seconds": 60.0,
+      "end_seconds": 180.0,
+      "title": "Linear Regression and Cost Functions"
+    },
+    {
+      "segment_index": 2,
+      "start_seconds": 180.0,
+      "end_seconds": 300.0,
+      "title": "Classification and Logistic Regression"
+    }
+  ]
+}
