@@ -40,6 +40,7 @@
               fontconfig
               freetype
             ])}:''${LD_LIBRARY_PATH:-}"
+
           '';
         };
       });
