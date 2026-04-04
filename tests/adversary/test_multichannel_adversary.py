@@ -6,10 +6,8 @@ All external dependencies (APIs, filesystem, OAuth) are mocked.
 """
 
 import json
-import os
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
@@ -17,13 +15,7 @@ from pydantic import ValidationError
 
 from tube_scout.models.config import ChannelRegistration
 from tube_scout.models.parsed_title import ParsedTitle
-from tube_scout.models.report import (
-    ComplianceMatrix,
-    DepartmentOverview,
-    ProfessorDetail,
-)
-from tube_scout.models.search import ExcludeRule, SearchFilter, SearchQuery
-from tube_scout.models.validation import ValidationFinding
+from tube_scout.models.search import SearchFilter, SearchQuery
 from tube_scout.models.video import Video
 from tube_scout.output.manager import OutputManager
 from tube_scout.reporting.department_report import DepartmentReportGenerator
@@ -31,7 +23,6 @@ from tube_scout.services.auth import load_registry, save_registry
 from tube_scout.services.search_service import SearchService
 from tube_scout.services.title_parser import TitleParser
 from tube_scout.services.validator import (
-    check_duplicates,
     check_invalid_week,
     check_missing_weeks,
     check_name_inconsistency,
@@ -236,7 +227,7 @@ class TestCorruptRegistryAttacker:
 # PERSONA 3: Abnormal Title Bomber
 # ============================================================
 class TestAbnormalTitleBomber:
-    """Emoji-only, 10000 chars, SQL injection, HTML injection, null bytes, control chars."""
+    """Emoji-only, 10k chars, SQL/HTML injection, null bytes."""
 
     @pytest.fixture
     def parser(self) -> TitleParser:
@@ -244,7 +235,8 @@ class TestAbnormalTitleBomber:
 
     def test_emoji_only_title(self, parser: TitleParser) -> None:
         """Emoji-only title should not crash, should flag parse_error."""
-        result = parser.parse("\U0001f525\U0001f4af\U0001f60d\U0001f44d\U0001f921\U0001f480", "emoji001")
+        emoji_str = "\U0001f525\U0001f4af\U0001f60d\U0001f44d\U0001f921\U0001f480"
+        result = parser.parse(emoji_str, "emoji001")
         assert isinstance(result, ParsedTitle)
         assert result.parse_error is True
 
@@ -346,8 +338,14 @@ class TestProfessorNameConfuser:
     def test_name_with_space_variation(self) -> None:
         """'홍길동' vs '홍길 동' should be detected by V-004 name inconsistency."""
         titles = [
-            _make_parsed_title("v1", professor=["홍길동"], course="간호학", week=1, session=1),
-            _make_parsed_title("v2", professor=["홍길 동"], course="간호학", week=2, session=1),
+            _make_parsed_title(
+                "v1", professor=["홍길동"], course="간호학",
+                week=1, session=1,
+            ),
+            _make_parsed_title(
+                "v2", professor=["홍길 동"], course="간호학",
+                week=2, session=1,
+            ),
         ]
         findings = check_name_inconsistency(titles)
         # Edit distance of "홍길동" vs "홍길 동" is 1 (insertion of space)
@@ -357,8 +355,14 @@ class TestProfessorNameConfuser:
     def test_same_name_different_courses(self) -> None:
         """Same professor name across different courses should not trigger V-004."""
         titles = [
-            _make_parsed_title("v1", professor=["홍길동"], course="간호학", week=1, session=1),
-            _make_parsed_title("v2", professor=["홍길동"], course="미생물학", week=1, session=1),
+            _make_parsed_title(
+                "v1", professor=["홍길동"], course="간호학",
+                week=1, session=1,
+            ),
+            _make_parsed_title(
+                "v2", professor=["홍길동"], course="미생물학",
+                week=1, session=1,
+            ),
         ]
         findings = check_name_inconsistency(titles)
         assert len(findings) == 0
@@ -418,7 +422,10 @@ class TestWeekNumberExtremist:
     def test_week_zero_flagged(self) -> None:
         """Week 0 should trigger V-003 ERROR."""
         titles = [
-            _make_parsed_title("v1", professor=["홍길동"], course="간호학", week=0, session=1),
+            _make_parsed_title(
+                "v1", professor=["홍길동"], course="간호학",
+                week=0, session=1,
+            ),
         ]
         findings = check_invalid_week(titles)
         assert len(findings) == 1
@@ -428,7 +435,10 @@ class TestWeekNumberExtremist:
     def test_week_negative_flagged(self) -> None:
         """Negative week should trigger V-003 ERROR."""
         titles = [
-            _make_parsed_title("v1", professor=["홍길동"], course="간호학", week=-1, session=1),
+            _make_parsed_title(
+                "v1", professor=["홍길동"], course="간호학",
+                week=-1, session=1,
+            ),
         ]
         findings = check_invalid_week(titles)
         assert len(findings) == 1
@@ -437,7 +447,10 @@ class TestWeekNumberExtremist:
     def test_week_100_flagged(self) -> None:
         """Week 100 should trigger V-003 ERROR."""
         titles = [
-            _make_parsed_title("v1", professor=["홍길동"], course="간호학", week=100, session=1),
+            _make_parsed_title(
+                "v1", professor=["홍길동"], course="간호학",
+                week=100, session=1,
+            ),
         ]
         findings = check_invalid_week(titles)
         assert len(findings) == 1
@@ -445,7 +458,10 @@ class TestWeekNumberExtremist:
     def test_week_none_skipped(self) -> None:
         """week=None should be silently skipped by V-003."""
         titles = [
-            _make_parsed_title("v1", professor=["홍길동"], course="간호학", week=None, session=1),
+            _make_parsed_title(
+                "v1", professor=["홍길동"], course="간호학",
+                week=None, session=1,
+            ),
         ]
         findings = check_invalid_week(titles)
         assert len(findings) == 0
@@ -453,8 +469,14 @@ class TestWeekNumberExtremist:
     def test_session_gap_with_session_zero_skipped(self) -> None:
         """session=0 or session=None should not crash session gap check."""
         titles = [
-            _make_parsed_title("v1", professor=["홍길동"], course="간호학", week=1, session=None),
-            _make_parsed_title("v2", professor=["홍길동"], course="간호학", week=2, session=2),
+            _make_parsed_title(
+                "v1", professor=["홍길동"], course="간호학",
+                week=1, session=None,
+            ),
+            _make_parsed_title(
+                "v2", professor=["홍길동"], course="간호학",
+                week=2, session=2,
+            ),
         ]
         findings = check_session_gaps(titles)
         # Should detect session 2 without session 1 for week 2
@@ -640,7 +662,10 @@ class TestMultichannelCrossCutting:
     def test_search_with_injection_in_professor_filter(self) -> None:
         """SQL injection in professor filter should not crash search."""
         titles = [
-            _make_parsed_title("v1", professor=["홍길동"], course="간호학", week=1, session=1),
+            _make_parsed_title(
+                "v1", professor=["홍길동"], course="간호학",
+                week=1, session=1,
+            ),
         ]
         query = SearchQuery(
             filters=SearchFilter(professor="'; DROP TABLE videos; --")

@@ -102,9 +102,9 @@ class TestCollectVideosFlow:
     """Integration test: init -> collect videos -> verify data files."""
 
     @patch.dict("os.environ", {"YOUTUBE_API_KEY": "fake-key"})
-    @patch("tube_scout.services.youtube_data.build")
+    @patch("tube_scout.services.auth.build_data_client")
     def test_collect_creates_data_files(
-        self, mock_build: MagicMock, tmp_path: Path
+        self, mock_build_client: MagicMock, tmp_path: Path
     ) -> None:
         data_dir = tmp_path / "data"
         data_dir.mkdir()
@@ -113,13 +113,15 @@ class TestCollectVideosFlow:
 
         # Set up mock API client
         mock_client = MagicMock()
-        mock_build.return_value = mock_client
+        mock_build_client.return_value = mock_client
 
-        mock_client.channels().list().execute.return_value = _mock_channel_response()
-        mock_client.playlistItems().list().execute.return_value = (
+        mock_client.channels().list.return_value.execute.return_value = (
+            _mock_channel_response()
+        )
+        mock_client.playlistItems().list.return_value.execute.return_value = (
             _mock_playlist_response()
         )
-        mock_client.videos().list().execute.return_value = (
+        mock_client.videos().list.return_value.execute.return_value = (
             _mock_video_details_response()
         )
 
