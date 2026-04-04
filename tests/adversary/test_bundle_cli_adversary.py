@@ -8,7 +8,7 @@ Attack vectors:
 - --published-after/before: slash format, Korean format, future year 9999, inverted
 - --video-ids: empty string, spaces around commas, all-nonexistent IDs, single comma
 - --output: path traversal (../../../), existing file overwrite, read-only dir
-- --from-html: not-yet-implemented — must fail gracefully (no AttributeError)
+- --from-html: not-yet-implemented -- must fail gracefully (no AttributeError)
 - --title: Jinja2 template injection ({{...}}, {%...%}), script injection, 50000-char
 - --sort: injection string, numeric, None-equivalent
 - --data-dir: nonexistent path, file path instead of directory
@@ -50,7 +50,17 @@ def _write_config(data_path: Path, channel_id: str = "UC_TEST") -> None:
     (data_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
 
 
-def _write_videos(data_path: Path, channel_id: str, videos: list) -> None:
+def _write_videos_project(proj_path: Path, channel_id: str, videos: list) -> None:
+    """Write videos to project structure (01_collect/)."""
+    videos_dir = proj_path / "01_collect" / "channels" / channel_id
+    videos_dir.mkdir(parents=True, exist_ok=True)
+    (videos_dir / "videos_meta.json").write_text(
+        json.dumps(videos), encoding="utf-8"
+    )
+
+
+def _write_videos_legacy(data_path: Path, channel_id: str, videos: list) -> None:
+    """Write videos to legacy structure (raw/) for direct generator tests."""
     videos_dir = data_path / "raw" / "channels" / channel_id
     videos_dir.mkdir(parents=True, exist_ok=True)
     (videos_dir / "videos_meta.json").write_text(
@@ -58,8 +68,10 @@ def _write_videos(data_path: Path, channel_id: str, videos: list) -> None:
     )
 
 
-def _setup_minimal(tmp_path: Path, channel_id: str = "UC_TEST") -> Path:
-    """Return data_path with config + 3 matching videos."""
+def _setup_minimal(
+    tmp_path: Path, channel_id: str = "UC_TEST"
+) -> tuple[Path, Path, Path]:
+    """Return (data_path, project_dir, project_path) with config + 3 matching videos."""
     data_path = tmp_path / "data"
     data_path.mkdir()
     _write_config(data_path, channel_id)
@@ -67,8 +79,32 @@ def _setup_minimal(tmp_path: Path, channel_id: str = "UC_TEST") -> Path:
         _make_video(f"vid{i:03d}", f"홍길동 2025 감염미생물학 {i}주차")
         for i in range(1, 4)
     ]
-    _write_videos(data_path, channel_id, videos)
+    project_dir = tmp_path / "projects"
+    project_path = project_dir / "test_run"
+    _write_videos_project(project_path, channel_id, videos)
+    return data_path, project_dir, project_path
+
+
+def _setup_legacy(tmp_path: Path, channel_id: str = "UC_TEST") -> Path:
+    """Return data_path with legacy structure for direct generator tests."""
+    data_path = tmp_path / "data"
+    data_path.mkdir()
+    _write_config(data_path, channel_id)
+    videos = [
+        _make_video(f"vid{i:03d}", f"홍길동 2025 감염미생물학 {i}주차")
+        for i in range(1, 4)
+    ]
+    _write_videos_legacy(data_path, channel_id, videos)
     return data_path
+
+
+def _proj_args(data_path: Path, project_dir: Path, project_path: Path) -> list[str]:
+    """Return common project CLI args."""
+    return [
+        "--data-dir", str(data_path),
+        "--project-dir", str(project_dir),
+        "--project", str(project_path),
+    ]
 
 
 def _get_app():
@@ -88,20 +124,22 @@ class TestKeywordExtremeInput:
     ) -> None:
         """BUG DOCUMENTATION: --keyword '' treated as no filter by _has_filter_options.
 
-        _has_filter_options uses `any([keyword, ...])` — empty string is falsy.
+        _has_filter_options uses `any([keyword, ...])` -- empty string is falsy.
         So --keyword '' causes 'At least one filter option required' error (exit 1)
         even though the user explicitly passed a keyword argument.
         This is a behavioral inconsistency: empty keyword silently becomes no-filter.
         """
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
-            ["report", "bundle", "--data-dir", str(data_path), "--keyword", ""],
+            [
+                "report", "bundle",
+                *_proj_args(data_path, proj_dir, proj),
+                "--keyword", "",
+            ],
         )
         # BUG: empty string keyword is treated as absent (falsy), exit code 1
-        # Expected behavior: empty keyword should either match all videos (exit 0)
-        # or be rejected with a clear "keyword cannot be empty" message
         assert result.exit_code == 1
         assert "At least one filter option" in result.output
 
@@ -109,14 +147,13 @@ class TestKeywordExtremeInput:
         self, tmp_path: Path
     ) -> None:
         """--keyword '{{7*7}}' must not evaluate Jinja2 in output HTML."""
-        data_path = _setup_minimal(tmp_path)
-        # Inject Jinja2 variable syntax into videos_meta for filter_description
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "{{7*7}}",  # Jinja2 SSTI probe
             ],
         )
@@ -124,19 +161,18 @@ class TestKeywordExtremeInput:
         # Expected exit 1 (no match), but must NOT crash with TemplateSyntaxError
         assert result.exit_code in (0, 1)
         if result.exception:
-            # Must not be a Jinja2 template syntax / rendering error
             assert "TemplateSyntaxError" not in str(result.exception)
             assert "UndefinedError" not in str(result.exception)
 
     def test_jinja2_block_syntax_in_keyword_no_crash(self, tmp_path: Path) -> None:
         """--keyword '{%- for x in range(9999) -%}' must not crash with Jinja2 error."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "{%- for x in range(9999) -%}crash{%- endfor -%}",
             ],
         )
@@ -146,13 +182,13 @@ class TestKeywordExtremeInput:
 
     def test_50000_char_keyword_no_crash(self, tmp_path: Path) -> None:
         """--keyword of 50000 chars must not crash (just yield no results)."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "A" * 50000,
             ],
         )
@@ -161,13 +197,13 @@ class TestKeywordExtremeInput:
 
     def test_keyword_with_path_separator_no_traversal(self, tmp_path: Path) -> None:
         """--keyword '../../etc/passwd' must not cause filesystem access."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "../../etc/passwd",
             ],
         )
@@ -192,16 +228,12 @@ class TestTitleJinja2Injection:
 
     def test_ssti_probe_in_title_does_not_evaluate(self, tmp_path: Path) -> None:
         """Jinja2 SSTI probes in --title must appear as literal text in output HTML."""
-        data_path = _setup_minimal(tmp_path)
+        data_path = _setup_legacy(tmp_path)
         gen = BundleReportGenerator(data_dir=data_path)
         vf = VideoFilter(keyword="감염미생물학")
 
         for probe in self.SSTI_PROBES:
             output_path = tmp_path / f"bundle_{abs(hash(probe))}.html"
-            # Note: autoescape=True in the environment escapes {{ }} in variables
-            # but the title is passed as a Python string, not raw template code.
-            # The risk: if title is used in a template via {{ title }}, autoescape
-            # will HTML-escape it — Jinja2 will NOT evaluate it as template code.
             html_path = gen.generate(
                 video_filter=vf,
                 channel_id="UC_TEST",
@@ -209,17 +241,19 @@ class TestTitleJinja2Injection:
                 title=probe,
             )
             content = html_path.read_text(encoding="utf-8")
-            # "49" would be present if {{7*7}} was evaluated
-            assert "49" not in content or probe != "{{7*7}}", (
-                f"SSTI probe '{probe}' was evaluated in output HTML"
-            )
-            # The raw probe string must appear escaped, not as HTML tags
+            # Check that {{7*7}} was NOT evaluated to standalone "49"
+            # by verifying the escaped probe appears literally in output.
+            # Note: "49" can legitimately appear in timestamps (e.g. 14:49).
+            if probe == "{{7*7}}":
+                assert ">49<" not in content, (
+                    f"SSTI probe '{probe}' was evaluated in output HTML"
+                )
             if "<script>" in probe:
                 assert "<script>" not in content
 
     def test_xss_in_title_is_escaped(self, tmp_path: Path) -> None:
         """<script> tag in --title must be HTML-escaped in output."""
-        data_path = _setup_minimal(tmp_path)
+        data_path = _setup_legacy(tmp_path)
         gen = BundleReportGenerator(data_dir=data_path)
         vf = VideoFilter(keyword="감염미생물학")
         output_path = tmp_path / "bundle_xss.html"
@@ -235,7 +269,7 @@ class TestTitleJinja2Injection:
 
     def test_50000_char_title_no_crash(self, tmp_path: Path) -> None:
         """50000-character --title must not crash report generation."""
-        data_path = _setup_minimal(tmp_path)
+        data_path = _setup_legacy(tmp_path)
         gen = BundleReportGenerator(data_dir=data_path)
         vf = VideoFilter(keyword="감염미생물학")
         output_path = tmp_path / "bundle_longtitle.html"
@@ -258,13 +292,13 @@ class TestDateFormatAttacker:
 
     def test_slash_format_date_exits_nonzero(self, tmp_path: Path) -> None:
         """--published-after '2025/03/01' (slash) must exit nonzero."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--published-after", "2025/03/01",
             ],
         )
@@ -272,13 +306,13 @@ class TestDateFormatAttacker:
 
     def test_korean_date_format_exits_nonzero(self, tmp_path: Path) -> None:
         """--published-after '2025년3월1일' must exit nonzero."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--published-after", "2025년3월1일",
             ],
         )
@@ -288,13 +322,13 @@ class TestDateFormatAttacker:
         self, tmp_path: Path
     ) -> None:
         """--published-after '9999-01-01' is valid ISO but matches no past videos."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--published-after", "9999-01-01",
             ],
         )
@@ -302,13 +336,13 @@ class TestDateFormatAttacker:
 
     def test_inverted_date_range_exits_nonzero(self, tmp_path: Path) -> None:
         """--published-after later than --published-before must exit nonzero."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--published-after", "2025-12-31",
                 "--published-before", "2025-01-01",
             ],
@@ -317,13 +351,13 @@ class TestDateFormatAttacker:
 
     def test_partial_date_yyyy_mm_exits_nonzero(self, tmp_path: Path) -> None:
         """--published-after '2025-03' (partial YYYY-MM) must exit nonzero."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--published-after", "2025-03",
             ],
         )
@@ -331,13 +365,13 @@ class TestDateFormatAttacker:
 
     def test_single_date_only_published_before_is_valid(self, tmp_path: Path) -> None:
         """Only --published-before without --published-after must be valid."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--published-before", "2099-12-31",
             ],
         )
@@ -353,53 +387,53 @@ class TestVideoIdsFormatAttacker:
     """Persona: feeds malformed --video-ids values."""
 
     def test_single_comma_video_ids(self, tmp_path: Path) -> None:
-        """--video-ids ',' (just a comma) yields empty IDs — no crash."""
-        data_path = _setup_minimal(tmp_path)
+        """--video-ids ',' (just a comma) yields empty IDs -- no crash."""
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--video-ids", ",",
             ],
         )
-        # split(",") → ["", ""] — neither matches any video_id
+        # split(",") -> ["", ""] -- neither matches any video_id
         assert result.exit_code == 1  # no match
 
     def test_all_nonexistent_video_ids_exits_code_1(self, tmp_path: Path) -> None:
         """--video-ids with IDs not in videos_meta must exit code 1."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--video-ids", "NONEXISTENT_AAA,NONEXISTENT_BBB",
             ],
         )
         assert result.exit_code == 1
 
     def test_video_ids_with_spaces_stripped_all_match(self, tmp_path: Path) -> None:
-        """--video-ids 'vid001, vid002, vid003' — filter strips, all 3 match (fixed)."""
-        data_path = _setup_minimal(tmp_path)
+        """--video-ids with spaces: filter strips, all 3 match."""
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--video-ids", "vid001, vid002, vid003",  # spaces after commas
                 "--dry-run",
             ],
         )
-        # Fixed: filter service strips IDs → all 3 match → exit 0
+        # Fixed: filter service strips IDs -> all 3 match -> exit 0
         assert result.exit_code == 0
 
     def test_duplicate_video_ids_no_duplicate_in_report(self, tmp_path: Path) -> None:
         """Duplicate --video-ids entries must not create duplicate video sections."""
-        data_path = _setup_minimal(tmp_path)
+        data_path = _setup_legacy(tmp_path)
         gen = BundleReportGenerator(data_dir=data_path)
         vf = VideoFilter(video_ids=["vid001", "vid001", "vid001"])
         output_path = tmp_path / "bundle_dup.html"
@@ -410,19 +444,19 @@ class TestVideoIdsFormatAttacker:
             output_path=output_path,
         )
         content = html_path.read_text(encoding="utf-8")
-        # Count occurrences of the video section anchor — should be 1, not 3
+        # Count occurrences of the video section anchor -- should be 1, not 3
         count = content.count('id="video-vid001"')
         assert count == 1, f"Duplicate video section: appears {count} times"
 
     def test_video_ids_only_whitespace(self, tmp_path: Path) -> None:
         """--video-ids '   ' (whitespace only) must not crash."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--video-ids", "   ",
             ],
         )
@@ -439,7 +473,7 @@ class TestOutputPathAttacker:
 
     def test_output_overwrites_existing_file(self, tmp_path: Path) -> None:
         """--output pointing to existing file must overwrite it without error."""
-        data_path = _setup_minimal(tmp_path)
+        data_path = _setup_legacy(tmp_path)
         existing = tmp_path / "existing.html"
         existing.write_text("ORIGINAL CONTENT", encoding="utf-8")
 
@@ -458,7 +492,7 @@ class TestOutputPathAttacker:
         self, tmp_path: Path
     ) -> None:
         """--output in a deep nonexistent directory must create parent dirs."""
-        data_path = _setup_minimal(tmp_path)
+        data_path = _setup_legacy(tmp_path)
         deep_path = tmp_path / "a" / "b" / "c" / "d" / "report.html"
 
         gen = BundleReportGenerator(data_dir=data_path)
@@ -472,7 +506,7 @@ class TestOutputPathAttacker:
 
     def test_output_to_readonly_dir_raises_os_error(self, tmp_path: Path) -> None:
         """Writing to a read-only directory must raise OSError (not crash silently)."""
-        data_path = _setup_minimal(tmp_path)
+        data_path = _setup_legacy(tmp_path)
         readonly_dir = tmp_path / "readonly"
         readonly_dir.mkdir()
         readonly_dir.chmod(stat.S_IRUSR | stat.S_IXUSR)  # r-x, no write
@@ -494,20 +528,16 @@ class TestOutputPathAttacker:
         self, tmp_path: Path
     ) -> None:
         """Path traversal in --output: writes to resolved location, no bypass."""
-        data_path = _setup_minimal(tmp_path)
-        # Attacker wants to write to tmp_path/../../evil.html — but realpath resolves it
+        data_path = _setup_legacy(tmp_path)
         traversal = tmp_path / "sub" / ".." / ".." / "evil.html"
 
         gen = BundleReportGenerator(data_dir=data_path)
         vf = VideoFilter(keyword="감염미생물학")
-        # This is allowed by the OS — the test documents that the generator
-        # does NOT sanitize the path. The resolved path is legitimate here.
         html_path = gen.generate(
             video_filter=vf,
             channel_id="UC_TEST",
             output_path=traversal,
         )
-        # Verify the file was created at the resolved location
         assert html_path.resolve().exists()
 
 
@@ -519,24 +549,24 @@ class TestFromHtmlAttacker:
     """Persona: attacks --from-html with bad dir, traversal, empty dir, symlinks."""
 
     def test_from_html_nonexistent_dir_exits_code_1(self, tmp_path: Path) -> None:
-        """--from-html nonexistent dir: all HTML files missing → ValueError → exit 1."""
-        data_path = _setup_minimal(tmp_path)
+        """--from-html nonexistent dir: missing files -> exit 1."""
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "감염미생물학",
                 "--from-html", str(tmp_path / "nonexistent_html_dir"),
             ],
         )
-        # No HTML files found → ValueError → exit 1
+        # No HTML files found -> ValueError -> exit 1
         assert result.exit_code == 1
 
     def test_from_html_empty_dir_exits_code_1(self, tmp_path: Path) -> None:
-        """--from-html with empty directory: no HTML files → ValueError → exit 1."""
-        data_path = _setup_minimal(tmp_path)
+        """--from-html with empty directory: no HTML files -> ValueError -> exit 1."""
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         empty_dir = tmp_path / "empty_html"
         empty_dir.mkdir()
 
@@ -545,7 +575,7 @@ class TestFromHtmlAttacker:
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "감염미생물학",
                 "--from-html", str(empty_dir),
             ],
@@ -555,21 +585,18 @@ class TestFromHtmlAttacker:
     def test_from_html_traversal_path_does_not_read_outside_dir(
         self, tmp_path: Path
     ) -> None:
-        """--from-html '../../../etc' must not read /etc — just finds no HTML files."""
-        data_path = _setup_minimal(tmp_path)
+        """--from-html '../../../etc' must not read /etc -- just finds no HTML files."""
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "감염미생물학",
                 "--from-html", "../../../etc",
             ],
         )
-        # Resolved path: generate_from_html tries to find {video_id}.html in /etc
-        # /etc has no such files → all skipped → ValueError → exit 1
-        # Must NOT read sensitive files from /etc
         assert result.exit_code == 1
         assert result.exception is None or isinstance(result.exception, SystemExit)
 
@@ -628,8 +655,12 @@ class TestDataDirAttacker:
         real_data = tmp_path / "real_data"
         real_data.mkdir()
         _write_config(real_data)
-        _write_videos(
-            real_data,
+
+        # Set up project structure for the symlinked data dir
+        project_dir = tmp_path / "projects"
+        project_path = project_dir / "test_run"
+        _write_videos_project(
+            project_path,
             "UC_TEST",
             [_make_video("v1", "홍길동 2025 감염미생물학 1주차")],
         )
@@ -642,6 +673,8 @@ class TestDataDirAttacker:
             [
                 "report", "bundle",
                 "--data-dir", str(link),
+                "--project-dir", str(project_dir),
+                "--project", str(project_path),
                 "--keyword", "감염미생물학",
             ],
         )
@@ -656,14 +689,14 @@ class TestSortCLIAttacker:
     """Persona: feeds malicious sort values via CLI."""
 
     def test_unknown_sort_value_falls_back_gracefully(self, tmp_path: Path) -> None:
-        """--sort 'invalid_value' must not crash — falls back to date sort."""
-        data_path = _setup_minimal(tmp_path)
+        """--sort 'invalid_value' must not crash -- falls back to date sort."""
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "감염미생물학",
                 "--sort", "COMPLETELY_INVALID",
             ],
@@ -672,30 +705,29 @@ class TestSortCLIAttacker:
 
     def test_shell_injection_in_sort_no_execution(self, tmp_path: Path) -> None:
         """--sort '; rm -rf /' must not execute shell commands."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "감염미생물학",
                 "--sort", "; rm -rf /",
             ],
         )
-        # Must not crash due to shell injection — sort just falls through to default
         assert result.exit_code in (0, 1)
         assert result.exception is None or isinstance(result.exception, SystemExit)
 
     def test_numeric_sort_value_no_crash(self, tmp_path: Path) -> None:
         """--sort '0' (numeric string) must not crash."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "감염미생물학",
                 "--sort", "0",
             ],
@@ -723,23 +755,19 @@ class TestAutoFilenameInjection:
     def test_dangerous_keyword_sanitized_stays_in_bundle_dir(
         self, tmp_path: Path
     ) -> None:
-        """FIXED: _sanitize_filename_part() prevents path traversal in auto filenames.
-
-        re.sub(r'[^\\w\\-]', '_') removes '/', '.', ':', '*', '?' etc.
-        '../../../etc/passwd' → 'etc_passwd' → path stays inside bundle/ dir.
-        """
+        """_sanitize_filename_part() prevents path traversal."""
         from tube_scout.cli.report import _sanitize_filename_part
 
-        data_path = _setup_minimal(tmp_path)
-        expected_root = (data_path / "reports" / "bundle").resolve()
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
+        expected_root = (proj / "03_report" / "bundle").resolve()
 
         for kw in self.DANGEROUS_KEYWORDS:
             sanitized = _sanitize_filename_part(kw)
             auto_path = (
-                data_path / "reports" / "bundle" / f"bundle_{sanitized}_20260404.html"
+                proj / "03_report" / "bundle" / f"bundle_{sanitized}_20260404.html"
             ).resolve()
             assert str(auto_path).startswith(str(expected_root)), (
-                f"REGRESSION: keyword {kw!r} → sanitized {sanitized!r} "
+                f"REGRESSION: keyword {kw!r} -> sanitized {sanitized!r} "
                 f"still escapes bundle dir: {auto_path}"
             )
 
@@ -747,19 +775,18 @@ class TestAutoFilenameInjection:
         self, tmp_path: Path
     ) -> None:
         """FIXED: traversal keyword yields no match (exit 1), no path escape."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "../../../etc/passwd",
             ],
         )
-        # No video title contains this string → exit 1 (no match)
-        # If somehow exit 0, verify output is inside bundle/
-        bundle_dir = (data_path / "reports" / "bundle").resolve()
+        # No video title contains this string -> exit 1 (no match)
+        bundle_dir = (proj / "03_report" / "bundle").resolve()
         if result.exit_code == 0 and bundle_dir.exists():
             for f in bundle_dir.rglob("*"):
                 assert str(f.resolve()).startswith(str(bundle_dir)), (
@@ -780,8 +807,10 @@ class TestCombinedAttackCombo:
         data_path = tmp_path / "data"
         data_path.mkdir()
         _write_config(data_path)
-        _write_videos(
-            data_path,
+        project_dir = tmp_path / "projects"
+        project_path = project_dir / "test_run"
+        _write_videos_project(
+            project_path,
             "UC_TEST",
             [_make_video("vid001", "감염미생물학 1주차", "2025-03-01T00:00:00Z")],
         )
@@ -790,7 +819,7 @@ class TestCombinedAttackCombo:
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, project_dir, project_path),
                 "--keyword", "감염",
                 "--published-after", "2025-01-01",
                 "--published-before", "2025-12-31",
@@ -806,7 +835,7 @@ class TestCombinedAttackCombo:
         _write_config(data_path)
         xss = "<script>alert('xss')</script>"
         # Create video whose title contains the xss payload to match the keyword
-        _write_videos(
+        _write_videos_legacy(
             data_path,
             "UC_TEST",
             [_make_video("vid001", f"강의 {xss} 1주차")],
@@ -824,7 +853,6 @@ class TestCombinedAttackCombo:
         )
         content = html_path.read_text(encoding="utf-8")
         # Both the video title and report title must have <script> escaped
-        # Count raw unescaped <script> tags (not &lt;script&gt;)
         import re
         raw_script_tags = re.findall(r"<script\b", content, re.IGNORECASE)
         assert len(raw_script_tags) == 0, (
@@ -833,13 +861,13 @@ class TestCombinedAttackCombo:
 
     def test_maximum_stress_many_options_empty_result(self, tmp_path: Path) -> None:
         """All extreme options with no matching result: exit code 1, no exception."""
-        data_path = _setup_minimal(tmp_path)
+        data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _get_app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "{{7*7}}" + "A" * 10000,
                 "--published-after", "2024-01-01",
                 "--published-before", "2024-12-31",

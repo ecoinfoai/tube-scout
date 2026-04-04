@@ -5,8 +5,9 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.progress import Progress
 
+from tube_scout.cli.progress import create_progress
+from tube_scout.cli.project import resolve_project
 from tube_scout.models.config import AppConfig, CollectionState
 from tube_scout.services.youtube_analytics import YouTubeAnalyticsService
 from tube_scout.services.youtube_data import YouTubeDataService
@@ -40,7 +41,17 @@ def collect_videos_command(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
     force_refresh: bool = typer.Option(
         False,
@@ -56,12 +67,15 @@ def collect_videos_command(
     """Collect video metadata from YouTube Data API.
 
     Args:
-        data_dir: Data storage directory path.
+        data_dir: User data directory path.
+        project_dir: Projects root directory path.
+        project: Existing project path or 'latest'.
         force_refresh: Whether to ignore existing checkpoints.
         channel: Optional channel alias for multi-channel auth.
     """
     data_path = Path(data_dir)
     config = _load_config(data_path)
+    mgr = resolve_project(project_dir, project)
 
     try:
         if channel:
@@ -96,7 +110,7 @@ def collect_videos_command(
 
         # Check checkpoint
         if not force_refresh:
-            checkpoint = load_checkpoint(data_path, channel_id, "videos")
+            checkpoint = load_checkpoint(mgr.checkpoint_dir, channel_id, "videos")
             if checkpoint and checkpoint.status == "completed":
                 console.print(
                     f"[yellow]Videos already collected for {channel_id}. "
@@ -113,7 +127,7 @@ def collect_videos_command(
             started_at=datetime.now(UTC),
             status="in_progress",
         )
-        save_checkpoint(data_path, state)
+        save_checkpoint(mgr.checkpoint_dir, state)
 
         try:
             # Get channel info
@@ -124,7 +138,7 @@ def collect_videos_command(
             )
 
             # List all videos
-            with Progress(console=console) as progress:
+            with create_progress() as progress:
                 task = progress.add_task("Listing videos...", total=None)
                 all_videos = service.list_all_videos(
                     channel_info["uploads_playlist_id"]
@@ -158,8 +172,8 @@ def collect_videos_command(
                     video["channel_id"] = channel_id
                     video["collected_at"] = now
 
-            # Save to data/raw/channels/{channel_id}/
-            channel_dir = data_path / "raw" / "channels" / channel_id
+            # Save to collect/channels/{channel_id}/
+            channel_dir = mgr.collect_dir / "channels" / channel_id
             channel_dir.mkdir(parents=True, exist_ok=True)
 
             write_json(channel_dir / "videos_meta.json", filtered)
@@ -186,7 +200,7 @@ def collect_videos_command(
             state.total_collected = len(filtered)
             state.status = "completed"
             state.updated_at = datetime.now(UTC)
-            save_checkpoint(data_path, state)
+            save_checkpoint(mgr.checkpoint_dir, state)
 
             console.print(
                 f"[green]Collected {len(filtered)} videos successfully.[/green]"
@@ -197,7 +211,7 @@ def collect_videos_command(
             if "quota" in error_msg.lower():
                 state.status = "interrupted"
                 state.updated_at = datetime.now(UTC)
-                save_checkpoint(data_path, state)
+                save_checkpoint(mgr.checkpoint_dir, state)
                 console.print(
                     "[red]API quota exceeded. Progress saved. "
                     "Resume later with the same command.[/red]"
@@ -206,7 +220,7 @@ def collect_videos_command(
             else:
                 state.status = "interrupted"
                 state.updated_at = datetime.now(UTC)
-                save_checkpoint(data_path, state)
+                save_checkpoint(mgr.checkpoint_dir, state)
                 console.print(f"[red]Error: {e}[/red]")
                 raise typer.Exit(code=1)
 
@@ -215,7 +229,17 @@ def collect_retention_command(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
     video_id: str = typer.Option(
         None,
@@ -226,13 +250,16 @@ def collect_retention_command(
     """Collect audience retention data from YouTube Analytics API.
 
     Args:
-        data_dir: Data storage directory path.
+        data_dir: User data directory path.
+        project_dir: Projects root directory path.
+        project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
     """
     import polars as pl
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
+    mgr = resolve_project(project_dir, project)
 
     try:
         from tube_scout.services.auth import build_analytics_client
@@ -254,8 +281,7 @@ def collect_retention_command(
         # Collect for all filtered videos
         for channel_config in config.channels:
             videos_path = (
-                data_path
-                / "raw"
+                mgr.collect_dir
                 / "channels"
                 / channel_config.channel_id
                 / "videos_meta.json"
@@ -275,37 +301,49 @@ def collect_retention_command(
         )
         raise typer.Exit(code=1)
 
-    console.print(
-        f"[bold]Collecting retention data for "
-        f"{len(video_ids_to_collect)} video(s)...[/bold]"
-    )
-
-    for vid_id in video_ids_to_collect:
-        try:
-            retention = service.get_retention_data(vid_id)
-            if retention:
-                df = pl.DataFrame(retention)
-                output_path = data_path / "raw" / "retention" / f"{vid_id}.parquet"
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                write_parquet(output_path, df)
-                console.print(
-                    f"  [green]{vid_id}: {len(retention)} data points saved[/green]"
-                )
-            else:
-                console.print(
-                    f"  [yellow]{vid_id}: no retention data available[/yellow]"
-                )
-        except PermissionError as e:
-            console.print(f"  [yellow]{vid_id}: {e}[/yellow]")
-        except Exception as e:
-            console.print(f"  [red]{vid_id}: {e}[/red]")
+    with create_progress() as progress:
+        task = progress.add_task(
+            "Collecting retention", total=len(video_ids_to_collect)
+        )
+        for vid_id in video_ids_to_collect:
+            try:
+                retention = service.get_retention_data(vid_id)
+                if retention:
+                    df = pl.DataFrame(retention)
+                    output_path = (
+                        mgr.collect_dir / "retention" / f"{vid_id}.parquet"
+                    )
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    write_parquet(output_path, df)
+                    progress.console.print(
+                        f"  [green]{vid_id}: {len(retention)} data points saved[/green]"
+                    )
+                else:
+                    progress.console.print(
+                        f"  [yellow]{vid_id}: no retention data available[/yellow]"
+                    )
+            except PermissionError as e:
+                progress.console.print(f"  [yellow]{vid_id}: {e}[/yellow]")
+            except Exception as e:
+                progress.console.print(f"  [red]{vid_id}: {e}[/red]")
+            progress.advance(task)
 
 
 def collect_comments_command(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
     video_id: str = typer.Option(
         None,
@@ -321,12 +359,15 @@ def collect_comments_command(
     """Collect comments for videos from YouTube Data API.
 
     Args:
-        data_dir: Data storage directory path.
+        data_dir: User data directory path.
+        project_dir: Projects root directory path.
+        project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
         include_replies: Whether to collect reply threads.
     """
     data_path = Path(data_dir)
     config = _load_config(data_path)
+    mgr = resolve_project(project_dir, project)
 
     try:
         from tube_scout.services.auth import build_data_client
@@ -347,8 +388,7 @@ def collect_comments_command(
     else:
         for channel_config in config.channels:
             videos_path = (
-                data_path
-                / "raw"
+                mgr.collect_dir
                 / "channels"
                 / channel_config.channel_id
                 / "videos_meta.json"
@@ -368,31 +408,46 @@ def collect_comments_command(
         )
         raise typer.Exit(code=1)
 
-    console.print(
-        f"[bold]Collecting comments for {len(video_ids_to_collect)} video(s)...[/bold]"
-    )
-
-    for vid_id in video_ids_to_collect:
-        try:
-            comments = service.get_comments(vid_id, include_replies=include_replies)
-            if comments:
-                output_path = data_path / "raw" / "comments" / f"{vid_id}.json"
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                write_json(output_path, comments)
-                console.print(
-                    f"  [green]{vid_id}: {len(comments)} comments saved[/green]"
+    with create_progress() as progress:
+        task = progress.add_task(
+            "Collecting comments", total=len(video_ids_to_collect)
+        )
+        for vid_id in video_ids_to_collect:
+            try:
+                comments = service.get_comments(
+                    vid_id, include_replies=include_replies
                 )
-            else:
-                console.print(f"  [yellow]{vid_id}: no comments found[/yellow]")
-        except Exception as e:
-            console.print(f"  [red]{vid_id}: {e}[/red]")
+                if comments:
+                    output_path = mgr.collect_dir / "comments" / f"{vid_id}.json"
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    write_json(output_path, comments)
+                    progress.console.print(
+                        f"  [green]{vid_id}: {len(comments)} comments saved[/green]"
+                    )
+                else:
+                    progress.console.print(
+                        f"  [yellow]{vid_id}: no comments found[/yellow]"
+                    )
+            except Exception as e:
+                progress.console.print(f"  [red]{vid_id}: {e}[/red]")
+            progress.advance(task)
 
 
 def collect_transcripts_command(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
     video_id: str = typer.Option(
         None,
@@ -403,13 +458,16 @@ def collect_transcripts_command(
     """Collect transcripts for videos using youtube-transcript-api.
 
     Args:
-        data_dir: Data storage directory path.
+        data_dir: User data directory path.
+        project_dir: Projects root directory path.
+        project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
     """
     from tube_scout.services.transcript import TranscriptService
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
+    mgr = resolve_project(project_dir, project)
     service = TranscriptService()
 
     video_ids_to_collect: list[str] = []
@@ -419,8 +477,7 @@ def collect_transcripts_command(
     else:
         for channel_config in config.channels:
             videos_path = (
-                data_path
-                / "raw"
+                mgr.collect_dir
                 / "channels"
                 / channel_config.channel_id
                 / "videos_meta.json"
@@ -440,33 +497,47 @@ def collect_transcripts_command(
         )
         raise typer.Exit(code=1)
 
-    console.print(
-        f"[bold]Collecting transcripts for "
-        f"{len(video_ids_to_collect)} video(s)...[/bold]"
-    )
-
-    for vid_id in video_ids_to_collect:
-        try:
-            result = service.fetch_transcript(vid_id)
-            if result:
-                output_path = data_path / "raw" / "transcripts" / f"{vid_id}.json"
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                write_json(output_path, result)
-                console.print(
-                    f"  [green]{vid_id}: {len(result['segments'])} segments "
-                    f"({result['transcript_type']})[/green]"
-                )
-            else:
-                console.print(f"  [yellow]{vid_id}: no transcript available[/yellow]")
-        except Exception as e:
-            console.print(f"  [red]{vid_id}: {e}[/red]")
+    with create_progress() as progress:
+        task = progress.add_task(
+            "Collecting transcripts", total=len(video_ids_to_collect)
+        )
+        for vid_id in video_ids_to_collect:
+            try:
+                result = service.fetch_transcript(vid_id)
+                if result:
+                    output_path = (
+                        mgr.collect_dir / "transcripts" / f"{vid_id}.json"
+                    )
+                    output_path.parent.mkdir(parents=True, exist_ok=True)
+                    write_json(output_path, result)
+                    progress.console.print(
+                        f"  [green]{vid_id}: {len(result['segments'])} segments "
+                        f"({result['transcript_type']})[/green]"
+                    )
+                else:
+                    progress.console.print(
+                        f"  [yellow]{vid_id}: no transcript available[/yellow]"
+                    )
+            except Exception as e:
+                progress.console.print(f"  [red]{vid_id}: {e}[/red]")
+            progress.advance(task)
 
 
 def collect_analytics_command(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
     start_date: str | None = typer.Option(
         None,
@@ -497,7 +568,9 @@ def collect_analytics_command(
     """Collect YouTube Analytics report data.
 
     Args:
-        data_dir: Data storage directory path.
+        data_dir: User data directory path.
+        project_dir: Projects root directory path.
+        project: Existing project path or 'latest'.
         start_date: Override start date (ISO format).
         report_type: Specific report type to collect.
         video_id: Optional specific video ID.
@@ -510,6 +583,7 @@ def collect_analytics_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
+    mgr = resolve_project(project_dir, project)
 
     try:
         if channel:
@@ -553,7 +627,7 @@ def collect_analytics_command(
         # Incremental: adjust start date per report type
         actual_start = start
         if incremental:
-            checkpoint = load_checkpoint(data_path, channel_id, "analytics")
+            checkpoint = load_checkpoint(mgr.checkpoint_dir, channel_id, "analytics")
             if checkpoint and checkpoint.analytics_last_dates:
                 last_dates = checkpoint.analytics_last_dates
                 if report_type and report_type in last_dates:
@@ -578,7 +652,7 @@ def collect_analytics_command(
 
         # Save in-progress checkpoint
         state = load_checkpoint(
-            data_path, channel_id, "analytics"
+            mgr.checkpoint_dir, channel_id, "analytics"
         ) or CollectionState(
             channel_id=channel_id,
             phase="analytics",
@@ -586,7 +660,7 @@ def collect_analytics_command(
             status="in_progress",
         )
         state.status = "in_progress"
-        save_checkpoint(data_path, state)
+        save_checkpoint(mgr.checkpoint_dir, state)
 
         try:
             result = service.collect_all_reports(
@@ -598,7 +672,7 @@ def collect_analytics_command(
             )
 
             # Store results
-            analytics_dir = data_path / "raw" / "analytics" / channel_id
+            analytics_dir = mgr.collect_dir / "analytics" / channel_id
             analytics_dir.mkdir(parents=True, exist_ok=True)
 
             collected_types: list[str] = []
@@ -619,7 +693,7 @@ def collect_analytics_command(
                 state.analytics_last_dates[rtype] = end.isoformat()
             state.status = "completed"
             state.updated_at = datetime.now(UTC)
-            save_checkpoint(data_path, state)
+            save_checkpoint(mgr.checkpoint_dir, state)
 
             # Report errors
             errors = result.get("errors", [])
@@ -638,14 +712,14 @@ def collect_analytics_command(
         except PermissionError as e:
             state.status = "interrupted"
             state.updated_at = datetime.now(UTC)
-            save_checkpoint(data_path, state)
+            save_checkpoint(mgr.checkpoint_dir, state)
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(code=1)
         except Exception as e:
             error_msg = str(e)
             state.status = "interrupted"
             state.updated_at = datetime.now(UTC)
-            save_checkpoint(data_path, state)
+            save_checkpoint(mgr.checkpoint_dir, state)
             if "quota" in error_msg.lower():
                 console.print(
                     "[red]YouTube API quota exhausted. "
@@ -660,7 +734,17 @@ def collect_all_command(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
     force_refresh: bool = typer.Option(
         False,
@@ -671,38 +755,64 @@ def collect_all_command(
     """Run all collection steps in sequence.
 
     Args:
-        data_dir: Data storage directory path.
+        data_dir: User data directory path.
+        project_dir: Projects root directory path.
+        project: Existing project path or 'latest'.
         force_refresh: Whether to ignore existing checkpoints.
     """
+    mgr = resolve_project(project_dir, project)
+    proj_path = str(mgr.project_dir)
+
     console.print("[bold]Running full collection pipeline...[/bold]\n")
 
     console.print("[bold cyan]Step 1/5: Collecting videos...[/bold cyan]")
     try:
-        collect_videos_command(data_dir=data_dir, force_refresh=force_refresh)
+        collect_videos_command(
+            data_dir=data_dir,
+            project_dir=project_dir,
+            project=proj_path,
+            force_refresh=force_refresh,
+        )
     except SystemExit:
         pass
 
     console.print("\n[bold cyan]Step 2/5: Collecting comments...[/bold cyan]")
     try:
-        collect_comments_command(data_dir=data_dir)
+        collect_comments_command(
+            data_dir=data_dir,
+            project_dir=project_dir,
+            project=proj_path,
+        )
     except SystemExit:
         pass
 
     console.print("\n[bold cyan]Step 3/5: Collecting transcripts...[/bold cyan]")
     try:
-        collect_transcripts_command(data_dir=data_dir)
+        collect_transcripts_command(
+            data_dir=data_dir,
+            project_dir=project_dir,
+            project=proj_path,
+        )
     except SystemExit:
         pass
 
     console.print("\n[bold cyan]Step 4/5: Collecting retention data...[/bold cyan]")
     try:
-        collect_retention_command(data_dir=data_dir)
+        collect_retention_command(
+            data_dir=data_dir,
+            project_dir=project_dir,
+            project=proj_path,
+        )
     except SystemExit:
         pass
 
     console.print("\n[bold cyan]Step 5/5: Collecting analytics...[/bold cyan]")
     try:
-        collect_analytics_command(data_dir=data_dir)
+        collect_analytics_command(
+            data_dir=data_dir,
+            project_dir=project_dir,
+            project=proj_path,
+        )
     except SystemExit:
         pass
 
@@ -723,7 +833,17 @@ def collect_bulk_command(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
 ) -> None:
     """Create or check bulk reporting jobs via YouTube Reporting API.
@@ -731,9 +851,11 @@ def collect_bulk_command(
     Args:
         report_type: Reporting API report type ID.
         status: If True, show existing job status instead of creating.
-        data_dir: Data storage directory path.
+        data_dir: User data directory path.
+        project_dir: Projects root directory path.
+        project: Existing project path or 'latest'.
     """
-    data_path = Path(data_dir)
+    mgr = resolve_project(project_dir, project)
 
     try:
         from tube_scout.services.auth import build_reporting_client
@@ -777,7 +899,7 @@ def collect_bulk_command(
 
         from tube_scout.storage.json_store import write_json
 
-        jobs_dir = data_path / "raw" / "reporting"
+        jobs_dir = mgr.collect_dir / "reporting"
         jobs_dir.mkdir(parents=True, exist_ok=True)
         write_json(
             jobs_dir / f"job_{job.job_id}.json",

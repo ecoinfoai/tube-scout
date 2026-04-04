@@ -26,6 +26,16 @@ def tmp_data_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def tmp_project(tmp_path: Path):  # type: ignore[no-untyped-def]
+    """Create a temporary project with ProjectManager."""
+    from tube_scout.output.manager import ProjectManager
+
+    mgr = ProjectManager(projects_root=tmp_path / "projects")
+    mgr.create_project()
+    return mgr
+
+
+@pytest.fixture
 def mock_api_responses_dir() -> Path:
     """Return path to mock API response fixtures directory."""
     fixtures_dir = Path(__file__).parent / "fixtures"

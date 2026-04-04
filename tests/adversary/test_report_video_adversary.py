@@ -43,15 +43,16 @@ def _write_config(data_path: Path, channel_id: str = "UC_TEST") -> None:
     (data_path / "config.json").write_text(json.dumps(config), encoding="utf-8")
 
 
-def _write_videos(data_path: Path, channel_id: str, videos: list) -> None:
-    d = data_path / "raw" / "channels" / channel_id
+def _write_videos(proj_path: Path, channel_id: str, videos: list) -> None:
+    d = proj_path / "01_collect" / "channels" / channel_id
     d.mkdir(parents=True, exist_ok=True)
     (d / "videos_meta.json").write_text(json.dumps(videos), encoding="utf-8")
 
 
 def _setup(
     tmp_path: Path, videos: list | None = None, channel_id: str = "UC_TEST"
-) -> Path:
+) -> tuple[Path, Path, Path]:
+    """Set up test data and return (data_path, project_dir, project_path)."""
     data_path = tmp_path / "data"
     data_path.mkdir()
     _write_config(data_path, channel_id)
@@ -60,8 +61,19 @@ def _setup(
             _make_video(f"vid{i:03d}", f"홍길동 2025 감염미생물학 {i}주차")
             for i in range(1, 4)
         ]
-    _write_videos(data_path, channel_id, videos)
-    return data_path
+    project_dir = tmp_path / "projects"
+    project_path = project_dir / "test_run"
+    _write_videos(project_path, channel_id, videos)
+    return data_path, project_dir, project_path
+
+
+def _proj_args(data_path: Path, project_dir: Path, project_path: Path) -> list[str]:
+    """Return common project CLI args."""
+    return [
+        "--data-dir", str(data_path),
+        "--project-dir", str(project_dir),
+        "--project", str(project_path),
+    ]
 
 
 def _app():
@@ -78,13 +90,13 @@ class TestReportVideoFilterCLI:
 
     def test_keyword_no_match_exits_code_1(self, tmp_path: Path) -> None:
         """report video --keyword with no match must exit 1."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "존재하지않는과목XYZ",
             ],
         )
@@ -92,13 +104,13 @@ class TestReportVideoFilterCLI:
 
     def test_bad_date_format_exits_nonzero(self, tmp_path: Path) -> None:
         """report video --published-after with bad format must exit nonzero."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--published-after", "03/01/2025",  # MM/DD/YYYY — invalid
             ],
         )
@@ -106,13 +118,13 @@ class TestReportVideoFilterCLI:
 
     def test_inverted_date_range_exits_nonzero(self, tmp_path: Path) -> None:
         """report video with after > before must exit nonzero."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--published-after", "2025-12-31",
                 "--published-before", "2025-01-01",
             ],
@@ -121,13 +133,13 @@ class TestReportVideoFilterCLI:
 
     def test_video_id_and_video_ids_together_exits_1(self, tmp_path: Path) -> None:
         """--video-id and --video-ids together must exit code 1."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--video-id", "vid001",
                 "--video-ids", "vid001,vid002",
             ],
@@ -137,13 +149,13 @@ class TestReportVideoFilterCLI:
 
     def test_video_ids_all_nonexistent_exits_code_1(self, tmp_path: Path) -> None:
         """--video-ids with only nonexistent IDs must exit code 1."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--video-ids", "NOPE1,NOPE2,NOPE3",
             ],
         )
@@ -151,13 +163,13 @@ class TestReportVideoFilterCLI:
 
     def test_video_ids_single_comma_exits_code_1(self, tmp_path: Path) -> None:
         """--video-ids ',' yields empty IDs — no match, exit code 1."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--video-ids", ",",
             ],
         )
@@ -165,13 +177,13 @@ class TestReportVideoFilterCLI:
 
     def test_keyword_xss_does_not_crash(self, tmp_path: Path) -> None:
         """--keyword '<script>alert(1)</script>' must not crash CLI (just no match)."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "<script>alert('xss')</script>",
             ],
         )
@@ -180,13 +192,13 @@ class TestReportVideoFilterCLI:
 
     def test_keyword_10000_chars_does_not_crash(self, tmp_path: Path) -> None:
         """--keyword of 10000 chars must not crash (just no match, exit 1)."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "A" * 10000,
             ],
         )
@@ -202,26 +214,26 @@ class TestDryRunAttacker:
     """Persona: verifies --dry-run does not generate files and handles edge cases."""
 
     def test_dry_run_without_filter_generates_nothing(self, tmp_path: Path) -> None:
-        """report video --dry-run without filter option: no filter →
+        """report video --dry-run without filter option: no filter ->
         generates all (dry-run ignored).
 
         BUG CHECK: --dry-run only activates when use_filter=True.
         Without a filter, --dry-run is silently ignored and all reports generate.
-        This is a behavioral gap — dry-run with no filter should still preview.
+        This is a behavioral gap -- dry-run with no filter should still preview.
         """
-        data_path = _setup(tmp_path, videos=[_make_video()])
+        data_path, proj_dir, proj = _setup(tmp_path, videos=[_make_video()])
         out_dir = tmp_path / "out"
         runner = CliRunner()
 
-        # Without filter, dry-run is not activated — reports are generated
+        # Without filter, dry-run is not activated -- reports are generated
         # (or fail due to missing report data). We check no crash.
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--output-dir", str(out_dir),
-                "--dry-run",  # no filter — dry-run is ignored per current impl
+                "--dry-run",  # no filter -- dry-run is ignored per current impl
             ],
         )
         # Either succeeds (generates reports) or fails (no data for report gen)
@@ -232,14 +244,14 @@ class TestDryRunAttacker:
 
     def test_dry_run_with_keyword_no_files_generated(self, tmp_path: Path) -> None:
         """report video --dry-run --keyword: prints table, NOT create report files."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         out_dir = tmp_path / "dry_out"
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--output-dir", str(out_dir),
                 "--keyword", "감염미생물학",
                 "--dry-run",
@@ -252,13 +264,13 @@ class TestDryRunAttacker:
 
     def test_bundle_dry_run_with_matching_filter_no_pdf(self, tmp_path: Path) -> None:
         """report bundle --dry-run must print table, NOT create HTML/PDF files."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "감염미생물학",
                 "--dry-run",
             ],
@@ -270,13 +282,13 @@ class TestDryRunAttacker:
 
     def test_bundle_dry_run_zero_results_exits_1(self, tmp_path: Path) -> None:
         """report bundle --dry-run with 0 match must exit code 1."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "존재하지않는키워드XYZ",
                 "--dry-run",
             ],
@@ -285,13 +297,13 @@ class TestDryRunAttacker:
 
     def test_video_dry_run_zero_results_exits_1(self, tmp_path: Path) -> None:
         """report video --dry-run with 0 match must exit code 1."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "없는과목QQQQQ",
                 "--dry-run",
             ],
@@ -301,29 +313,29 @@ class TestDryRunAttacker:
     def test_dry_run_with_video_id_singular_is_not_filtered(
         self, tmp_path: Path
     ) -> None:
-        """--video-id bypasses filter — --dry-run with --video-id has no filter path.
+        """--video-id bypasses filter -- --dry-run with --video-id has no filter path.
 
         BUG CHECK: when --video-id is used, use_filter=False regardless of --dry-run.
         The dry-run block is only reached via the filter path.
         So --video-id + --dry-run silently generates a report (dry-run ignored).
         """
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         out_dir = tmp_path / "out_singular"
         runner = CliRunner()
 
         # This is expected to either generate a report (dry-run ignored)
-        # or fail due to missing video data — but should NOT crash
+        # or fail due to missing video data -- but should NOT crash
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--output-dir", str(out_dir),
                 "--video-id", "vid001",
                 "--dry-run",
             ],
         )
-        # dry-run is ignored when --video-id is used — not a crash
+        # dry-run is ignored when --video-id is used -- not a crash
         assert result.exception is None or isinstance(
             result.exception, (SystemExit, Exception)
         )
@@ -339,7 +351,7 @@ class TestDryRunTableDataInjection:
     def test_missing_published_at_uses_empty_string(self) -> None:
         """Video missing 'published_at' must not crash _print_dry_run_table."""
         videos = [{"video_id": "v1", "title": "test"}]
-        # _print_dry_run_table uses v.get("published_at", "")[:10] — safe
+        # _print_dry_run_table uses v.get("published_at", "")[:10] -- safe
         # No crash expected
         _print_dry_run_table(videos)
 
@@ -357,7 +369,7 @@ class TestDryRunTableDataInjection:
                 "published_at": "2025-03-01T00:00:00Z",
             }
         ]
-        # Rich renders to terminal (not HTML) — XSS is irrelevant here, but
+        # Rich renders to terminal (not HTML) -- XSS is irrelevant here, but
         # Rich markup-like strings ([red], [bold]) could cause rendering issues
         _print_dry_run_table(videos)
 
@@ -370,13 +382,13 @@ class TestDryRunTableDataInjection:
                 "published_at": "2025-03-01T00:00:00Z",
             }
         ]
-        # Rich may interpret these as markup — verify no crash
+        # Rich may interpret these as markup -- verify no crash
         _print_dry_run_table(videos)
 
     def test_none_values_in_video_dict(self) -> None:
         """None values in video dict fields must not crash _print_dry_run_table."""
         videos = [{"video_id": None, "title": None, "published_at": None}]
-        # v.get("video_id", "") returns None, not "" — add_row(None, None, None[:10])
+        # v.get("video_id", "") returns None, not "" -- add_row(None, None, None[:10])
         # None[:10] raises TypeError
         with pytest.raises((TypeError, AttributeError)):
             _print_dry_run_table(videos)
@@ -408,7 +420,7 @@ class TestOver200VideosSpec:
 
     def test_214_videos_bundle_no_crash(self, tmp_path: Path) -> None:
         """214 videos in bundle (real-world scenario) must not crash."""
-        data_path = _setup(
+        data_path, proj_dir, proj = _setup(
             tmp_path,
             videos=[_make_video(f"vid{i:04d}", f"강의 {i}주차") for i in range(214)],
         )
@@ -417,18 +429,18 @@ class TestOver200VideosSpec:
             _app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "강의",
                 "--dry-run",  # dry-run to avoid actual file generation
             ],
         )
-        # Must not crash — either warns or proceeds silently
+        # Must not crash -- either warns or proceeds silently
         assert result.exit_code == 0
         assert result.exception is None or isinstance(result.exception, SystemExit)
 
     def test_214_videos_dry_run_table_shows_count(self, tmp_path: Path) -> None:
         """dry-run table with 214 videos must display correct count in title."""
-        data_path = _setup(
+        data_path, proj_dir, proj = _setup(
             tmp_path,
             videos=[_make_video(f"vid{i:04d}", f"강의 {i}주차") for i in range(214)],
         )
@@ -437,7 +449,7 @@ class TestOver200VideosSpec:
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "강의",
                 "--dry-run",
             ],
@@ -451,7 +463,7 @@ class TestOver200VideosSpec:
         Currently, no warning is shown. This test documents expected future behavior.
         When Phase 9 is implemented, update this test to assert warning presence.
         """
-        data_path = _setup(
+        data_path, proj_dir, proj = _setup(
             tmp_path,
             videos=[_make_video(f"vid{i:04d}", f"강의 {i}주차") for i in range(201)],
         )
@@ -460,12 +472,12 @@ class TestOver200VideosSpec:
             _app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "강의",
                 "--dry-run",
             ],
         )
-        # Phase 9 미구현: 현재 경고 없음 — no assertion on warning content
+        # Phase 9 미구현: 현재 경고 없음 -- no assertion on warning content
         assert result.exit_code == 0
 
 
@@ -479,29 +491,29 @@ class TestMutualExclusionEdgeCases:
     def test_video_id_empty_string_and_video_ids_not_mutual_excluded(
         self, tmp_path: Path
     ) -> None:
-        """--video-id '' (empty) is falsy — mutual exclusion uses `if video_id and ...`.
-        Empty string bypasses exclusion → video_ids filter applies instead.
+        """Empty --video-id is falsy, bypasses mutual exclusion.
+        Empty string bypasses exclusion -> video_ids filter applies instead.
 
-        BUG CHECK: `if video_id and video_ids_csv` — empty string bypasses guard.
+        BUG CHECK: `if video_id and video_ids_csv` -- empty string bypasses guard.
         """
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
-                "--video-id", "",      # falsy — bypasses exclusion guard
+                *_proj_args(data_path, proj_dir, proj),
+                "--video-id", "",      # falsy -- bypasses exclusion guard
                 "--video-ids", "vid001,vid002",
             ],
         )
         # Expected behavior: should exit 1 (mutual exclusion violated)
         # Actual behavior: empty video_id is falsy, exclusion is NOT triggered
-        # This is the bug — documenting current (incorrect) behavior
+        # This is the bug -- documenting current (incorrect) behavior
         # If this asserts exit_code == 1, mutual exclusion was fixed
         # If exit_code != 1, the bug is confirmed
         if result.exit_code == 1 and "Cannot use" in result.output:
-            pass  # Bug fixed — good
+            pass  # Bug fixed -- good
         else:
             # Bug confirmed: empty --video-id bypasses mutual exclusion
             assert result.exit_code in (0, 1), (
@@ -511,37 +523,37 @@ class TestMutualExclusionEdgeCases:
     def test_video_id_whitespace_and_video_ids_not_mutual_excluded(
         self, tmp_path: Path
     ) -> None:
-        """--video-id '   ' (whitespace) is truthy but invalid — behavior check."""
-        data_path = _setup(tmp_path)
+        """--video-id '   ' (whitespace) is truthy but invalid -- behavior check."""
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
-                "--video-id", "   ",  # whitespace — truthy → triggers mutual exclusion
+                *_proj_args(data_path, proj_dir, proj),
+                "--video-id", "   ",  # whitespace: truthy -> exclusion
                 "--video-ids", "vid001",
             ],
         )
-        # Whitespace is truthy — mutual exclusion IS triggered → exit 1
+        # Whitespace is truthy -- mutual exclusion IS triggered -> exit 1
         assert result.exit_code == 1
 
     def test_video_ids_csv_with_leading_space_stripped_and_matches(
         self, tmp_path: Path
     ) -> None:
         """--video-ids ' vid001' matches 'vid001' (fixed: strip() in filter service)."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
-                "--video-ids", " vid001",  # leading space — stripped by filter service
+                *_proj_args(data_path, proj_dir, proj),
+                "--video-ids", " vid001",  # leading space -- stripped by filter service
                 "--dry-run",
             ],
         )
-        # Fixed: filter service strips IDs → ' vid001' matches 'vid001' → exit 0
+        # Fixed: filter service strips IDs -> ' vid001' matches 'vid001' -> exit 0
         assert result.exit_code == 0
 
 
@@ -555,17 +567,17 @@ class TestFilterSuccessReportFailure:
     def test_filter_match_but_no_report_data_does_not_crash(
         self, tmp_path: Path
     ) -> None:
-        """Video passes filter but has no retention/segment data — no crash expected."""
-        data_path = _setup(tmp_path)
+        """Video with no retention/segment data -- no crash."""
+        data_path, proj_dir, proj = _setup(tmp_path)
         out_dir = tmp_path / "out"
         runner = CliRunner()
 
-        # vid001 exists in videos_meta but has no processed data under data/processed/
+        # vid001 exists in videos_meta but has no processed data under analyze/
         result = runner.invoke(
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--output-dir", str(out_dir),
                 "--video-ids", "vid001",
             ],
@@ -579,7 +591,7 @@ class TestFilterSuccessReportFailure:
         self, tmp_path: Path
     ) -> None:
         """Bundle with matched videos but no retention data must generate gracefully."""
-        data_path = _setup(tmp_path)
+        data_path, proj_dir, proj = _setup(tmp_path)
         out_dir = tmp_path / "bundle_out"
         runner = CliRunner()
 
@@ -587,7 +599,7 @@ class TestFilterSuccessReportFailure:
             _app(),
             [
                 "report", "bundle",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, proj_dir, proj),
                 "--keyword", "감염미생물학",
                 "--output", str(out_dir / "test_bundle.html"),
             ],
@@ -601,9 +613,11 @@ class TestFilterSuccessReportFailure:
         data_path = tmp_path / "data"
         data_path.mkdir()
         _write_config(data_path)
-        # Write as dict-wrapped format
+        # Write as dict-wrapped format in project structure
         channel_id = "UC_TEST"
-        d = data_path / "raw" / "channels" / channel_id
+        project_dir = tmp_path / "projects"
+        project_path = project_dir / "test_run"
+        d = project_path / "01_collect" / "channels" / channel_id
         d.mkdir(parents=True)
         videos_dict = {
             "videos": [
@@ -618,7 +632,7 @@ class TestFilterSuccessReportFailure:
             _app(),
             [
                 "report", "video",
-                "--data-dir", str(data_path),
+                *_proj_args(data_path, project_dir, project_path),
                 "--keyword", "감염미생물학",
                 "--dry-run",
             ],

@@ -160,17 +160,36 @@ def status(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
 ) -> None:
     """Show current collection and analysis status.
 
     Args:
-        data_dir: Directory where data is stored.
+        data_dir: User data directory.
+        project_dir: Projects root directory.
+        project: Existing project path or 'latest'.
     """
     from tube_scout.cli.status import show_status
 
-    show_status(Path(data_dir))
+    checkpoint_dir = None
+    if project is not None:
+        from tube_scout.cli.project import resolve_project
+
+        mgr = resolve_project(project_dir, project)
+        checkpoint_dir = mgr.checkpoint_dir
+
+    show_status(Path(data_dir), checkpoint_dir=checkpoint_dir)
 
 
 @app.command(name="list")
@@ -178,7 +197,17 @@ def list_videos(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Data storage directory.",
+        help="User data directory (config, credentials).",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
     sort: str = typer.Option("published_at", "--sort", help="Sort field."),
     limit: int = typer.Option(20, "--limit", help="Number of videos to display."),
@@ -186,13 +215,22 @@ def list_videos(
     """List collected videos.
 
     Args:
-        data_dir: Directory where data is stored.
+        data_dir: User data directory.
+        project_dir: Projects root directory.
+        project: Existing project path or 'latest'.
         sort: Field to sort by.
         limit: Maximum number of videos to show.
     """
     from tube_scout.cli.status import show_list
 
-    show_list(Path(data_dir), sort=sort, limit=limit)
+    collect_dir = None
+    if project is not None:
+        from tube_scout.cli.project import resolve_project
+
+        mgr = resolve_project(project_dir, project)
+        collect_dir = mgr.collect_dir
+
+    show_list(Path(data_dir), collect_dir=collect_dir, sort=sort, limit=limit)
 
 
 @calendar_app.command(name="set")

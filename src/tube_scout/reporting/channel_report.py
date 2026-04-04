@@ -286,13 +286,33 @@ def generate_improvement_suggestions(
 class ChannelReportGenerator:
     """Generate comprehensive HTML reports for channels (FR-023)."""
 
-    def __init__(self, data_dir: Path) -> None:
-        """Initialize with data directory.
+    def __init__(
+        self,
+        data_dir: Path | None = None,
+        *,
+        collect_dir: Path | None = None,
+        analyze_dir: Path | None = None,
+    ) -> None:
+        """Initialize with data directory or explicit collect/analyze dirs.
 
         Args:
-            data_dir: Root data directory.
+            data_dir: Legacy root data directory (reads raw/ and processed/).
+            collect_dir: Directory for collected data (replaces data_dir/raw).
+            analyze_dir: Directory for analysis results (replaces data_dir/processed).
+
+        Raises:
+            ValueError: If neither data_dir nor collect_dir is provided.
         """
-        self.data_dir = data_dir
+        if collect_dir is not None:
+            self.collect_dir = collect_dir
+            self.analyze_dir = analyze_dir or collect_dir
+        elif data_dir is not None:
+            self.collect_dir = data_dir / "raw"
+            self.analyze_dir = data_dir / "processed"
+        else:
+            raise ValueError(
+                "Either data_dir or collect_dir must be provided."
+            )
         templates_dir = Path(__file__).parent / "templates"
         self._env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -329,7 +349,7 @@ class ChannelReportGenerator:
         # Save suggestions to storage (T086)
         if suggestions:
             suggestions_data = [s.model_dump() for s in suggestions]
-            suggestions_dir = self.data_dir / "processed" / "suggestions"
+            suggestions_dir = self.analyze_dir / "suggestions"
             write_json(
                 suggestions_dir / f"{channel_id}.json", suggestions_data
             )
@@ -364,13 +384,13 @@ class ChannelReportGenerator:
 
     def _load_channel_meta(self, channel_id: str) -> dict[str, Any]:
         """Load channel metadata."""
-        path = self.data_dir / "raw" / "channels" / channel_id / "channel_meta.json"
+        path = self.collect_dir / "channels" / channel_id / "channel_meta.json"
         data = read_json(path)
         return data or {"channel_id": channel_id, "channel_name": channel_id}
 
     def _load_videos(self, channel_id: str) -> list[dict[str, Any]]:
         """Load all video metadata for a channel."""
-        path = self.data_dir / "raw" / "channels" / channel_id / "videos_meta.json"
+        path = self.collect_dir / "channels" / channel_id / "videos_meta.json"
         data = read_json(path)
         if data is None:
             return []
@@ -391,7 +411,7 @@ class ChannelReportGenerator:
         scores: list[dict[str, Any]] = []
         for v in videos:
             vid = v.get("video_id", "")
-            path = self.data_dir / "processed" / "eqs" / f"{vid}.json"
+            path = self.analyze_dir / "eqs" / f"{vid}.json"
             data = read_json(path)
             if data:
                 scores.append(data)
@@ -406,7 +426,7 @@ class ChannelReportGenerator:
         Returns:
             List of forecast result dicts.
         """
-        path = self.data_dir / "processed" / "forecasts" / f"{channel_id}.json"
+        path = self.analyze_dir / "forecasts" / f"{channel_id}.json"
         data = read_json(path)
         if data is None:
             return []
@@ -422,7 +442,7 @@ class ChannelReportGenerator:
             List of daily data dicts with 'date' and 'views'.
         """
         path = (
-            self.data_dir / "raw" / "analytics" / channel_id / "daily" / "channel.json"
+            self.collect_dir / "analytics" / channel_id / "daily" / "channel.json"
         )
         data = read_json(path)
         if data is None:

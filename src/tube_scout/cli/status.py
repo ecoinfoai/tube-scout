@@ -14,11 +14,15 @@ console = Console()
 COLLECTION_PHASES = ["videos", "comments", "transcripts", "retention", "analytics"]
 
 
-def show_status(data_dir: Path) -> None:
+def show_status(
+    data_dir: Path,
+    checkpoint_dir: Path | None = None,
+) -> None:
     """Display current collection and analysis status.
 
     Args:
-        data_dir: Root data directory.
+        data_dir: User data directory (config).
+        checkpoint_dir: Project checkpoint directory. Falls back to data_dir.
     """
     config_path = data_dir / "config.json"
     config_data = read_json(config_path)
@@ -26,6 +30,7 @@ def show_status(data_dir: Path) -> None:
         console.print("[red]No configuration found. Run 'tube-scout init' first.[/red]")
         return
 
+    ckpt_dir = checkpoint_dir or data_dir
     config = AppConfig(**config_data)
 
     for channel in config.channels:
@@ -38,7 +43,7 @@ def show_status(data_dir: Path) -> None:
         table.add_row("Data Directory", config.settings.data_dir)
 
         for phase in COLLECTION_PHASES:
-            state = load_checkpoint(data_dir, channel.channel_id, phase)
+            state = load_checkpoint(ckpt_dir, channel.channel_id, phase)
             if state:
                 status_str = (
                     f"{state.status} "
@@ -56,11 +61,17 @@ def show_status(data_dir: Path) -> None:
         console.print(table)
 
 
-def show_list(data_dir: Path, sort: str = "published_at", limit: int = 20) -> None:
+def show_list(
+    data_dir: Path,
+    collect_dir: Path | None = None,
+    sort: str = "published_at",
+    limit: int = 20,
+) -> None:
     """Display collected videos as a rich table.
 
     Args:
-        data_dir: Root data directory.
+        data_dir: User data directory (config).
+        collect_dir: Project collect directory. Falls back to data_dir/raw.
         sort: Field to sort by.
         limit: Maximum number of videos to display.
     """
@@ -71,10 +82,11 @@ def show_list(data_dir: Path, sort: str = "published_at", limit: int = 20) -> No
         return
 
     config = AppConfig(**config_data)
+    coll_dir = collect_dir or (data_dir / "raw")
 
     for channel in config.channels:
         videos_path = (
-            data_dir / "raw" / "channels" / channel.channel_id / "videos_meta.json"
+            coll_dir / "channels" / channel.channel_id / "videos_meta.json"
         )
         videos_data = read_json(videos_path)
         if videos_data is None:

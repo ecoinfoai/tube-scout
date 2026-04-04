@@ -125,11 +125,21 @@ class TestCollectVideosFlow:
             _mock_video_details_response()
         )
 
-        result = runner.invoke(app, ["collect", "videos", "--data-dir", str(data_dir)])
+        project_dir = tmp_path / "projects"
+        result = runner.invoke(app, [
+            "collect", "videos",
+            "--data-dir", str(data_dir),
+            "--project-dir", str(project_dir),
+        ])
         assert result.exit_code == 0
 
-        # Verify data files were created
-        channel_dir = data_dir / "raw" / "channels" / "UCxxxxxxxxxxxxxxxxxxxxxx"
+        # Find the created project directory
+        latest = project_dir / "latest"
+        assert latest.is_symlink()
+        proj = latest.resolve()
+
+        # Verify data files were created under 01_collect
+        channel_dir = proj / "01_collect" / "channels" / "UCxxxxxxxxxxxxxxxxxxxxxx"
         assert channel_dir.exists()
 
         videos_meta = read_json(channel_dir / "videos_meta.json")

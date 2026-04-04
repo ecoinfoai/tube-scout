@@ -7,6 +7,8 @@ from pathlib import Path
 import typer
 from rich.console import Console
 
+from tube_scout.cli.progress import create_progress
+from tube_scout.cli.project import resolve_project
 from tube_scout.models.config import AppConfig
 from tube_scout.models.video_filter import VideoFilter
 from tube_scout.reporting.channel_report import ChannelReportGenerator
@@ -103,6 +105,16 @@ def report_video_command(
         "--data-dir",
         help="Data storage directory.",
     ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
+    ),
     video_id: str | None = typer.Option(
         None,
         "--video-id",
@@ -148,6 +160,8 @@ def report_video_command(
 
     Args:
         data_dir: Data storage directory.
+        project_dir: Projects root directory.
+        project: Existing project path or 'latest'.
         video_id: Specific video ID, or generate for all.
         format: Output format.
         output_dir: Custom output directory.
@@ -166,7 +180,8 @@ def report_video_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    out_dir = Path(output_dir) if output_dir else data_path / "reports" / "video"
+    mgr = resolve_project(project_dir, project)
+    out_dir = Path(output_dir) if output_dir else mgr.report_dir / "video"
     use_filter = _has_filter_options(
         keyword, published_after, published_before, video_ids_csv
     )
@@ -177,8 +192,7 @@ def report_video_command(
             vid_ids = [video_id]
         else:
             videos_path = (
-                data_path
-                / "raw"
+                mgr.collect_dir
                 / "channels"
                 / channel_config.channel_id
                 / "videos_meta.json"
@@ -219,19 +233,26 @@ def report_video_command(
             else:
                 vid_ids = [v["video_id"] for v in vlist]
 
-        for vid in vid_ids:
-            path = _generate_video_report(
-                data_path=data_path,
-                video_id=vid,
-                channel_id=channel_config.channel_id,
-                output_dir=out_dir,
-                fmt=format,
+        with create_progress() as progress:
+            task = progress.add_task(
+                "Generating video reports", total=len(vid_ids)
             )
-            console.print(f"[green]Report generated: {path}[/green]")
+            for vid in vid_ids:
+                path = _generate_video_report(
+                    collect_dir=mgr.collect_dir,
+                    analyze_dir=mgr.analyze_dir,
+                    video_id=vid,
+                    channel_id=channel_config.channel_id,
+                    output_dir=out_dir,
+                    fmt=format,
+                )
+                progress.console.print(f"[green]Report generated: {path}[/green]")
+                progress.advance(task)
 
 
 def _generate_video_report(
-    data_path: Path,
+    collect_dir: Path,
+    analyze_dir: Path,
     video_id: str,
     channel_id: str,
     output_dir: Path,
@@ -240,7 +261,8 @@ def _generate_video_report(
     """Generate a single video report in the specified format.
 
     Args:
-        data_path: Root data directory.
+        collect_dir: Directory for collected data.
+        analyze_dir: Directory for analysis results.
         video_id: YouTube video ID.
         channel_id: YouTube channel ID.
         output_dir: Output directory.
@@ -254,7 +276,9 @@ def _generate_video_report(
             VideoNotebookExporter,
         )
 
-        gen = VideoReportGenerator(data_dir=data_path)
+        gen = VideoReportGenerator(
+            collect_dir=collect_dir, analyze_dir=analyze_dir,
+        )
         video = gen._load_video_meta(video_id, channel_id)
         retention = gen._load_retention(video_id)
         segments = gen._load_segments(video_id)
@@ -267,7 +291,9 @@ def _generate_video_report(
             output_dir=output_dir,
         )
 
-    generator = VideoReportGenerator(data_dir=data_path)
+    generator = VideoReportGenerator(
+        collect_dir=collect_dir, analyze_dir=analyze_dir,
+    )
     return generator.generate(
         video_id=video_id,
         channel_id=channel_id,
@@ -280,6 +306,16 @@ def report_comment_insight_command(
         "./data",
         "--data-dir",
         help="Data storage directory.",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
     ),
     video_id: str = typer.Option(
         ...,
@@ -296,20 +332,23 @@ def report_comment_insight_command(
 
     Args:
         data_dir: Data storage directory.
+        project_dir: Projects root directory.
+        project: Existing project path or 'latest'.
         video_id: Video ID (required).
         output_dir: Custom output directory.
     """
     from tube_scout.reporting.comment_report import CommentReportGenerator
 
     data_path = Path(data_dir)
+    mgr = resolve_project(project_dir, project)
     out_dir = (
         Path(output_dir)
         if output_dir
-        else data_path / "reports" / "comment_insight"
+        else mgr.report_dir / "comment_insight"
     )
 
     # Load topic clusters
-    topics_path = data_path / "processed" / "topics" / f"{video_id}.json"
+    topics_path = mgr.analyze_dir / "topics" / f"{video_id}.json"
     topics = read_json(topics_path)
     if topics is None:
         console.print(
@@ -320,7 +359,7 @@ def report_comment_insight_command(
     topics_list = topics if isinstance(topics, list) else []
 
     # Load questions
-    questions_path = data_path / "processed" / "questions" / f"{video_id}.json"
+    questions_path = mgr.analyze_dir / "questions" / f"{video_id}.json"
     questions_data = read_json(questions_path) or {
         "questions": [],
         "hotspot_matches": [],
@@ -333,8 +372,7 @@ def report_comment_insight_command(
         config = AppConfig(**config_data)
         for channel_config in config.channels:
             videos_path = (
-                data_path
-                / "raw"
+                mgr.collect_dir
                 / "channels"
                 / channel_config.channel_id
                 / "videos_meta.json"
@@ -393,6 +431,16 @@ def report_department_command(
         "--data-dir",
         help="Data storage directory.",
     ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
+    ),
 ) -> None:
     """Generate a department report with overview, professor detail, and compliance.
 
@@ -403,17 +451,18 @@ def report_department_command(
         semester: Optional semester filter.
         output_dir: Custom output directory.
         data_dir: Data storage directory.
+        project_dir: Projects root directory.
+        project: Existing project path or 'latest'.
     """
     from tube_scout.models.parsed_title import ParsedTitle
     from tube_scout.models.video import Video
-    from tube_scout.output.manager import OutputManager
     from tube_scout.reporting.department_report import DepartmentReportGenerator
     from tube_scout.reporting.excel_export import ExcelExporter
 
-    data_path = Path(data_dir)
+    mgr = resolve_project(project_dir, project)
 
     # Load parsed titles
-    parsed_path = data_path / "parsed" / channel / "parsed_titles.json"
+    parsed_path = mgr.analyze_dir / "parsed" / channel / "parsed_titles.json"
     parsed_data = read_json(parsed_path)
     if parsed_data is None:
         console.print(
@@ -424,7 +473,7 @@ def report_department_command(
     parsed_titles = [ParsedTitle(**p) for p in parsed_data]
 
     # Load videos
-    videos_path = data_path / "raw" / "channels" / channel / "videos_meta.json"
+    videos_path = mgr.collect_dir / "channels" / channel / "videos_meta.json"
     videos_data = read_json(videos_path)
     if videos_data is None:
         console.print(
@@ -441,12 +490,9 @@ def report_department_command(
 
     # Set up output directory
     if output_dir:
-        out_dir = Path(output_dir)
+        reports_dir = Path(output_dir)
     else:
-        mgr = OutputManager()
-        out_dir = mgr.create_run()
-        mgr.update_latest_link(out_dir)
-    reports_dir = out_dir / "reports" / "department"
+        reports_dir = mgr.report_dir / "department"
 
     generator = DepartmentReportGenerator()
     overview = generator.compute_overview(
@@ -509,6 +555,16 @@ def report_bundle_command(
         "--data-dir",
         help="Data storage directory.",
     ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
+    ),
     keyword: str | None = typer.Option(
         None,
         "--keyword",
@@ -559,6 +615,8 @@ def report_bundle_command(
 
     Args:
         data_dir: Data storage directory.
+        project_dir: Projects root directory.
+        project: Existing project path or 'latest'.
         keyword: Title keyword filter.
         published_after: Publish date start filter (YYYY-MM-DD).
         published_before: Publish date end filter (YYYY-MM-DD).
@@ -582,6 +640,7 @@ def report_bundle_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
+    mgr = resolve_project(project_dir, project)
 
     video_filter = VideoFilter(
         keyword=keyword,
@@ -598,7 +657,9 @@ def report_bundle_command(
         channel_id = channel_config.channel_id
 
         if dry_run:
-            gen = BundleReportGenerator(data_dir=data_path)
+            gen = BundleReportGenerator(
+                collect_dir=mgr.collect_dir, analyze_dir=mgr.analyze_dir,
+            )
             videos_meta = gen._load_videos_meta(channel_id)
             filtered = VideoFilterService.filter_videos(videos_meta, video_filter)
             if not filtered:
@@ -615,10 +676,12 @@ def report_bundle_command(
             suffix = _sanitize_filename_part(keyword) if keyword else "all"
             date_str = datetime.now(UTC).strftime("%Y%m%d")
             output_path = (
-                data_path / "reports" / "bundle" / f"bundle_{suffix}_{date_str}.html"
+                mgr.report_dir / "bundle" / f"bundle_{suffix}_{date_str}.html"
             )
 
-        gen = BundleReportGenerator(data_dir=data_path)
+        gen = BundleReportGenerator(
+            collect_dir=mgr.collect_dir, analyze_dir=mgr.analyze_dir,
+        )
         try:
             if from_html:
                 html_path = gen.generate_from_html(
@@ -661,6 +724,16 @@ def report_channel_command(
         "--data-dir",
         help="Data storage directory.",
     ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
+    ),
     format: str = typer.Option(
         "html",
         "--format",
@@ -676,18 +749,30 @@ def report_channel_command(
 
     Args:
         data_dir: Data storage directory.
+        project_dir: Projects root directory.
+        project: Existing project path or 'latest'.
         format: Output format.
         output_dir: Custom output directory.
     """
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    out_dir = Path(output_dir) if output_dir else data_path / "reports" / "channel"
+    mgr = resolve_project(project_dir, project)
+    out_dir = Path(output_dir) if output_dir else mgr.report_dir / "channel"
 
-    generator = ChannelReportGenerator(data_dir=data_path)
+    generator = ChannelReportGenerator(
+        collect_dir=mgr.collect_dir, analyze_dir=mgr.analyze_dir,
+    )
 
-    for channel_config in config.channels:
-        path = generator.generate(
-            channel_id=channel_config.channel_id,
-            output_dir=out_dir,
+    with create_progress() as progress:
+        task = progress.add_task(
+            "Generating channel reports", total=len(config.channels)
         )
-        console.print(f"[green]Channel report generated: {path}[/green]")
+        for channel_config in config.channels:
+            path = generator.generate(
+                channel_id=channel_config.channel_id,
+                output_dir=out_dir,
+            )
+            progress.console.print(
+                f"[green]Channel report generated: {path}[/green]"
+            )
+            progress.advance(task)

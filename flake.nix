@@ -9,33 +9,38 @@
   outputs = { self, nixpkgs, flake-utils }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        python = pkgs.python311;
+        pkgs = import nixpkgs { inherit system; };
       in
       {
         devShells.default = pkgs.mkShell {
-          packages = [
-            python
-            pkgs.uv
-            pkgs.ruff
+          buildInputs = with pkgs; [
+            # Python
+            python311
+
+            # WeasyPrint system dependencies
+            pango
+            cairo
+            gdk-pixbuf
+            glib
+            harfbuzz
+            fontconfig
+            freetype
+
+            # Build tools
+            pkg-config
           ];
 
-          env = {
-            UV_PYTHON = "${python}/bin/python";
-            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
-              pkgs.stdenv.cc.cc.lib
-              pkgs.zlib
-            ];
-          };
-
           shellHook = ''
-            if [ ! -d .venv ]; then
-              uv venv --python ${python}/bin/python
-            fi
-            source .venv/bin/activate
-            uv sync --all-extras 2>/dev/null
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath (with pkgs; [
+              pango
+              cairo
+              gdk-pixbuf
+              glib
+              harfbuzz
+              fontconfig
+              freetype
+            ])}:''${LD_LIBRARY_PATH:-}"
           '';
         };
-      }
-    );
+      });
 }

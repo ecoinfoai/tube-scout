@@ -8,6 +8,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
+from tube_scout.cli.progress import create_progress
 from tube_scout.models.video_filter import VideoFilter
 from tube_scout.services.video_filter_service import VideoFilterService
 from tube_scout.storage.json_store import read_json
@@ -19,16 +20,38 @@ class BundleReportGenerator:
     """Generate combined PDF bundle reports from filtered videos.
 
     Args:
-        data_dir: Root data directory containing raw and processed data.
+        data_dir: Legacy root data directory containing raw/ and processed/.
+        collect_dir: Directory for collected data (replaces data_dir/raw).
+        analyze_dir: Directory for analysis results (replaces data_dir/processed).
     """
 
-    def __init__(self, data_dir: Path) -> None:
-        """Initialize with data directory.
+    def __init__(
+        self,
+        data_dir: Path | None = None,
+        *,
+        collect_dir: Path | None = None,
+        analyze_dir: Path | None = None,
+    ) -> None:
+        """Initialize with data directory or explicit collect/analyze dirs.
 
         Args:
-            data_dir: Root data directory.
+            data_dir: Legacy root data directory (reads raw/ and processed/).
+            collect_dir: Directory for collected data (replaces data_dir/raw).
+            analyze_dir: Directory for analysis results (replaces data_dir/processed).
+
+        Raises:
+            ValueError: If neither data_dir nor collect_dir is provided.
         """
-        self.data_dir = data_dir
+        if collect_dir is not None:
+            self.collect_dir = collect_dir
+            self.analyze_dir = analyze_dir or collect_dir
+        elif data_dir is not None:
+            self.collect_dir = data_dir / "raw"
+            self.analyze_dir = data_dir / "processed"
+        else:
+            raise ValueError(
+                "Either data_dir or collect_dir must be provided."
+            )
         templates_dir = Path(__file__).parent / "templates"
         self._env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -67,13 +90,16 @@ class BundleReportGenerator:
         filtered = VideoFilterService.sort_videos(filtered, sort_by)
 
         video_data = []
-        for meta in filtered:
-            vid_id = meta["video_id"]
-            video_data.append({
-                "meta": meta,
-                "retention": self._load_retention(vid_id),
-                "segments": self._load_segments(vid_id),
-            })
+        with create_progress() as progress:
+            task = progress.add_task("Building bundle", total=len(filtered))
+            for meta in filtered:
+                vid_id = meta["video_id"]
+                video_data.append({
+                    "meta": meta,
+                    "retention": self._load_retention(vid_id),
+                    "segments": self._load_segments(vid_id),
+                })
+                progress.advance(task)
 
         report_title = title or self._auto_title(video_filter, channel_id)
         filter_desc = self._filter_description(video_filter)
@@ -146,29 +172,43 @@ class BundleReportGenerator:
 
         skipped: list[str] = []
         video_data: list[dict[str, Any]] = []
-        for meta in filtered:
-            vid_id = meta["video_id"]
-            html_file = html_dir / f"{vid_id}.html"
-            try:
-                if not html_file.exists():
+        with create_progress() as progress:
+            task = progress.add_task(
+                "Harvesting HTML reports", total=len(filtered)
+            )
+            for meta in filtered:
+                vid_id = meta["video_id"]
+                html_file = html_dir / f"{vid_id}.html"
+                try:
+                    if not html_file.exists():
+                        skipped.append(vid_id)
+                        logger.warning(
+                            "HTML file not found for %s, skipping", vid_id
+                        )
+                        progress.advance(task)
+                        continue
+                    raw_html = html_file.read_text(encoding="utf-8")
+                    body = self._extract_html_body(raw_html)
+                    if not body:
+                        skipped.append(vid_id)
+                        logger.warning(
+                            "Could not parse body from %s, skipping", html_file
+                        )
+                        progress.advance(task)
+                        continue
+                except (OSError, UnicodeDecodeError) as exc:
                     skipped.append(vid_id)
-                    logger.warning("HTML file not found for %s, skipping", vid_id)
+                    logger.warning(
+                        "Could not read %s: %s, skipping", html_file, exc
+                    )
+                    progress.advance(task)
                     continue
-                raw_html = html_file.read_text(encoding="utf-8")
-                body = self._extract_html_body(raw_html)
-                if not body:
-                    skipped.append(vid_id)
-                    logger.warning("Could not parse body from %s, skipping", html_file)
-                    continue
-            except (OSError, UnicodeDecodeError) as exc:
-                skipped.append(vid_id)
-                logger.warning("Could not read %s: %s, skipping", html_file, exc)
-                continue
 
-            video_data.append({
-                "meta": meta,
-                "body_html": body,
-            })
+                video_data.append({
+                    "meta": meta,
+                    "body_html": body,
+                })
+                progress.advance(task)
 
         if not video_data:
             raise ValueError(
@@ -254,7 +294,7 @@ class BundleReportGenerator:
             List of video metadata dicts.
         """
         videos_path = (
-            self.data_dir / "raw" / "channels" / channel_id / "videos_meta.json"
+            self.collect_dir / "channels" / channel_id / "videos_meta.json"
         )
         videos = read_json(videos_path)
         if not videos:
@@ -270,7 +310,7 @@ class BundleReportGenerator:
         Returns:
             Retention data dict, or None if not available.
         """
-        path = self.data_dir / "processed" / "retention" / f"{video_id}.json"
+        path = self.analyze_dir / "retention" / f"{video_id}.json"
         return read_json(path)
 
     def _load_segments(self, video_id: str) -> list[dict[str, Any]] | None:
@@ -282,7 +322,7 @@ class BundleReportGenerator:
         Returns:
             List of segment dicts, or None if not available.
         """
-        path = self.data_dir / "processed" / "segments" / f"{video_id}.json"
+        path = self.analyze_dir / "segments" / f"{video_id}.json"
         return read_json(path)
 
 

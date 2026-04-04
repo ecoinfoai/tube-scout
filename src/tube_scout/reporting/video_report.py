@@ -12,13 +12,33 @@ from tube_scout.storage.json_store import read_json
 class VideoReportGenerator:
     """Generate HTML reports for individual videos."""
 
-    def __init__(self, data_dir: Path) -> None:
-        """Initialize with data directory.
+    def __init__(
+        self,
+        data_dir: Path | None = None,
+        *,
+        collect_dir: Path | None = None,
+        analyze_dir: Path | None = None,
+    ) -> None:
+        """Initialize with data directory or explicit collect/analyze dirs.
 
         Args:
-            data_dir: Root data directory.
+            data_dir: Legacy root data directory (reads raw/ and processed/).
+            collect_dir: Directory for collected data (replaces data_dir/raw).
+            analyze_dir: Directory for analysis results (replaces data_dir/processed).
+
+        Raises:
+            ValueError: If neither data_dir nor collect_dir is provided.
         """
-        self.data_dir = data_dir
+        if collect_dir is not None:
+            self.collect_dir = collect_dir
+            self.analyze_dir = analyze_dir or collect_dir
+        elif data_dir is not None:
+            self.collect_dir = data_dir / "raw"
+            self.analyze_dir = data_dir / "processed"
+        else:
+            raise ValueError(
+                "Either data_dir or collect_dir must be provided."
+            )
         templates_dir = Path(__file__).parent / "templates"
         self._env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -63,7 +83,7 @@ class VideoReportGenerator:
     def _load_video_meta(self, video_id: str, channel_id: str) -> dict[str, Any]:
         """Load video metadata."""
         videos_path = (
-            self.data_dir / "raw" / "channels" / channel_id / "videos_meta.json"
+            self.collect_dir / "channels" / channel_id / "videos_meta.json"
         )
         videos = read_json(videos_path)
         if videos:
@@ -75,12 +95,12 @@ class VideoReportGenerator:
 
     def _load_retention(self, video_id: str) -> dict[str, Any] | None:
         """Load retention analysis results."""
-        path = self.data_dir / "processed" / "retention" / f"{video_id}.json"
+        path = self.analyze_dir / "retention" / f"{video_id}.json"
         return read_json(path)
 
     def _load_segments(self, video_id: str) -> list[dict[str, Any]] | None:
         """Load transcript segments."""
-        path = self.data_dir / "processed" / "segments" / f"{video_id}.json"
+        path = self.analyze_dir / "segments" / f"{video_id}.json"
         return read_json(path)
 
 
