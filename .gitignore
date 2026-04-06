@@ -2,10 +2,12 @@
 idea/
 specs/
 projects/
+project/
 data/
 input/
 output/
 results/
+_workspace/
 
 # Python
 __pycache__/
