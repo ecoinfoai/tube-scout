@@ -91,11 +91,14 @@
     <div class="cover">
         <h1>{{ title }}</h1>
         <div class="meta">
-            <p>Channel: {{ channel_id }}</p>
+            <p>Channel: {{ channel_name | default(channel_id) }}</p>
             {% if filter_description %}
             <p>Filter: {{ filter_description }}</p>
             {% endif %}
             <p>Videos: {{ videos | length }}</p>
+            {% if summary %}
+            <p>Total Duration: {{ summary.total_duration_minutes }}m</p>
+            {% endif %}
             {% if skipped %}
             <p>Skipped (HTML not found): {{ skipped | length }}</p>
             {% endif %}
@@ -103,6 +106,33 @@
             <p>Source: Existing HTML reports</p>
         </div>
     </div>
+
+    {# ===== CHANNEL SUMMARY ===== #}
+    {% if channel_summary %}
+    <div class="channel-summary" style="page-break-after: always;">
+        <h2>Channel Summary</h2>
+        {% if channel_summary.professor_distribution %}
+        <h3>Professor Distribution</h3>
+        <table>
+            <tr><th>Professor</th><th>Videos</th></tr>
+            {% for prof, count in channel_summary.professor_distribution.items() %}
+            <tr><td>{{ prof }}</td><td>{{ count }}</td></tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        {% if channel_summary.course_list %}
+        <h3>Courses</h3>
+        <ul>
+            {% for course in channel_summary.course_list %}
+            <li>{{ course }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% if not channel_summary.professor_distribution and not channel_summary.course_list %}
+        <p class="no-data">No parsed title data available.</p>
+        {% endif %}
+    </div>
+    {% endif %}
 
     {# ===== SUMMARY ===== #}
     {% if summary %}

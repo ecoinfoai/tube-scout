@@ -104,14 +104,19 @@ class BundleReportGenerator:
         report_title = title or self._auto_title(video_filter, channel_id)
         filter_desc = self._filter_description(video_filter)
         summary = self._compute_summary(filtered)
+        channel_meta = self._load_channel_meta(channel_id)
+        parsed_titles = self._load_parsed_titles(channel_id)
+        channel_summary = self._compute_channel_summary(parsed_titles)
 
         template = self._env.get_template("bundle_report.html")
         html = template.render(
             title=report_title,
             channel_id=channel_id,
+            channel_name=channel_meta.get("channel_name", channel_id),
             filter_description=filter_desc,
             videos=video_data,
             summary=summary,
+            channel_summary=channel_summary,
             generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         )
 
@@ -214,14 +219,19 @@ class BundleReportGenerator:
         report_title = title or self._auto_title(video_filter, channel_id)
         filter_desc = self._filter_description(video_filter)
         summary = self._compute_summary(filtered)
+        channel_meta = self._load_channel_meta(channel_id)
+        parsed_titles = self._load_parsed_titles(channel_id)
+        channel_summary = self._compute_channel_summary(parsed_titles)
 
         template = self._env.get_template("bundle_from_html.html")
         html = template.render(
             title=report_title,
             channel_id=channel_id,
+            channel_name=channel_meta.get("channel_name", channel_id),
             filter_description=filter_desc,
             videos=video_data,
             summary=summary,
+            channel_summary=channel_summary,
             skipped=skipped,
             generated_at=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
         )
@@ -280,6 +290,62 @@ class BundleReportGenerator:
         parser = _BodyExtractor()
         parser.feed(html_content)
         return "".join(parser._parts)
+
+    def _load_channel_meta(self, channel_id: str) -> dict[str, Any]:
+        """Load channel metadata for a channel.
+
+        Args:
+            channel_id: YouTube channel ID.
+
+        Returns:
+            Channel metadata dict, or dict with channel_id as fallback.
+        """
+        path = self.collect_dir / "channels" / channel_id / "channel_meta.json"
+        data = read_json(path)
+        if data is None:
+            return {"channel_id": channel_id, "channel_name": channel_id}
+        return data
+
+    def _load_parsed_titles(self, channel_id: str) -> list[dict[str, Any]]:
+        """Load parsed title data for a channel.
+
+        Args:
+            channel_id: YouTube channel ID.
+
+        Returns:
+            List of parsed title dicts, or empty list if not available.
+        """
+        path = self.analyze_dir / "parsed" / channel_id / "parsed_titles.json"
+        data = read_json(path)
+        if data is None:
+            return []
+        return data if isinstance(data, list) else data.get("parsed_titles", [])
+
+    @staticmethod
+    def _compute_channel_summary(
+        parsed_titles: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Compute channel summary from parsed titles.
+
+        Args:
+            parsed_titles: List of parsed title dicts.
+
+        Returns:
+            Dict with professor_distribution and course_list.
+        """
+        professor_dist: dict[str, int] = {}
+        courses: set[str] = set()
+        for pt in parsed_titles:
+            prof = pt.get("professor", "")
+            if prof:
+                professor_dist[prof] = professor_dist.get(prof, 0) + 1
+            subj = pt.get("subject", "")
+            if subj:
+                courses.add(subj)
+        return {
+            "professor_distribution": professor_dist,
+            "course_list": sorted(courses),
+        }
 
     def _load_videos_meta(self, channel_id: str) -> list[dict[str, Any]]:
         """Load videos metadata for a channel.

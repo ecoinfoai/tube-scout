@@ -310,8 +310,8 @@ class TestDryRunAttacker:
         bundle_dir = data_path / "reports" / "bundle"
         assert not bundle_dir.exists() or list(bundle_dir.rglob("*.html")) == []
 
-    def test_bundle_dry_run_zero_results_exits_1(self, tmp_path: Path) -> None:
-        """report bundle --dry-run with 0 match must exit code 1."""
+    def test_bundle_dry_run_zero_results_exits_0(self, tmp_path: Path) -> None:
+        """report bundle --dry-run with 0 match must exit code 0 with message."""
         data_path, proj_dir, proj = _setup(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
@@ -325,7 +325,7 @@ class TestDryRunAttacker:
                 "--dry-run",
             ],
         )
-        assert result.exit_code == 1
+        assert result.exit_code == 0
 
     def test_video_dry_run_zero_results_exits_1(self, tmp_path: Path) -> None:
         """report video --dry-run with 0 match must exit code 1."""
@@ -656,6 +656,7 @@ class TestFilterSuccessReportFailure:
                 "감염미생물학",
                 "--output",
                 str(out_dir / "test_bundle.html"),
+                "--no-confirm",
             ],
         )
         # BundleReportGenerator handles missing retention/segments gracefully

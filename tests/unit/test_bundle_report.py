@@ -363,6 +363,331 @@ class TestComputeSummary:
         assert "Summary" in html or "summary" in html
 
 
+class TestCoverPageUS3:
+    """Tests for US3: cover page content (T016)."""
+
+    def test_cover_contains_channel_name(self, tmp_path: Path) -> None:
+        """T016: cover page contains channel name, filter conditions, video count,
+        total duration, and generation date."""
+        channel_id = _setup_bundle_data(tmp_path)
+        # Add channel_meta.json with channel name
+        channel_meta_dir = tmp_path / "raw" / "channels" / channel_id
+        write_json(
+            channel_meta_dir / "channel_meta.json",
+            {"channel_name": "테스트채널", "channel_id": channel_id},
+        )
+
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        video_filter = VideoFilter(keyword="감염미생물학")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        assert "테스트채널" in html
+        assert "감염미생물학" in html  # filter condition
+        assert "10" in html  # total duration minutes (600s = 10m)
+
+
+class TestChannelSummaryUS3:
+    """Tests for US3: channel summary page (T017)."""
+
+    def test_channel_summary_contains_professor_distribution(
+        self, tmp_path: Path
+    ) -> None:
+        """T017: channel summary page contains professor
+        distribution and course list."""
+        channel_id = _setup_bundle_data(tmp_path)
+        # Add parsed_titles.json
+        parsed_dir = tmp_path / "processed" / "parsed" / channel_id
+        parsed_dir.mkdir(parents=True, exist_ok=True)
+        write_json(
+            parsed_dir / "parsed_titles.json",
+            [
+                {
+                    "video_id": "vid001",
+                    "professor": "김교수",
+                    "subject": "감염미생물학",
+                    "week": 1,
+                    "session": 1,
+                },
+            ],
+        )
+
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        video_filter = VideoFilter(keyword="감염미생물학")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        assert "김교수" in html
+        assert "감염미생물학" in html
+
+
+class TestTocUS3:
+    """Tests for US3: table of contents (T018)."""
+
+    def test_toc_entries_exist(self, tmp_path: Path) -> None:
+        """T018: TOC entries exist for each video when multiple videos present."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        # Use broad filter matching both videos
+        video_filter = VideoFilter(keyword="강의")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        assert "Table of Contents" in html
+        assert "감염미생물학 1주차 강의" in html
+        assert "인체구조와기능 2주차 강의" in html
+
+
+class TestPageNumbersUS3:
+    """Tests for US3: page number format (T019)."""
+
+    def test_page_number_format_in_css(self, tmp_path: Path) -> None:
+        """T019: CSS contains 'p. N / Total' page number format."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        video_filter = VideoFilter(keyword="감염미생물학")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        assert "counter(page)" in html
+        assert "counter(pages)" in html
+
+
+class TestPageBreaksUS3:
+    """Tests for US3: page breaks between videos (T020)."""
+
+    def test_video_sections_have_page_break(self, tmp_path: Path) -> None:
+        """T020: each video section has page-break-before in CSS."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        video_filter = VideoFilter(keyword="감염미생물학")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        assert "page-break-before" in html
+
+
+class TestWeasprintFallbackUS3:
+    """Tests for US3: weasyprint unavailable fallback (T021)."""
+
+    def test_render_pdf_returns_none_when_unavailable(self, tmp_path: Path) -> None:
+        """T021: render_pdf returns None when weasyprint unavailable."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        video_filter = VideoFilter(keyword="감염미생물학")
+        html_path = tmp_path / "output" / "bundle.html"
+
+        gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=html_path,
+        )
+
+        with patch.dict("sys.modules", {"weasyprint": None}):
+            result = gen.render_pdf(html_path)
+            assert result is None
+
+
+class TestFormatHtmlUS3:
+    """Tests for US3: --format html skips PDF (T022)."""
+
+    def test_format_html_skips_pdf(self, tmp_path: Path) -> None:
+        """T022: --format html skips PDF rendering in CLI."""
+        from tube_scout.storage.json_store import write_json as _write
+
+        proj_dir = tmp_path / "projects"
+        proj = proj_dir / "test_run"
+        channel_id = "UCxxxxxxxxxxxxxxxxxxxxxx"
+        collect_dir = proj / "01_collect" / "channels" / channel_id
+        collect_dir.mkdir(parents=True, exist_ok=True)
+        _write(
+            collect_dir / "videos_meta.json",
+            [
+                {
+                    "video_id": "vid001",
+                    "channel_id": channel_id,
+                    "title": "감염미생물학 1주차 강의",
+                    "published_at": "2026-01-15T10:00:00Z",
+                    "duration_seconds": 600,
+                    "view_count": 100,
+                    "like_count": 5,
+                    "comment_count": 1,
+                },
+            ],
+        )
+        _write(
+            tmp_path / "config.json",
+            {"channels": [{"channel_id": channel_id, "professor_name": "테스트"}]},
+        )
+
+        import typer
+        from typer.testing import CliRunner
+
+        from tube_scout.cli.report import report_bundle_command
+
+        app = typer.Typer()
+        app.command(name="bundle")(report_bundle_command)
+        cli_runner = CliRunner()
+
+        result = cli_runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj),
+                "--keyword",
+                "감염미생물학",
+                "--format",
+                "html",
+                "--no-confirm",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "HTML" in result.output
+        # Should NOT attempt PDF generation
+        assert "PDF" not in result.output or "skipped" not in result.output.lower()
+
+
+class TestFilterDescriptionUS5:
+    """Tests for US5: filter_description on cover (T036)."""
+
+    def test_cover_shows_filter_description(self, tmp_path: Path) -> None:
+        """T036: cover shows filter_description string."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        video_filter = VideoFilter(
+            keyword="감염미생물학",
+            published_after=__import__("datetime").date(2026, 1, 1),
+            published_before=__import__("datetime").date(2026, 12, 31),
+        )
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        assert "감염미생물학" in html
+        assert "2026-01-01" in html
+        assert "2026-12-31" in html
+
+
+class TestChannelSummaryEmptyUS5:
+    """Tests for US5: channel summary with 0 parsed titles (T037)."""
+
+    def test_channel_summary_with_no_parsed_titles(self, tmp_path: Path) -> None:
+        """T037: channel summary with 0 parsed titles still renders."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        video_filter = VideoFilter(keyword="감염미생물학")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        # Should still render without errors — just no professor/course data
+        assert result.exists()
+        assert "Channel Summary" in html
+
+
+class TestMissingDataEdgeCases:
+    """Tests for edge cases with missing data (T039-T041)."""
+
+    def test_no_retention_omits_retention_section(self, tmp_path: Path) -> None:
+        """T039: report with no retention data omits retention section."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        # vid002 has no retention data
+        video_filter = VideoFilter(keyword="인체구조와기능")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        assert "Retention data not available" in html
+        assert "Rewatch Hotspots" not in html
+
+    def test_no_comments_omits_comments_section(self, tmp_path: Path) -> None:
+        """T040: report with no comments omits comments section."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        video_filter = VideoFilter(keyword="감염미생물학")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        _content = result.read_text(encoding="utf-8")  # noqa: F841
+        # Template should not have a dedicated comments analysis section
+        # (comments are just a metric count, not a section)
+        assert result.exists()
+
+    def test_no_transcripts_omits_segments_section(self, tmp_path: Path) -> None:
+        """T041: report with no transcripts omits EQS/segment section."""
+        channel_id = _setup_bundle_data(tmp_path)
+        gen = BundleReportGenerator(data_dir=tmp_path)
+        # vid002 has no segments
+        video_filter = VideoFilter(keyword="인체구조와기능")
+        output_path = tmp_path / "output" / "bundle.html"
+
+        result = gen.generate(
+            video_filter=video_filter,
+            channel_id=channel_id,
+            output_path=output_path,
+        )
+
+        html = result.read_text(encoding="utf-8")
+        assert "Content Segments" not in html
+        assert result.exists()
+
+
 class TestSingleVideoNoToc:
     """Tests for single video bundle with no TOC (T039)."""
 

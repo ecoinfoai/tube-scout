@@ -185,6 +185,12 @@ class TestSortVideos:
         # → 감염미생물학 3주차 1차시 → 인체구조와기능 2주차 1차시
         assert ids == ["v4", "v2", "v1", "v3"]
 
+    def test_sort_by_date_asc_oldest_first(self) -> None:
+        """Sort by date_asc returns oldest first (ascending chronological order)."""
+        result = VideoFilterService.sort_videos(self.videos, "date_asc")
+        ids = [v["video_id"] for v in result]
+        assert ids == ["v4", "v1", "v3", "v2"]
+
     def test_sort_default_is_date(self) -> None:
         """Unknown sort_by value falls back to date sort."""
         result = VideoFilterService.sort_videos(self.videos, "unknown")

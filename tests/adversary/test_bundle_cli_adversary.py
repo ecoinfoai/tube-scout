@@ -349,7 +349,7 @@ class TestDateFormatAttacker:
                 "9999-01-01",
             ],
         )
-        assert result.exit_code == 1  # no videos match
+        assert result.exit_code == 0  # no videos match -> informational exit
 
     def test_inverted_date_range_exits_nonzero(self, tmp_path: Path) -> None:
         """--published-after later than --published-before must exit nonzero."""
@@ -397,6 +397,7 @@ class TestDateFormatAttacker:
                 *_proj_args(data_path, proj_dir, proj),
                 "--published-before",
                 "2099-12-31",
+                "--no-confirm",
             ],
         )
         # Should succeed if any videos exist before that date
@@ -425,10 +426,10 @@ class TestVideoIdsFormatAttacker:
             ],
         )
         # split(",") -> ["", ""] -- neither matches any video_id
-        assert result.exit_code == 1  # no match
+        assert result.exit_code == 0  # no match -> informational exit
 
-    def test_all_nonexistent_video_ids_exits_code_1(self, tmp_path: Path) -> None:
-        """--video-ids with IDs not in videos_meta must exit code 1."""
+    def test_all_nonexistent_video_ids_exits_code_0(self, tmp_path: Path) -> None:
+        """--video-ids with IDs not in videos_meta must exit code 0 with message."""
         data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
@@ -441,7 +442,7 @@ class TestVideoIdsFormatAttacker:
                 "NONEXISTENT_AAA,NONEXISTENT_BBB",
             ],
         )
-        assert result.exit_code == 1
+        assert result.exit_code == 0
 
     def test_video_ids_with_spaces_stripped_all_match(self, tmp_path: Path) -> None:
         """--video-ids with spaces: filter strips, all 3 match."""
@@ -594,10 +595,11 @@ class TestFromHtmlAttacker:
                 "감염미생물학",
                 "--from-html",
                 str(tmp_path / "nonexistent_html_dir"),
+                "--no-confirm",
             ],
         )
-        # No HTML files found -> ValueError -> exit 1
-        assert result.exit_code == 1
+        # No HTML files found -> ValueError -> exit 0 (informational)
+        assert result.exit_code == 0
 
     def test_from_html_empty_dir_exits_code_1(self, tmp_path: Path) -> None:
         """--from-html with empty directory: no HTML files -> ValueError -> exit 1."""
@@ -616,9 +618,10 @@ class TestFromHtmlAttacker:
                 "감염미생물학",
                 "--from-html",
                 str(empty_dir),
+                "--no-confirm",
             ],
         )
-        assert result.exit_code == 1
+        assert result.exit_code == 0
 
     def test_from_html_traversal_path_does_not_read_outside_dir(
         self, tmp_path: Path
@@ -636,9 +639,10 @@ class TestFromHtmlAttacker:
                 "감염미생물학",
                 "--from-html",
                 "../../../etc",
+                "--no-confirm",
             ],
         )
-        assert result.exit_code == 1
+        assert result.exit_code == 0
         assert result.exception is None or isinstance(result.exception, SystemExit)
 
 
@@ -731,6 +735,7 @@ class TestDataDirAttacker:
                 str(project_path),
                 "--keyword",
                 "감염미생물학",
+                "--no-confirm",
             ],
         )
         assert result.exit_code == 0
@@ -757,6 +762,7 @@ class TestSortCLIAttacker:
                 "감염미생물학",
                 "--sort",
                 "COMPLETELY_INVALID",
+                "--no-confirm",
             ],
         )
         assert result.exit_code == 0
@@ -895,6 +901,7 @@ class TestCombinedAttackCombo:
                 "2025-12-31",
                 "--video-ids",
                 "vid001",
+                "--no-confirm",
             ],
         )
         assert result.exit_code == 0
@@ -932,7 +939,7 @@ class TestCombinedAttackCombo:
         )
 
     def test_maximum_stress_many_options_empty_result(self, tmp_path: Path) -> None:
-        """All extreme options with no matching result: exit code 1, no exception."""
+        """All extreme options with no matching result: exit code 0, no exception."""
         data_path, proj_dir, proj = _setup_minimal(tmp_path)
         runner = CliRunner()
         result = runner.invoke(
@@ -955,5 +962,5 @@ class TestCombinedAttackCombo:
                 "; cat /etc/passwd",
             ],
         )
-        assert result.exit_code == 1  # no matching videos
+        assert result.exit_code == 0  # no matching videos -> informational exit
         assert result.exception is None or isinstance(result.exception, SystemExit)

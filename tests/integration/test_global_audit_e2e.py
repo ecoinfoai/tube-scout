@@ -557,6 +557,7 @@ class TestE2E3BundleReport:
                 str(project_dir),
                 "--project",
                 str(proj),
+                "--no-confirm",
             ],
         )
         assert result.exit_code == 0, f"bundle report failed: {result.output}"
@@ -612,6 +613,7 @@ class TestE2E3BundleReport:
                 str(project_dir),
                 "--project",
                 str(proj),
+                "--no-confirm",
             ],
         )
         assert result.exit_code == 0, f"bundle report failed: {result.output}"

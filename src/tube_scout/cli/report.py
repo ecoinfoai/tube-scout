@@ -78,16 +78,23 @@ def _print_dry_run_table(filtered_videos: list[dict]) -> None:
     """
     from rich.table import Table
 
+    total_duration = sum(v.get("duration_seconds", 0) for v in filtered_videos)
+    duration_h = total_duration // 3600
+    duration_m = (total_duration % 3600) // 60
+
     table = Table(title=f"Found {len(filtered_videos)} videos matching filters")
     table.add_column("Video ID", style="cyan")
     table.add_column("Title", style="white")
     table.add_column("Published", style="green")
+    table.add_column("Views", style="yellow", justify="right")
 
     for v in filtered_videos:
+        view_count = v.get("view_count", 0)
         table.add_row(
             v.get("video_id", ""),
             v.get("title", ""),
             v.get("published_at", "")[:10],
+            f"{view_count:,}",
         )
 
     if len(filtered_videos) > 200:
@@ -97,6 +104,10 @@ def _print_dry_run_table(filtered_videos: list[dict]) -> None:
         )
 
     console.print(table)
+    console.print(
+        f"{len(filtered_videos)} videos matched. "
+        f"Total duration: {duration_h}h {duration_m}m."
+    )
 
 
 def report_video_command(
@@ -596,15 +607,25 @@ def report_bundle_command(
         "--title",
         help="Report cover title.",
     ),
+    format: str = typer.Option(
+        "pdf",
+        "--format",
+        help="Output format: pdf/html.",
+    ),
     sort: str = typer.Option(
-        "date",
+        "date_asc",
         "--sort",
-        help="Sort order: date/course/views.",
+        help="Sort order: date/date_asc/course/views.",
     ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
         help="Preview filtered video list without generating bundle.",
+    ),
+    no_confirm: bool = typer.Option(
+        False,
+        "--no-confirm",
+        help="Skip interactive confirmation before generating.",
     ),
     from_html: str | None = typer.Option(
         None,
@@ -624,8 +645,10 @@ def report_bundle_command(
         video_ids_csv: Comma-separated video IDs.
         output: PDF output file path.
         title: Custom report cover title.
+        format: Output format ('pdf' or 'html').
         sort: Sort order for videos.
         dry_run: If True, show filtered list without generating bundle.
+        no_confirm: If True, skip interactive confirmation.
         from_html: Path to existing HTML reports directory.
     """
     from tube_scout.reporting.bundle_report import BundleReportGenerator
@@ -657,20 +680,30 @@ def report_bundle_command(
     for channel_config in config.channels:
         channel_id = channel_config.channel_id
 
+        gen = BundleReportGenerator(
+            collect_dir=mgr.collect_dir,
+            analyze_dir=mgr.analyze_dir,
+        )
+
+        # Pre-filter for preview and 0-result check
+        videos_meta = gen._load_videos_meta(channel_id)
+        filtered = VideoFilterService.filter_videos(videos_meta, video_filter)
+        filtered = VideoFilterService.sort_videos(filtered, sort)
+
+        if not filtered:
+            console.print("[yellow]No videos matching the specified filters.[/yellow]")
+            raise typer.Exit(code=0)
+
         if dry_run:
-            gen = BundleReportGenerator(
-                collect_dir=mgr.collect_dir,
-                analyze_dir=mgr.analyze_dir,
-            )
-            videos_meta = gen._load_videos_meta(channel_id)
-            filtered = VideoFilterService.filter_videos(videos_meta, video_filter)
-            if not filtered:
-                console.print(
-                    "[yellow]No videos matching the specified filters.[/yellow]"
-                )
-                raise typer.Exit(code=1)
             _print_dry_run_table(filtered)
             return
+
+        # Show preview and ask for confirmation
+        _print_dry_run_table(filtered)
+        if not no_confirm:
+            if not typer.confirm("Generate report?"):
+                console.print("[yellow]Cancelled.[/yellow]")
+                raise typer.Exit(code=0)
 
         if output:
             output_path = Path(output)
@@ -679,10 +712,6 @@ def report_bundle_command(
             date_str = datetime.now(UTC).strftime("%Y%m%d")
             output_path = mgr.report_dir / "bundle" / f"bundle_{suffix}_{date_str}.html"
 
-        gen = BundleReportGenerator(
-            collect_dir=mgr.collect_dir,
-            analyze_dir=mgr.analyze_dir,
-        )
         try:
             if from_html:
                 html_path = gen.generate_from_html(
@@ -703,9 +732,12 @@ def report_bundle_command(
                 )
         except ValueError:
             console.print("[yellow]No videos matching the specified filters.[/yellow]")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=0)
 
         console.print(f"[green]Bundle HTML report generated: {html_path}[/green]")
+
+        if format == "html":
+            return
 
         pdf_path = gen.render_pdf(html_path)
         if pdf_path:
@@ -713,6 +745,7 @@ def report_bundle_command(
         else:
             console.print(
                 "[yellow]PDF generation skipped (weasyprint not available). "
+                "Install weasyprint for PDF output. "
                 f"HTML report saved: {html_path}[/yellow]"
             )
 

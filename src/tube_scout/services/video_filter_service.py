@@ -78,7 +78,7 @@ class VideoFilterService:
 
         Args:
             videos: List of video metadata dicts.
-            sort_by: Sort order — 'date', 'course', or 'views'.
+            sort_by: Sort order — 'date', 'date_asc', 'course', or 'views'.
 
         Returns:
             Sorted list of video metadata dicts.
@@ -93,6 +93,12 @@ class VideoFilterService:
             return sorted(
                 videos,
                 key=VideoFilterService._course_sort_key,
+            )
+        if sort_by == "date_asc":
+            return sorted(
+                videos,
+                key=lambda v: v.get("published_at", ""),
+                reverse=False,
             )
         # Default: date (newest first)
         return sorted(

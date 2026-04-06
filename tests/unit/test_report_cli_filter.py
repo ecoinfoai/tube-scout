@@ -364,6 +364,291 @@ class TestReportBundleDryRun:
         assert len(html_files) == 0
 
 
+class TestBundleFilterUS1:
+    """Tests for US1: report bundle filtering (T005-T008)."""
+
+    def test_bundle_keyword_filter_returns_matching(self, tmp_path: Path) -> None:
+        """T005: --keyword filter returns only matching videos in bundle dry-run."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "감염미생물학",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "vid001" in result.output
+        assert "vid003" in result.output
+        assert "vid002" not in result.output
+
+    def test_bundle_date_range_filter(self, tmp_path: Path) -> None:
+        """T006: date range filter returns only videos in range."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--published-after",
+                "2026-02-01",
+                "--published-before",
+                "2026-03-31",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "vid002" in result.output
+        assert "vid003" in result.output
+        assert "vid001" not in result.output
+
+    def test_bundle_combined_keyword_date_filter(self, tmp_path: Path) -> None:
+        """T007: combined keyword + date filter (AND logic)."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "감염미생물학",
+                "--published-after",
+                "2026-02-01",
+                "--published-before",
+                "2026-12-31",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "vid003" in result.output
+        # vid001 is 감염미생물학 but published 2026-01-15, outside range
+        assert "vid001" not in result.output
+        assert "vid002" not in result.output
+
+    def test_bundle_empty_filter_result_shows_message(self, tmp_path: Path) -> None:
+        """T008: empty filter result shows message and exits with code 0."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "존재하지않는과목",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "No videos matching" in result.output
+
+
+class TestBundlePreviewUS2:
+    """Tests for US2: preview table and confirmation flow (T010-T012)."""
+
+    def test_preview_table_shows_view_count(self, tmp_path: Path) -> None:
+        """T010: preview table displays title, published_at, and view_count."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "감염미생물학",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        # view_count values from _VIDEOS: vid001=100, vid003=50
+        assert "100" in result.output
+        assert "50" in result.output
+
+    def test_no_confirm_skips_interactive(self, tmp_path: Path) -> None:
+        """T011: --no-confirm skips typer.confirm and proceeds to generation."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        # With --no-confirm, typer.confirm should NOT be called
+        with patch("tube_scout.cli.report.typer.confirm") as mock_confirm:
+            result = runner.invoke(
+                app,
+                [
+                    "--data-dir",
+                    str(tmp_path),
+                    "--project-dir",
+                    str(proj_dir),
+                    "--project",
+                    str(proj_dir / "test_run"),
+                    "--keyword",
+                    "감염미생물학",
+                    "--no-confirm",
+                ],
+            )
+
+        mock_confirm.assert_not_called()
+        assert result.exit_code == 0
+
+    def test_dry_run_shows_preview_no_generation(self, tmp_path: Path) -> None:
+        """T012: --dry-run shows preview only, no report generation."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "감염미생물학",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "vid001" in result.output
+        assert "감염미생물학" in result.output
+        # No HTML files generated
+        bundle_dir = tmp_path / "reports" / "bundle"
+        html_files = list(bundle_dir.glob("*.html")) if bundle_dir.exists() else []
+        assert len(html_files) == 0
+
+
+class TestBundleSortUS4:
+    """Tests for US4: sort options in bundle command (T032-T034)."""
+
+    def test_sort_date_asc_chronological(self, tmp_path: Path) -> None:
+        """T032: --sort date_asc produces chronological order (oldest first)."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "강의",
+                "--sort",
+                "date_asc",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        output = result.output
+        # vid001 (Jan 15) should come before vid002 (Feb 10) before vid003 (Mar 05)
+        pos1 = output.find("vid001")
+        pos2 = output.find("vid002")
+        pos3 = output.find("vid003")
+        assert pos1 < pos2 < pos3
+
+    def test_sort_course_subject_week_order(self, tmp_path: Path) -> None:
+        """T033: --sort course produces subject->week order."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "강의",
+                "--sort",
+                "course",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        output = result.output
+        # 감염미생물학 1주차 (vid001) before 3주차 (vid003)
+        # before 인체구조와기능 (vid002)
+        pos1 = output.find("vid001")
+        pos3 = output.find("vid003")
+        pos2 = output.find("vid002")
+        assert pos1 < pos3 < pos2
+
+    def test_sort_views_descending(self, tmp_path: Path) -> None:
+        """T034: --sort views produces view count descending order."""
+        proj_dir = _setup_videos_meta(tmp_path)
+        app = _make_bundle_app()
+
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "강의",
+                "--sort",
+                "views",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        output = result.output
+        # vid002 (200 views) before vid001 (100) before vid003 (50)
+        pos2 = output.find("vid002")
+        pos1 = output.find("vid001")
+        pos3 = output.find("vid003")
+        assert pos2 < pos1 < pos3
+
+
 class TestBundleAutoFilenameSanitize:
     """Tests for path traversal prevention in auto-generated bundle filenames."""
 
@@ -382,11 +667,9 @@ class TestBundleAutoFilenameSanitize:
             ],
         )
 
-        # Should fail with no matching videos (the keyword won't match),
-        # but even if it did, the filename must not contain path separators.
-        # Exit code 1 is fine (no matching videos).
+        # No matching videos → exit 0 with message (not an error).
         # The important thing: no file created outside the data dir.
-        assert result.exit_code == 1
+        assert result.exit_code == 0
 
     def test_keyword_with_slashes_sanitized_in_filename(self, tmp_path: Path) -> None:
         """Auto filename must sanitize slashes and dots from keyword."""
