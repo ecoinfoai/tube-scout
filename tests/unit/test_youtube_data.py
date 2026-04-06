@@ -296,7 +296,9 @@ class TestGetVideoDetailsExtended:
                         "tags": ["anatomy", "lecture"],
                         "categoryId": "27",
                         "thumbnails": {
-                            "default": {"url": "https://i.ytimg.com/vi/vid1/default.jpg"}
+                            "default": {
+                                "url": "https://i.ytimg.com/vi/vid1/default.jpg"
+                            }
                         },
                         "defaultLanguage": "ko",
                     },
@@ -370,8 +372,11 @@ class TestGetVideoDetailsExtended:
         parts = call_kwargs.kwargs.get("part", "") if call_kwargs.kwargs else ""
         # Should request snippet, status, topicDetails in addition to original parts
         required = [
-            "snippet", "contentDetails", "statistics",
-            "status", "topicDetails",
+            "snippet",
+            "contentDetails",
+            "statistics",
+            "status",
+            "topicDetails",
         ]
         for required_part in required:
             assert required_part in parts
@@ -581,9 +586,7 @@ class TestGetCommentReplies:
 class TestDetectNewVideos:
     """Tests for new video detection (T033 - US2)."""
 
-    def test_detect_new_videos(
-        self, service: YouTubeDataService
-    ) -> None:
+    def test_detect_new_videos(self, service: YouTubeDataService) -> None:
         api_videos = [
             {"video_id": "vid1", "title": "V1", "published_at": "2024-01-01T00:00:00Z"},
             {"video_id": "vid2", "title": "V2", "published_at": "2024-01-02T00:00:00Z"},
@@ -594,9 +597,7 @@ class TestDetectNewVideos:
         assert len(new_videos) == 1
         assert new_videos[0]["video_id"] == "vid3"
 
-    def test_detect_no_new_videos(
-        self, service: YouTubeDataService
-    ) -> None:
+    def test_detect_no_new_videos(self, service: YouTubeDataService) -> None:
         api_videos = [
             {"video_id": "vid1", "title": "V1", "published_at": "2024-01-01T00:00:00Z"},
         ]

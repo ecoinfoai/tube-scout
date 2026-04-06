@@ -125,11 +125,17 @@ class TestCollectVideosFlow:
         )
 
         project_dir = tmp_path / "projects"
-        result = runner.invoke(app, [
-            "collect", "videos",
-            "--data-dir", str(data_dir),
-            "--project-dir", str(project_dir),
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "collect",
+                "videos",
+                "--data-dir",
+                str(data_dir),
+                "--project-dir",
+                str(project_dir),
+            ],
+        )
         assert result.exit_code == 0
 
         # Find the created project directory

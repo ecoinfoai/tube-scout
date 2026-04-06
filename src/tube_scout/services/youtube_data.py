@@ -1,10 +1,15 @@
 """YouTube Data API service for video collection."""
 
+from __future__ import annotations
+
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from googleapiclient.errors import HttpError
+
+if TYPE_CHECKING:
+    from tube_scout.services.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +35,27 @@ def _parse_iso8601_duration(duration: str) -> int:
 class YouTubeDataService:
     """Service for interacting with YouTube Data API v3."""
 
-    def __init__(self, client: Any) -> None:
+    def __init__(
+        self,
+        client: Any,
+        rate_limiter: RateLimiter | None = None,
+    ) -> None:
         """Initialize with a pre-built OAuth YouTube API client.
 
         Args:
             client: Pre-built API client (from auth.build_data_client()).
+            rate_limiter: Optional shared rate limiter for inter-request delays.
 
         Raises:
             TypeError: If client is not provided.
         """
         self._client = client
+        self._rate_limiter = rate_limiter
+
+    def _wait(self) -> None:
+        """Apply rate limiting delay if a limiter is configured."""
+        if self._rate_limiter is not None:
+            self._rate_limiter.wait()
 
     def get_channel_info(self, channel_id: str) -> dict[str, Any]:
         """Fetch channel information.
@@ -53,6 +69,7 @@ class YouTubeDataService:
         Raises:
             ValueError: If channel is not found.
         """
+        self._wait()
         response = (
             self._client.channels()
             .list(part="snippet,contentDetails,statistics", id=channel_id)
@@ -70,9 +87,7 @@ class YouTubeDataService:
                 "uploads"
             ],
             "total_video_count": int(item["statistics"].get("videoCount", 0)),
-            "subscriber_count": int(
-                item["statistics"].get("subscriberCount", 0)
-            ),
+            "subscriber_count": int(item["statistics"].get("subscriberCount", 0)),
             "total_view_count": int(item["statistics"].get("viewCount", 0)),
             "description": item["snippet"].get("description"),
         }
@@ -103,6 +118,7 @@ class YouTubeDataService:
             if token:
                 request_params["pageToken"] = token
 
+            self._wait()
             response = self._client.playlistItems().list(**request_params).execute()
 
             for item in response.get("items", []):
@@ -134,6 +150,7 @@ class YouTubeDataService:
 
         for i in range(0, len(video_ids), 50):
             batch = video_ids[i : i + 50]
+            self._wait()
             response = (
                 self._client.videos()
                 .list(
@@ -216,6 +233,7 @@ class YouTubeDataService:
                 if token:
                     request_params["pageToken"] = token
 
+                self._wait()
                 response = (
                     self._client.commentThreads().list(**request_params).execute()
                 )
@@ -230,13 +248,9 @@ class YouTubeDataService:
                         {
                             "comment_id": top_comment["id"],
                             "video_id": video_id,
-                            "author": comment_snippet.get(
-                                "authorDisplayName", ""
-                            ),
+                            "author": comment_snippet.get("authorDisplayName", ""),
                             "text": comment_snippet.get("textDisplay", ""),
-                            "published_at": comment_snippet.get(
-                                "publishedAt", ""
-                            ),
+                            "published_at": comment_snippet.get("publishedAt", ""),
                             "like_count": comment_snippet.get("likeCount", 0),
                             "parent_comment_id": None,
                             "reply_count": reply_count,
@@ -248,20 +262,14 @@ class YouTubeDataService:
                     break
         except HttpError as e:
             if e.resp.status in (403, 404):
-                logger.warning(
-                    "Cannot fetch comments for %s: %s", video_id, e
-                )
+                logger.warning("Cannot fetch comments for %s: %s", video_id, e)
                 return []
             raise
 
         if include_replies:
-            threads_with_replies = [
-                c for c in comments if c["reply_count"] > 0
-            ]
+            threads_with_replies = [c for c in comments if c["reply_count"] > 0]
             for thread in threads_with_replies:
-                replies = self.get_comment_replies(
-                    thread["comment_id"], video_id
-                )
+                replies = self.get_comment_replies(thread["comment_id"], video_id)
                 comments.extend(replies)
 
         return comments
@@ -291,6 +299,7 @@ class YouTubeDataService:
             if token:
                 request_params["pageToken"] = token
 
+            self._wait()
             response = self._client.comments().list(**request_params).execute()
 
             for item in response.get("items", []):

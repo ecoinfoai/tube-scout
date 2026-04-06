@@ -21,9 +21,7 @@ class TestDefaultClientSecretPath:
         result = _default_client_secret_path()
         assert result == secret_file
 
-    def test_raises_when_env_var_missing(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_raises_when_env_var_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Should raise ValueError when TUBE_SCOUT_CLIENT_SECRET is not set."""
         monkeypatch.delenv("TUBE_SCOUT_CLIENT_SECRET", raising=False)
 

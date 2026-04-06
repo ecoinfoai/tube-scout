@@ -99,7 +99,8 @@ class ComplianceMatrix(BaseModel):
     @field_validator("week_statuses")
     @classmethod
     def week_statuses_must_have_valid_values(
-        cls, v: dict[int, str],
+        cls,
+        v: dict[int, str],
     ) -> dict[int, str]:
         """Validate that all week status values are valid."""
         for week, status in v.items():

@@ -173,9 +173,7 @@ def report_video_command(
     """
     # Mutual exclusion: --video-id and --video-ids
     if video_id and video_ids_csv:
-        console.print(
-            "[red]Cannot use --video-id and --video-ids together.[/red]"
-        )
+        console.print("[red]Cannot use --video-id and --video-ids together.[/red]")
         raise typer.Exit(code=1)
 
     data_path = Path(data_dir)
@@ -206,12 +204,8 @@ def report_video_command(
             vlist = videos if isinstance(videos, list) else videos.get("videos", [])
 
             if use_filter:
-                pa = (
-                    date.fromisoformat(published_after) if published_after else None
-                )
-                pb = (
-                    date.fromisoformat(published_before) if published_before else None
-                )
+                pa = date.fromisoformat(published_after) if published_after else None
+                pb = date.fromisoformat(published_before) if published_before else None
                 video_filter = VideoFilter(
                     keyword=keyword,
                     published_after=pa,
@@ -234,9 +228,7 @@ def report_video_command(
                 vid_ids = [v["video_id"] for v in vlist]
 
         with create_progress() as progress:
-            task = progress.add_task(
-                "Generating video reports", total=len(vid_ids)
-            )
+            task = progress.add_task("Generating video reports", total=len(vid_ids))
             for vid in vid_ids:
                 path = _generate_video_report(
                     collect_dir=mgr.collect_dir,
@@ -277,7 +269,8 @@ def _generate_video_report(
         )
 
         gen = VideoReportGenerator(
-            collect_dir=collect_dir, analyze_dir=analyze_dir,
+            collect_dir=collect_dir,
+            analyze_dir=analyze_dir,
         )
         video = gen._load_video_meta(video_id, channel_id)
         retention = gen._load_retention(video_id)
@@ -292,7 +285,8 @@ def _generate_video_report(
         )
 
     generator = VideoReportGenerator(
-        collect_dir=collect_dir, analyze_dir=analyze_dir,
+        collect_dir=collect_dir,
+        analyze_dir=analyze_dir,
     )
     return generator.generate(
         video_id=video_id,
@@ -341,11 +335,7 @@ def report_comment_insight_command(
 
     data_path = Path(data_dir)
     mgr = resolve_project(project_dir, project)
-    out_dir = (
-        Path(output_dir)
-        if output_dir
-        else mgr.report_dir / "comment_insight"
-    )
+    out_dir = Path(output_dir) if output_dir else mgr.report_dir / "comment_insight"
 
     # Load topic clusters
     topics_path = mgr.analyze_dir / "topics" / f"{video_id}.json"
@@ -379,11 +369,7 @@ def report_comment_insight_command(
             )
             videos = read_json(videos_path)
             if videos:
-                vlist = (
-                    videos
-                    if isinstance(videos, list)
-                    else videos.get("videos", [])
-                )
+                vlist = videos if isinstance(videos, list) else videos.get("videos", [])
                 for v in vlist:
                     if v.get("video_id") == video_id:
                         video_meta = v
@@ -466,25 +452,26 @@ def report_department_command(
     parsed_data = read_json(parsed_path)
     if parsed_data is None:
         console.print(
-            f"[red]No parsed titles for '{channel}'. "
-            "Run title parsing first.[/red]"
+            f"[red]No parsed titles for '{channel}'. Run title parsing first.[/red]"
         )
         raise typer.Exit(code=1)
-    parsed_titles = [ParsedTitle(**p) for p in parsed_data]
+    plist = (
+        parsed_data
+        if isinstance(parsed_data, list)
+        else parsed_data.get("parsed_titles", [])
+    )
+    parsed_titles = [ParsedTitle(**p) for p in plist]
 
     # Load videos
     videos_path = mgr.collect_dir / "channels" / channel / "videos_meta.json"
     videos_data = read_json(videos_path)
     if videos_data is None:
         console.print(
-            f"[red]No video data for '{channel}'. "
-            "Run data collection first.[/red]"
+            f"[red]No video data for '{channel}'. Run data collection first.[/red]"
         )
         raise typer.Exit(code=1)
     vlist = (
-        videos_data
-        if isinstance(videos_data, list)
-        else videos_data.get("videos", [])
+        videos_data if isinstance(videos_data, list) else videos_data.get("videos", [])
     )
     videos = [Video(**v) for v in vlist]
 
@@ -496,13 +483,23 @@ def report_department_command(
 
     generator = DepartmentReportGenerator()
     overview = generator.compute_overview(
-        parsed_titles, videos, channel, year=year, semester=semester,
+        parsed_titles,
+        videos,
+        channel,
+        year=year,
+        semester=semester,
     )
     professor_details = generator.compute_professor_details(
-        parsed_titles, videos, year=year, semester=semester,
+        parsed_titles,
+        videos,
+        year=year,
+        semester=semester,
     )
     compliance = generator.compute_compliance(
-        parsed_titles, videos, year=year, semester=semester,
+        parsed_titles,
+        videos,
+        year=year,
+        semester=semester,
     )
 
     suffix = f"_{channel}"
@@ -514,7 +511,10 @@ def report_department_command(
     if format == "html":
         report_path = reports_dir / f"department{suffix}.html"
         generator.generate_html(
-            overview, professor_details, compliance, report_path,
+            overview,
+            professor_details,
+            compliance,
+            report_path,
         )
         console.print(f"[green]Department report generated: {report_path}[/green]")
 
@@ -527,14 +527,15 @@ def report_department_command(
             compliance_entries=compliance,
             output_path=report_path,
         )
-        console.print(
-            f"[green]Department Excel report: {report_path}[/green]"
-        )
+        console.print(f"[green]Department Excel report: {report_path}[/green]")
 
     elif format == "pdf":
         html_path = reports_dir / f"department{suffix}.html"
         generator.generate_html(
-            overview, professor_details, compliance, html_path,
+            overview,
+            professor_details,
+            compliance,
+            html_path,
         )
         pdf_path = generator.generate_pdf(html_path)
         if pdf_path:
@@ -658,7 +659,8 @@ def report_bundle_command(
 
         if dry_run:
             gen = BundleReportGenerator(
-                collect_dir=mgr.collect_dir, analyze_dir=mgr.analyze_dir,
+                collect_dir=mgr.collect_dir,
+                analyze_dir=mgr.analyze_dir,
             )
             videos_meta = gen._load_videos_meta(channel_id)
             filtered = VideoFilterService.filter_videos(videos_meta, video_filter)
@@ -675,12 +677,11 @@ def report_bundle_command(
         else:
             suffix = _sanitize_filename_part(keyword) if keyword else "all"
             date_str = datetime.now(UTC).strftime("%Y%m%d")
-            output_path = (
-                mgr.report_dir / "bundle" / f"bundle_{suffix}_{date_str}.html"
-            )
+            output_path = mgr.report_dir / "bundle" / f"bundle_{suffix}_{date_str}.html"
 
         gen = BundleReportGenerator(
-            collect_dir=mgr.collect_dir, analyze_dir=mgr.analyze_dir,
+            collect_dir=mgr.collect_dir,
+            analyze_dir=mgr.analyze_dir,
         )
         try:
             if from_html:
@@ -701,9 +702,7 @@ def report_bundle_command(
                     title=title,
                 )
         except ValueError:
-            console.print(
-                "[yellow]No videos matching the specified filters.[/yellow]"
-            )
+            console.print("[yellow]No videos matching the specified filters.[/yellow]")
             raise typer.Exit(code=1)
 
         console.print(f"[green]Bundle HTML report generated: {html_path}[/green]")
@@ -760,7 +759,8 @@ def report_channel_command(
     out_dir = Path(output_dir) if output_dir else mgr.report_dir / "channel"
 
     generator = ChannelReportGenerator(
-        collect_dir=mgr.collect_dir, analyze_dir=mgr.analyze_dir,
+        collect_dir=mgr.collect_dir,
+        analyze_dir=mgr.analyze_dir,
     )
 
     with create_progress() as progress:
@@ -772,7 +772,5 @@ def report_channel_command(
                 channel_id=channel_config.channel_id,
                 output_dir=out_dir,
             )
-            progress.console.print(
-                f"[green]Channel report generated: {path}[/green]"
-            )
+            progress.console.print(f"[green]Channel report generated: {path}[/green]")
             progress.advance(task)

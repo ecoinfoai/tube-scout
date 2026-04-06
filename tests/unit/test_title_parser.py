@@ -164,6 +164,17 @@ class TestFallbackParsing:
         assert result.parse_error is True
         assert result.video_id == "vid022"
 
+    def test_korean_suffix_not_treated_as_professor(self, parser: TitleParser) -> None:
+        """L-08: Korean academic suffixes should not be extracted as professor names."""
+        result = parser.parse("3주차 강의", "vid_suffix")
+        assert "주차" not in result.professor
+
+        result2 = parser.parse("차시 복습영상", "vid_suffix2")
+        assert "차시" not in result2.professor
+
+        result3 = parser.parse("학과 소개 영상", "vid_suffix3")
+        assert "학과" not in result3.professor
+
     def test_semester_year_prefix(self, parser: TitleParser) -> None:
         result = parser.parse(
             "2025-1 홍길동 간호학과 인체구조와기능 15주차 2차시 기말정리", "vid023"

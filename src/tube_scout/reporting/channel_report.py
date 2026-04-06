@@ -108,13 +108,19 @@ def compare_videos(videos: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "rankings": {
             "by_views": [
-                {"video_id": v.get("video_id"), "title": v.get("title", ""),
-                 "view_count": v.get("view_count", 0)}
+                {
+                    "video_id": v.get("video_id"),
+                    "title": v.get("title", ""),
+                    "view_count": v.get("view_count", 0),
+                }
                 for v in by_views
             ],
             "by_engagement_rate": [
-                {"video_id": v.get("video_id"), "title": v.get("title", ""),
-                 "engagement_rate": round(engagement_rate(v), 4)}
+                {
+                    "video_id": v.get("video_id"),
+                    "title": v.get("title", ""),
+                    "engagement_rate": round(engagement_rate(v), 4),
+                }
                 for v in by_engagement
             ],
         },
@@ -161,31 +167,37 @@ def generate_improvement_suggestions(
     for v in videos:
         dur = v.get("duration_seconds", 0)
         if dur > 3600:  # > 60 min
-            suggestions.append(ImprovementSuggestion(
-                video_id=v.get("video_id"),
-                category="length",
-                suggestion=(
-                    f"Video is {dur // 60} minutes long. "
-                    "Consider splitting into 15-20 minute segments "
-                    "for better retention."
-                ),
-                evidence=(
-                    f"Average duration is {avg_duration / 60:.0f} min. "
-                    f"Videos over 60 min typically see significant drop-off."
-                ),
-                priority="high",
-            ))
+            suggestions.append(
+                ImprovementSuggestion(
+                    video_id=v.get("video_id"),
+                    category="length",
+                    suggestion=(
+                        f"Video is {dur // 60} minutes long. "
+                        "Consider splitting into 15-20 minute segments "
+                        "for better retention."
+                    ),
+                    evidence=(
+                        f"Average duration is {avg_duration / 60:.0f} min. "
+                        f"Videos over 60 min typically see significant drop-off."
+                    ),
+                    priority="high",
+                )
+            )
         elif dur > 2400:  # > 40 min
-            suggestions.append(ImprovementSuggestion(
-                video_id=v.get("video_id"),
-                category="length",
-                suggestion=(
-                    f"Video is {dur // 60} minutes long. "
-                    "Consider adding chapter markers or breaks."
-                ),
-                evidence=f"Average channel duration is {avg_duration / 60:.0f} min.",
-                priority="medium",
-            ))
+            suggestions.append(
+                ImprovementSuggestion(
+                    video_id=v.get("video_id"),
+                    category="length",
+                    suggestion=(
+                        f"Video is {dur // 60} minutes long. "
+                        "Consider adding chapter markers or breaks."
+                    ),
+                    evidence=(
+                        f"Average channel duration is {avg_duration / 60:.0f} min."
+                    ),
+                    priority="medium",
+                )
+            )
 
     # --- Engagement suggestions ---
     for v in videos:
@@ -196,39 +208,44 @@ def generate_improvement_suggestions(
         if view_count > 0:
             eng_rate = (likes + comments) / view_count
             if eng_rate < 0.01 and view_count > 100:
-                suggestions.append(ImprovementSuggestion(
-                    video_id=v.get("video_id"),
-                    category="engagement",
-                    suggestion=(
-                        "Low engagement rate. Add call-to-action prompts, "
-                        "questions, or interactive elements."
-                    ),
-                    evidence=(
-                        f"Engagement rate: {eng_rate:.3f} "
-                        f"({likes} likes + {comments} comments / {view_count} views)."
-                    ),
-                    priority="high" if eng_rate < 0.005 else "medium",
-                ))
+                suggestions.append(
+                    ImprovementSuggestion(
+                        video_id=v.get("video_id"),
+                        category="engagement",
+                        suggestion=(
+                            "Low engagement rate. Add call-to-action prompts, "
+                            "questions, or interactive elements."
+                        ),
+                        evidence=(
+                            f"Engagement rate: {eng_rate:.3f} "
+                            f"({likes} likes + {comments} comments"
+                            f" / {view_count} views)."
+                        ),
+                        priority="high" if eng_rate < 0.005 else "medium",
+                    )
+                )
 
     # --- Channel-level length suggestion ---
     if avg_duration > 0:
         comparison = compare_videos(videos)
         optimal = comparison["duration_analysis"]["optimal_range"]
         if optimal["min"] > 0 and optimal["max"] > 0:
-            suggestions.append(ImprovementSuggestion(
-                video_id=None,
-                category="length",
-                suggestion=(
-                    f"Top-performing videos are "
-                    f"{optimal['min']:.0f}-{optimal['max']:.0f} "
-                    "minutes long. Target this range for new content."
-                ),
-                evidence=(
-                    f"Based on {len(videos)} videos, average duration "
-                    f"is {avg_duration / 60:.0f} min."
-                ),
-                priority="medium",
-            ))
+            suggestions.append(
+                ImprovementSuggestion(
+                    video_id=None,
+                    category="length",
+                    suggestion=(
+                        f"Top-performing videos are "
+                        f"{optimal['min']:.0f}-{optimal['max']:.0f} "
+                        "minutes long. Target this range for new content."
+                    ),
+                    evidence=(
+                        f"Based on {len(videos)} videos, average duration "
+                        f"is {avg_duration / 60:.0f} min."
+                    ),
+                    priority="medium",
+                )
+            )
 
     # --- EQS-based content suggestions ---
     if eqs_scores:
@@ -242,24 +259,25 @@ def generate_improvement_suggestions(
                     if score.get(axis, 0) < 0.6:
                         weak_axes.append(axis)
                 if weak_axes:
-                    suggestions.append(ImprovementSuggestion(
-                        video_id=vid,
-                        category="content",
-                        suggestion=(
-                            f"Low quality scores on: {', '.join(weak_axes)}. "
-                            "Review and improve these aspects."
-                        ),
-                        evidence=(
-                            f"EQS overall: {score.get('overall', 0):.2f}"
-                            ", weak axes: "
-                            + ", ".join(
-                                f"{a}={score.get(a, 0):.2f}"
-                                for a in weak_axes
-                            )
-                            + "."
-                        ),
-                        priority="high" if len(weak_axes) >= 2 else "medium",
-                    ))
+                    suggestions.append(
+                        ImprovementSuggestion(
+                            video_id=vid,
+                            category="content",
+                            suggestion=(
+                                f"Low quality scores on: {', '.join(weak_axes)}. "
+                                "Review and improve these aspects."
+                            ),
+                            evidence=(
+                                f"EQS overall: {score.get('overall', 0):.2f}"
+                                ", weak axes: "
+                                + ", ".join(
+                                    f"{a}={score.get(a, 0):.2f}" for a in weak_axes
+                                )
+                                + "."
+                            ),
+                            priority="high" if len(weak_axes) >= 2 else "medium",
+                        )
+                    )
 
     # --- Channel-level engagement summary ---
     total_engagement = sum(
@@ -269,16 +287,19 @@ def generate_improvement_suggestions(
     if total_views > 0:
         channel_eng = total_engagement / total_views
         if channel_eng < 0.02:
-            suggestions.append(ImprovementSuggestion(
-                video_id=None,
-                category="engagement",
-                suggestion=(
-                    "Channel engagement rate is below average. "
-                    "Consider adding more interactive content and community engagement."
-                ),
-                evidence=f"Channel engagement rate: {channel_eng:.3f}.",
-                priority="medium",
-            ))
+            suggestions.append(
+                ImprovementSuggestion(
+                    video_id=None,
+                    category="engagement",
+                    suggestion=(
+                        "Channel engagement rate is below average. "
+                        "Consider adding more interactive content"
+                        " and community engagement."
+                    ),
+                    evidence=f"Channel engagement rate: {channel_eng:.3f}.",
+                    priority="medium",
+                )
+            )
 
     return suggestions
 
@@ -310,9 +331,7 @@ class ChannelReportGenerator:
             self.collect_dir = data_dir / "raw"
             self.analyze_dir = data_dir / "processed"
         else:
-            raise ValueError(
-                "Either data_dir or collect_dir must be provided."
-            )
+            raise ValueError("Either data_dir or collect_dir must be provided.")
         templates_dir = Path(__file__).parent / "templates"
         self._env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -350,9 +369,7 @@ class ChannelReportGenerator:
         if suggestions:
             suggestions_data = [s.model_dump() for s in suggestions]
             suggestions_dir = self.analyze_dir / "suggestions"
-            write_json(
-                suggestions_dir / f"{channel_id}.json", suggestions_data
-            )
+            write_json(suggestions_dir / f"{channel_id}.json", suggestions_data)
 
         # T089: Generate trend chart HTML
         daily_data = self._load_daily_data(channel_id)
@@ -441,9 +458,7 @@ class ChannelReportGenerator:
         Returns:
             List of daily data dicts with 'date' and 'views'.
         """
-        path = (
-            self.collect_dir / "analytics" / channel_id / "daily" / "channel.json"
-        )
+        path = self.collect_dir / "analytics" / channel_id / "daily" / "channel.json"
         data = read_json(path)
         if data is None:
             return []
@@ -467,14 +482,10 @@ class ChannelReportGenerator:
         insights.append(f"Average views per video: {avg_views:.0f}")
 
         durations = [
-            v.get("duration_seconds", 0)
-            for v in videos
-            if v.get("duration_seconds")
+            v.get("duration_seconds", 0) for v in videos if v.get("duration_seconds")
         ]
         if durations:
             avg_duration = sum(durations) / len(durations) / 60
-            insights.append(
-                f"Average video length: {avg_duration:.1f} minutes"
-            )
+            insights.append(f"Average video length: {avg_duration:.1f} minutes")
 
         return insights

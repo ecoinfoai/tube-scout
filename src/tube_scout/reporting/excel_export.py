@@ -26,6 +26,23 @@ _STATUS_FILLS = {
 }
 
 
+def _sanitize_cell(value: Any) -> Any:
+    """Sanitize a cell value to prevent Excel formula injection.
+
+    Args:
+        value: Cell value to sanitize.
+
+    Returns:
+        Sanitized value with leading formula characters prefixed by a
+        single quote, or the original value if not a string or safe.
+    """
+    if not isinstance(value, str):
+        return value
+    if value and value[0] in ("=", "+", "-", "@"):
+        return "'" + value
+    return value
+
+
 class ExcelExporter:
     """Export department report data to a multi-sheet Excel file.
 
@@ -97,8 +114,8 @@ class ExcelExporter:
             cell.font = _HEADER_FONT
 
         rows = [
-            ("채널 ID", overview.channel_id),
-            ("채널명", overview.channel_name),
+            ("채널 ID", _sanitize_cell(overview.channel_id)),
+            ("채널명", _sanitize_cell(overview.channel_name)),
             ("연도", overview.year),
             ("학기", overview.semester),
             ("총 영상 수", overview.total_videos),
@@ -128,18 +145,26 @@ class ExcelExporter:
             professor_details: List of professor details.
         """
         headers = [
-            "교수명", "영상 수", "과목", "주차 커버리지",
-            "차시 완결성", "평균 시간(분)", "총 조회수",
-            "평균 조회수", "검증 오류 수",
+            "교수명",
+            "영상 수",
+            "과목",
+            "주차 커버리지",
+            "차시 완결성",
+            "평균 시간(분)",
+            "총 조회수",
+            "평균 조회수",
+            "검증 오류 수",
         ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col, value=header)
             cell.font = _HEADER_FONT
 
         for row_idx, detail in enumerate(professor_details, 2):
-            ws.cell(row=row_idx, column=1, value=detail.professor_name)
+            ws.cell(row=row_idx, column=1, value=_sanitize_cell(detail.professor_name))
             ws.cell(row=row_idx, column=2, value=detail.video_count)
-            ws.cell(row=row_idx, column=3, value=", ".join(detail.courses))
+            ws.cell(
+                row=row_idx, column=3, value=_sanitize_cell(", ".join(detail.courses))
+            )
             ws.cell(row=row_idx, column=4, value=f"{detail.weekly_coverage:.1%}")
             ws.cell(row=row_idx, column=5, value=f"{detail.session_completeness:.1%}")
             ws.cell(row=row_idx, column=6, value=round(detail.avg_duration_minutes, 1))
@@ -169,7 +194,7 @@ class ExcelExporter:
             cell.font = _HEADER_FONT
 
         for row_idx, entry in enumerate(compliance_entries, 2):
-            ws.cell(row=row_idx, column=1, value=entry.professor_name)
+            ws.cell(row=row_idx, column=1, value=_sanitize_cell(entry.professor_name))
             for week in range(1, 17):
                 status = entry.week_statuses.get(week, "missing")
                 cell = ws.cell(row=row_idx, column=week + 1, value=status)
@@ -177,7 +202,8 @@ class ExcelExporter:
                 if fill:
                     cell.fill = fill
             ws.cell(
-                row=row_idx, column=18,
+                row=row_idx,
+                column=18,
                 value=f"{entry.upload_deadline_compliance:.1%}",
             )
 
@@ -205,10 +231,16 @@ class ExcelExporter:
         for row_idx, finding in enumerate(validation_findings, 2):
             ws.cell(row=row_idx, column=1, value=finding.rule_id)
             ws.cell(row=row_idx, column=2, value=finding.severity)
-            ws.cell(row=row_idx, column=3, value=", ".join(finding.video_ids))
-            ws.cell(row=row_idx, column=4, value=finding.professor or "")
-            ws.cell(row=row_idx, column=5, value=finding.description)
-            ws.cell(row=row_idx, column=6, value=str(finding.details))
+            ws.cell(
+                row=row_idx,
+                column=3,
+                value=_sanitize_cell(", ".join(finding.video_ids)),
+            )
+            ws.cell(
+                row=row_idx, column=4, value=_sanitize_cell(finding.professor or "")
+            )
+            ws.cell(row=row_idx, column=5, value=_sanitize_cell(finding.description))
+            ws.cell(row=row_idx, column=6, value=_sanitize_cell(str(finding.details)))
 
         # Auto-width
         for col in range(1, len(headers) + 1):

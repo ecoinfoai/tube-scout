@@ -27,6 +27,7 @@ from tube_scout.cli.report import _print_dry_run_table
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_video(
     video_id: str = "vid001",
     title: str = "홍길동 2025 감염미생물학 1주차 1차시",
@@ -70,14 +71,18 @@ def _setup(
 def _proj_args(data_path: Path, project_dir: Path, project_path: Path) -> list[str]:
     """Return common project CLI args."""
     return [
-        "--data-dir", str(data_path),
-        "--project-dir", str(project_dir),
-        "--project", str(project_path),
+        "--data-dir",
+        str(data_path),
+        "--project-dir",
+        str(project_dir),
+        "--project",
+        str(project_path),
     ]
 
 
 def _app():
     from tube_scout.cli.main import app
+
     return app
 
 
@@ -95,9 +100,11 @@ class TestReportVideoFilterCLI:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "존재하지않는과목XYZ",
+                "--keyword",
+                "존재하지않는과목XYZ",
             ],
         )
         assert result.exit_code == 1
@@ -109,9 +116,11 @@ class TestReportVideoFilterCLI:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--published-after", "03/01/2025",  # MM/DD/YYYY — invalid
+                "--published-after",
+                "03/01/2025",  # MM/DD/YYYY — invalid
             ],
         )
         assert result.exit_code != 0
@@ -123,10 +132,13 @@ class TestReportVideoFilterCLI:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--published-after", "2025-12-31",
-                "--published-before", "2025-01-01",
+                "--published-after",
+                "2025-12-31",
+                "--published-before",
+                "2025-01-01",
             ],
         )
         assert result.exit_code != 0
@@ -138,10 +150,13 @@ class TestReportVideoFilterCLI:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-id", "vid001",
-                "--video-ids", "vid001,vid002",
+                "--video-id",
+                "vid001",
+                "--video-ids",
+                "vid001,vid002",
             ],
         )
         assert result.exit_code == 1
@@ -154,9 +169,11 @@ class TestReportVideoFilterCLI:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-ids", "NOPE1,NOPE2,NOPE3",
+                "--video-ids",
+                "NOPE1,NOPE2,NOPE3",
             ],
         )
         assert result.exit_code == 1
@@ -168,9 +185,11 @@ class TestReportVideoFilterCLI:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-ids", ",",
+                "--video-ids",
+                ",",
             ],
         )
         assert result.exit_code == 1
@@ -182,9 +201,11 @@ class TestReportVideoFilterCLI:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "<script>alert('xss')</script>",
+                "--keyword",
+                "<script>alert('xss')</script>",
             ],
         )
         assert result.exit_code in (0, 1)
@@ -197,9 +218,11 @@ class TestReportVideoFilterCLI:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "A" * 10000,
+                "--keyword",
+                "A" * 10000,
             ],
         )
         assert result.exit_code in (0, 1)
@@ -230,9 +253,11 @@ class TestDryRunAttacker:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--output-dir", str(out_dir),
+                "--output-dir",
+                str(out_dir),
                 "--dry-run",  # no filter -- dry-run is ignored per current impl
             ],
         )
@@ -250,10 +275,13 @@ class TestDryRunAttacker:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--output-dir", str(out_dir),
-                "--keyword", "감염미생물학",
+                "--output-dir",
+                str(out_dir),
+                "--keyword",
+                "감염미생물학",
                 "--dry-run",
             ],
         )
@@ -269,9 +297,11 @@ class TestDryRunAttacker:
         result = runner.invoke(
             _app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "감염미생물학",
+                "--keyword",
+                "감염미생물학",
                 "--dry-run",
             ],
         )
@@ -287,9 +317,11 @@ class TestDryRunAttacker:
         result = runner.invoke(
             _app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "존재하지않는키워드XYZ",
+                "--keyword",
+                "존재하지않는키워드XYZ",
                 "--dry-run",
             ],
         )
@@ -302,9 +334,11 @@ class TestDryRunAttacker:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "없는과목QQQQQ",
+                "--keyword",
+                "없는과목QQQQQ",
                 "--dry-run",
             ],
         )
@@ -328,10 +362,13 @@ class TestDryRunAttacker:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--output-dir", str(out_dir),
-                "--video-id", "vid001",
+                "--output-dir",
+                str(out_dir),
+                "--video-id",
+                "vid001",
                 "--dry-run",
             ],
         )
@@ -399,10 +436,7 @@ class TestDryRunTableDataInjection:
 
     def test_10000_videos_dry_run_table_performance(self) -> None:
         """10000 videos in dry-run table must complete without timeout."""
-        videos = [
-            _make_video(f"vid{i:05d}", f"강의영상 {i}주차")
-            for i in range(10000)
-        ]
+        videos = [_make_video(f"vid{i:05d}", f"강의영상 {i}주차") for i in range(10000)]
         _print_dry_run_table(videos)
 
 
@@ -428,9 +462,11 @@ class TestOver200VideosSpec:
         result = runner.invoke(
             _app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "강의",
+                "--keyword",
+                "강의",
                 "--dry-run",  # dry-run to avoid actual file generation
             ],
         )
@@ -448,9 +484,11 @@ class TestOver200VideosSpec:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "강의",
+                "--keyword",
+                "강의",
                 "--dry-run",
             ],
         )
@@ -471,9 +509,11 @@ class TestOver200VideosSpec:
         result = runner.invoke(
             _app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "강의",
+                "--keyword",
+                "강의",
                 "--dry-run",
             ],
         )
@@ -501,10 +541,13 @@ class TestMutualExclusionEdgeCases:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-id", "",      # falsy -- bypasses exclusion guard
-                "--video-ids", "vid001,vid002",
+                "--video-id",
+                "",  # falsy -- bypasses exclusion guard
+                "--video-ids",
+                "vid001,vid002",
             ],
         )
         # Expected behavior: should exit 1 (mutual exclusion violated)
@@ -529,10 +572,13 @@ class TestMutualExclusionEdgeCases:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-id", "   ",  # whitespace: truthy -> exclusion
-                "--video-ids", "vid001",
+                "--video-id",
+                "   ",  # whitespace: truthy -> exclusion
+                "--video-ids",
+                "vid001",
             ],
         )
         # Whitespace is truthy -- mutual exclusion IS triggered -> exit 1
@@ -547,9 +593,11 @@ class TestMutualExclusionEdgeCases:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-ids", " vid001",  # leading space -- stripped by filter service
+                "--video-ids",
+                " vid001",  # leading space -- stripped by filter service
                 "--dry-run",
             ],
         )
@@ -576,10 +624,13 @@ class TestFilterSuccessReportFailure:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, proj_dir, proj),
-                "--output-dir", str(out_dir),
-                "--video-ids", "vid001",
+                "--output-dir",
+                str(out_dir),
+                "--video-ids",
+                "vid001",
             ],
         )
         # May fail with missing data error but must not raise unhandled exception
@@ -598,10 +649,13 @@ class TestFilterSuccessReportFailure:
         result = runner.invoke(
             _app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "감염미생물학",
-                "--output", str(out_dir / "test_bundle.html"),
+                "--keyword",
+                "감염미생물학",
+                "--output",
+                str(out_dir / "test_bundle.html"),
             ],
         )
         # BundleReportGenerator handles missing retention/segments gracefully
@@ -631,9 +685,11 @@ class TestFilterSuccessReportFailure:
         result = runner.invoke(
             _app(),
             [
-                "report", "video",
+                "report",
+                "video",
                 *_proj_args(data_path, project_dir, project_path),
-                "--keyword", "감염미생물학",
+                "--keyword",
+                "감염미생물학",
                 "--dry-run",
             ],
         )

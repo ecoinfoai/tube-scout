@@ -82,7 +82,10 @@ def validate_command(
     with open(parsed_path) as f:
         raw_data = json.load(f)
 
-    parsed_titles = [ParsedTitle(**item) for item in raw_data]
+    plist = (
+        raw_data if isinstance(raw_data, list) else raw_data.get("parsed_titles", [])
+    )
+    parsed_titles = [ParsedTitle(**item) for item in plist]
 
     # Apply year/semester filters
     if year is not None:

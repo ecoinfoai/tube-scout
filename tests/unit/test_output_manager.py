@@ -80,9 +80,7 @@ class TestOutputManager:
         mgr = OutputManager()
         assert mgr.base_dir == Path("output")
 
-    def test_create_run_creates_base_dir_if_not_exists(
-        self, tmp_path: Path
-    ) -> None:
+    def test_create_run_creates_base_dir_if_not_exists(self, tmp_path: Path) -> None:
         base = tmp_path / "nonexistent" / "output"
         mgr = OutputManager(base_dir=base)
         run_dir = mgr.create_run()

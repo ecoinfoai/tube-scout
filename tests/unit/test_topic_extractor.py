@@ -9,6 +9,7 @@ from tube_scout.services.topic_extractor import TopicExtractorService
 
 # --- Fixtures ---
 
+
 def _make_comments(n: int = 5) -> list[dict[str, Any]]:
     """Generate test comments with varied topics."""
     samples = [
@@ -33,16 +34,18 @@ def _make_mock_adapter_for_topics() -> MagicMock:
         ids = re.findall(r'"comment_id":\s*"(c\d+)"', user_prompt)
         results = []
         for cid in ids:
-            results.append({
-                "comment_id": cid,
-                "topic_label": "audio quality",
-                "sentiment": "negative",
-                "confidence": 0.9,
-                "is_question": cid in ("c2", "c4"),
-                "question_text": "시험 범위가 어디까지인가요?" if cid == "c2" else (
-                    "이 강의 시리즈 총 몇 개인가요?" if cid == "c4" else None
-                ),
-            })
+            results.append(
+                {
+                    "comment_id": cid,
+                    "topic_label": "audio quality",
+                    "sentiment": "negative",
+                    "confidence": 0.9,
+                    "is_question": cid in ("c2", "c4"),
+                    "question_text": "시험 범위가 어디까지인가요?"
+                    if cid == "c2"
+                    else ("이 강의 시리즈 총 몇 개인가요?" if cid == "c4" else None),
+                }
+            )
 
         result = MagicMock()
         result.model_dump.return_value = {"results": results}
@@ -53,6 +56,7 @@ def _make_mock_adapter_for_topics() -> MagicMock:
 
 
 # --- T048: Topic extraction tests ---
+
 
 class TestTopicExtraction:
     """Tests for LLM-based topic extraction (T048)."""
@@ -129,6 +133,7 @@ class TestTopicExtraction:
 
 # --- T049: Question extraction and hotspot cross-reference tests ---
 
+
 class TestQuestionExtraction:
     """Tests for question identification and hotspot cross-reference (T049)."""
 
@@ -160,9 +165,7 @@ class TestQuestionExtraction:
             {"elapsed_ratio": 0.7, "audience_watch_ratio": 1.8},
         ]
 
-        matches = service.cross_reference_with_hotspots(
-            "vid001", comments, hotspots
-        )
+        matches = service.cross_reference_with_hotspots("vid001", comments, hotspots)
 
         assert isinstance(matches, list)
         for match in matches:
@@ -197,9 +200,7 @@ class TestQuestionExtraction:
         comments = [{"comment_id": "c0", "text": "Great lecture!"}]
         hotspots = [{"elapsed_ratio": 0.5, "audience_watch_ratio": 1.3}]
 
-        matches = service.cross_reference_with_hotspots(
-            "vid001", comments, hotspots
-        )
+        matches = service.cross_reference_with_hotspots("vid001", comments, hotspots)
         assert matches == []
 
     def test_no_hotspots_returns_empty_matches(self) -> None:
@@ -214,6 +215,7 @@ class TestQuestionExtraction:
 
 
 # --- T055: Edge cases ---
+
 
 class TestTopicExtractorEdgeCases:
     """Tests for edge cases: no comments, comments disabled (T055)."""

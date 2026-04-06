@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Pydantic schema for LLM JSON output
 # ---------------------------------------------------------------------------
 
+
 class _RACEDScores(BaseModel):
     """Schema for RACED 5-axis scores returned by the LLM."""
 
@@ -93,7 +94,9 @@ class EQSService:
             }
 
         scores = self._call_llm(
-            transcript_text, retention_data, comment_data,
+            transcript_text,
+            retention_data,
+            comment_data,
         )
         overall = sum(scores.values()) / len(scores) if scores else 0.0
 
@@ -130,13 +133,23 @@ class EQSService:
                 "environment variable."
             )
 
-        retention_summary = json.dumps(
-            retention_data[:20], indent=None,
-        ) if retention_data else "No retention data available."
+        retention_summary = (
+            json.dumps(
+                retention_data[:20],
+                indent=None,
+            )
+            if retention_data
+            else "No retention data available."
+        )
 
-        comment_summary = json.dumps(
-            comment_data[:20], indent=None,
-        ) if comment_data else "No comment data available."
+        comment_summary = (
+            json.dumps(
+                comment_data[:20],
+                indent=None,
+            )
+            if comment_data
+            else "No comment data available."
+        )
 
         user_prompt = (
             f"Evaluate the following video transcript:\n\n"

@@ -41,9 +41,7 @@ class TestJobCreationFailures:
         mock_reporting_client.jobs().create().execute.side_effect = HttpError(
             resp, b'{"error": {"message": "Forbidden: insufficient permissions"}}'
         )
-        with pytest.raises(
-            PermissionError, match="Failed to create reporting job"
-        ):
+        with pytest.raises(PermissionError, match="Failed to create reporting job"):
             service.create_job("channel_basic_a2")
 
     def test_server_error_propagates(

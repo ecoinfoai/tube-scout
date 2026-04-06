@@ -172,27 +172,19 @@ class TestGenerateImprovementSuggestions:
         self, sample_videos: list[dict[str, Any]]
     ) -> None:
         suggestions = generate_improvement_suggestions(sample_videos)
-        length_suggestions = [
-            s for s in suggestions if s.category == "length"
-        ]
+        length_suggestions = [s for s in suggestions if s.category == "length"]
         assert len(length_suggestions) > 0
         # Should flag the 90-min video
-        long_video_suggestions = [
-            s for s in length_suggestions if s.video_id == "v4"
-        ]
+        long_video_suggestions = [s for s in length_suggestions if s.video_id == "v4"]
         assert len(long_video_suggestions) > 0
 
     def test_generates_engagement_suggestion_for_low_engagement(
         self, sample_videos: list[dict[str, Any]]
     ) -> None:
         suggestions = generate_improvement_suggestions(sample_videos)
-        engagement_suggestions = [
-            s for s in suggestions if s.category == "engagement"
-        ]
+        engagement_suggestions = [s for s in suggestions if s.category == "engagement"]
         # v4 has very low engagement relative to others
-        assert any(
-            s.video_id == "v4" for s in engagement_suggestions
-        )
+        assert any(s.video_id == "v4" for s in engagement_suggestions)
 
     def test_no_suggestions_for_empty_videos(self) -> None:
         suggestions = generate_improvement_suggestions([])
@@ -231,9 +223,7 @@ class TestGenerateImprovementSuggestions:
 class TestCompareVideos:
     """Tests for video comparison analysis (T085/T087)."""
 
-    def test_comparison_by_views(
-        self, sample_videos: list[dict[str, Any]]
-    ) -> None:
+    def test_comparison_by_views(self, sample_videos: list[dict[str, Any]]) -> None:
         comparison = compare_videos(sample_videos)
         assert "rankings" in comparison
         by_views = comparison["rankings"]["by_views"]
@@ -301,17 +291,17 @@ class TestChannelReportGeneration:
         import json
 
         (channel_dir / "channel_meta.json").write_text(
-            json.dumps({
-                "channel_id": channel_id,
-                "channel_name": "Test Channel",
-                "professor_name": "Test Prof",
-                "subscriber_count": 1000,
-                "total_view_count": 50000,
-            })
+            json.dumps(
+                {
+                    "channel_id": channel_id,
+                    "channel_name": "Test Channel",
+                    "professor_name": "Test Prof",
+                    "subscriber_count": 1000,
+                    "total_view_count": 50000,
+                }
+            )
         )
-        (channel_dir / "videos_meta.json").write_text(
-            json.dumps(sample_videos)
-        )
+        (channel_dir / "videos_meta.json").write_text(json.dumps(sample_videos))
 
         generator = ChannelReportGenerator(data_dir=data_dir)
         output_dir = tmp_path / "reports"
@@ -334,22 +324,21 @@ class TestChannelReportGeneration:
         channel_dir.mkdir(parents=True)
 
         (channel_dir / "channel_meta.json").write_text(
-            json.dumps({
-                "channel_id": channel_id,
-                "channel_name": "Trend Channel",
-                "professor_name": "Prof",
-            })
+            json.dumps(
+                {
+                    "channel_id": channel_id,
+                    "channel_name": "Trend Channel",
+                    "professor_name": "Prof",
+                }
+            )
         )
-        (channel_dir / "videos_meta.json").write_text(
-            json.dumps(sample_videos)
-        )
+        (channel_dir / "videos_meta.json").write_text(json.dumps(sample_videos))
 
         # Create daily analytics data
         daily_dir = data_dir / "raw" / "analytics" / channel_id / "daily"
         daily_dir.mkdir(parents=True)
         daily_data = [
-            {"date": f"2024-01-{d:02d}", "views": 100 + d * 5}
-            for d in range(1, 31)
+            {"date": f"2024-01-{d:02d}", "views": 100 + d * 5} for d in range(1, 31)
         ]
         (daily_dir / "channel.json").write_text(json.dumps(daily_data))
 

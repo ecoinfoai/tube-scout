@@ -12,9 +12,7 @@ class VideoFilterService:
     """Service for filtering videos based on VideoFilter criteria."""
 
     @staticmethod
-    def filter_videos(
-        videos: list[dict], video_filter: VideoFilter
-    ) -> list[dict]:
+    def filter_videos(videos: list[dict], video_filter: VideoFilter) -> list[dict]:
         """Filter a list of video metadata dicts by the given criteria.
 
         All specified conditions are combined with AND logic.
@@ -87,15 +85,20 @@ class VideoFilterService:
         """
         if sort_by == "views":
             return sorted(
-                videos, key=lambda v: v.get("view_count", 0), reverse=True,
+                videos,
+                key=lambda v: v.get("view_count", 0),
+                reverse=True,
             )
         if sort_by == "course":
             return sorted(
-                videos, key=VideoFilterService._course_sort_key,
+                videos,
+                key=VideoFilterService._course_sort_key,
             )
         # Default: date (newest first)
         return sorted(
-            videos, key=lambda v: v.get("published_at", ""), reverse=True,
+            videos,
+            key=lambda v: v.get("published_at", ""),
+            reverse=True,
         )
 
     @staticmethod
@@ -114,7 +117,7 @@ class VideoFilterService:
         session = int(match.group(2)) if match else 9999
         # Extract subject: take everything before the week/session pattern
         if match:
-            subject = title[:match.start()].strip()
+            subject = title[: match.start()].strip()
         else:
             subject = title
         return (subject, week, session)

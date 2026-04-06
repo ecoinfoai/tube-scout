@@ -11,6 +11,11 @@ SUPPLEMENTARY_KEYWORDS = frozenset(
     {"핵심영상", "보완영상", "질문응답", "보충", "특강", "OT"}
 )
 
+# Korean suffixes that should never be treated as professor names
+_NON_PROFESSOR_SUFFIXES = frozenset(
+    {"주차", "차시", "학과", "학기", "학년도", "학년", "학기말", "중간", "기말"}
+)
+
 
 @dataclass(frozen=True)
 class TitlePattern:
@@ -261,13 +266,16 @@ def _fallback_parse(title: str, video_id: str) -> ParsedTitle:
     # Extract professor from parenthesized form
     prof_paren = re.search(r"\(([가-힣]{2,4}(?:/[가-힣]{2,4})*)\)", title)
     if prof_paren:
-        professor = _extract_professors(prof_paren.group(1))
+        candidates = _extract_professors(prof_paren.group(1))
+        professor = [n for n in candidates if n not in _NON_PROFESSOR_SUFFIXES]
 
     # Extract professor from start of title (Korean name, 2-4 chars)
     if not professor:
         prof_start = re.match(r"^(?:\d+[-\s.]*)?([가-힣]{2,4})\s", title)
         if prof_start:
-            professor = [prof_start.group(1)]
+            name = prof_start.group(1)
+            if name not in _NON_PROFESSOR_SUFFIXES:
+                professor = [name]
 
     # Extract department
     dept_match = re.search(r"([가-힣]+(?:학과|과))", title)
@@ -413,9 +421,7 @@ class TitleParser:
             "success_rate": success_count / total if total > 0 else 0.0,
         }
 
-    def save_results(
-        self, results: list[ParsedTitle], output_dir: Path
-    ) -> Path:
+    def save_results(self, results: list[ParsedTitle], output_dir: Path) -> Path:
         """Save parsed results to a JSON file in the output directory.
 
         Args:

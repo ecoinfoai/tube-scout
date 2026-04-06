@@ -113,13 +113,21 @@ class TestFilteredReportIntegration:
         out_dir = tmp_path / "output"
         app = _make_app()
 
-        result = runner.invoke(app, [
-            "--data-dir", str(tmp_path),
-            "--project-dir", str(project_dir),
-            "--project", str(proj),
-            "--keyword", "감염미생물학",
-            "--output-dir", str(out_dir),
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(project_dir),
+                "--project",
+                str(proj),
+                "--keyword",
+                "감염미생물학",
+                "--output-dir",
+                str(out_dir),
+            ],
+        )
 
         assert result.exit_code == 0
         # Should generate reports for vid001 and vid003 only

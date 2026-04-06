@@ -1,6 +1,5 @@
 """Tests for title validation rules (T049)."""
 
-
 from tube_scout.models.parsed_title import ParsedTitle
 from tube_scout.services.validator import (
     check_duplicates,
@@ -247,9 +246,7 @@ class TestCheckDurationOutliers:
     """V-007: duration > +/-3 sigma from course average."""
 
     def test_no_outliers(self) -> None:
-        parsed = [
-            _make_parsed(video_id=f"v{i}", course="Math") for i in range(5)
-        ]
+        parsed = [_make_parsed(video_id=f"v{i}", course="Math") for i in range(5)]
         videos = [
             _make_video(video_id=f"v{i}", duration_seconds=3600) for i in range(5)
         ]
@@ -257,9 +254,7 @@ class TestCheckDurationOutliers:
         assert findings == []
 
     def test_outlier_detected(self) -> None:
-        parsed = [
-            _make_parsed(video_id=f"v{i}", course="Math") for i in range(20)
-        ]
+        parsed = [_make_parsed(video_id=f"v{i}", course="Math") for i in range(20)]
         videos = [
             _make_video(video_id=f"v{i}", duration_seconds=3600) for i in range(19)
         ]
@@ -281,9 +276,7 @@ class TestCheckMissingWeeks:
     """V-008: gap in week sequence."""
 
     def test_no_gaps(self) -> None:
-        parsed = [
-            _make_parsed(video_id=f"v{i}", week=i) for i in range(1, 5)
-        ]
+        parsed = [_make_parsed(video_id=f"v{i}", week=i) for i in range(1, 5)]
         findings = check_missing_weeks(parsed)
         assert findings == []
 
@@ -310,9 +303,7 @@ class TestCheckUploadGaps:
     """V-009: 2+ consecutive weeks without upload."""
 
     def test_no_gaps(self) -> None:
-        parsed = [
-            _make_parsed(video_id=f"v{i}", week=i) for i in range(1, 5)
-        ]
+        parsed = [_make_parsed(video_id=f"v{i}", week=i) for i in range(1, 5)]
         videos = [
             _make_video(
                 video_id=f"v{i}",
@@ -345,9 +336,7 @@ class TestRunAllValidations:
         parsed = [
             _make_parsed(video_id="v1", week=18),  # V-003 ERROR
             # V-005 WARNING
-            _make_parsed(
-                video_id="v2", parse_error=True, matched_pattern=None
-            ),
+            _make_parsed(video_id="v2", parse_error=True, matched_pattern=None),
         ]
         videos = [
             _make_video(video_id="v1"),
@@ -383,9 +372,7 @@ class TestRunAllValidations:
     def test_supplementary_excluded_from_session_gaps(self) -> None:
         # Supplementary video with session 2 but no session 1 should not trigger V-006
         parsed = [
-            _make_parsed(
-                video_id="v1", week=1, session=2, category="supplementary"
-            ),
+            _make_parsed(video_id="v1", week=1, session=2, category="supplementary"),
         ]
         videos = [_make_video(video_id="v1")]
         findings = run_all_validations(parsed, videos)

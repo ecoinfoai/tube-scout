@@ -63,19 +63,20 @@ class TestExpiredTokenRefreshFailure:
     """Tests for expired tokens that cannot be refreshed."""
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
-    def test_refresh_error_raises(
-        self, sample_registry_with_token: Path
-    ) -> None:
+    def test_refresh_error_raises(self, sample_registry_with_token: Path) -> None:
         mock_creds = MagicMock()
         mock_creds.valid = False
         mock_creds.expired = True
         mock_creds.refresh_token = "1//revoked_refresh"
         mock_creds.refresh.side_effect = RefreshError("Token has been revoked")
 
-        with patch(
-            "tube_scout.services.auth.Credentials.from_authorized_user_file",
-            return_value=mock_creds,
-        ), patch("tube_scout.services.auth.Request"):
+        with (
+            patch(
+                "tube_scout.services.auth.Credentials.from_authorized_user_file",
+                return_value=mock_creds,
+            ),
+            patch("tube_scout.services.auth.Request"),
+        ):
             with pytest.raises(RefreshError):
                 authenticate_channel("간호학과")
 
@@ -146,7 +147,5 @@ class TestTokenNoRefreshToken:
             "tube_scout.services.auth.Credentials.from_authorized_user_file",
             return_value=mock_creds,
         ):
-            with pytest.raises(
-                ValueError, match="cannot be refreshed"
-            ):
+            with pytest.raises(ValueError, match="cannot be refreshed"):
                 authenticate_channel("간호학과")

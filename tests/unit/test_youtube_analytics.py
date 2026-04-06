@@ -29,9 +29,7 @@ def service(mock_analytics_client: MagicMock) -> YouTubeAnalyticsService:
 class TestAnalyticsRateLimiter:
     """Tests for YouTubeAnalyticsService rate limiter integration (US2)."""
 
-    def test_uses_shared_rate_limiter(
-        self, mock_analytics_client: MagicMock
-    ) -> None:
+    def test_uses_shared_rate_limiter(self, mock_analytics_client: MagicMock) -> None:
         """Service should accept and use a shared RateLimiter."""
         mock_limiter = MagicMock(spec=RateLimiter)
         mock_limiter.profile = YOUTUBE_API_PROFILE
@@ -63,9 +61,7 @@ class TestAnalyticsRateLimiter:
         )
         assert result == []
 
-    def test_backoff_on_retryable_error(
-        self, mock_analytics_client: MagicMock
-    ) -> None:
+    def test_backoff_on_retryable_error(self, mock_analytics_client: MagicMock) -> None:
         """Rate limiter wait_on_error should be called on retryable HTTP errors."""
         import httplib2
         from googleapiclient.errors import HttpError

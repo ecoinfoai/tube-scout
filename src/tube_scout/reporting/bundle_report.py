@@ -49,9 +49,7 @@ class BundleReportGenerator:
             self.collect_dir = data_dir / "raw"
             self.analyze_dir = data_dir / "processed"
         else:
-            raise ValueError(
-                "Either data_dir or collect_dir must be provided."
-            )
+            raise ValueError("Either data_dir or collect_dir must be provided.")
         templates_dir = Path(__file__).parent / "templates"
         self._env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -94,11 +92,13 @@ class BundleReportGenerator:
             task = progress.add_task("Building bundle", total=len(filtered))
             for meta in filtered:
                 vid_id = meta["video_id"]
-                video_data.append({
-                    "meta": meta,
-                    "retention": self._load_retention(vid_id),
-                    "segments": self._load_segments(vid_id),
-                })
+                video_data.append(
+                    {
+                        "meta": meta,
+                        "retention": self._load_retention(vid_id),
+                        "segments": self._load_segments(vid_id),
+                    }
+                )
                 progress.advance(task)
 
         report_title = title or self._auto_title(video_filter, channel_id)
@@ -173,18 +173,14 @@ class BundleReportGenerator:
         skipped: list[str] = []
         video_data: list[dict[str, Any]] = []
         with create_progress() as progress:
-            task = progress.add_task(
-                "Harvesting HTML reports", total=len(filtered)
-            )
+            task = progress.add_task("Harvesting HTML reports", total=len(filtered))
             for meta in filtered:
                 vid_id = meta["video_id"]
                 html_file = html_dir / f"{vid_id}.html"
                 try:
                     if not html_file.exists():
                         skipped.append(vid_id)
-                        logger.warning(
-                            "HTML file not found for %s, skipping", vid_id
-                        )
+                        logger.warning("HTML file not found for %s, skipping", vid_id)
                         progress.advance(task)
                         continue
                     raw_html = html_file.read_text(encoding="utf-8")
@@ -198,16 +194,16 @@ class BundleReportGenerator:
                         continue
                 except (OSError, UnicodeDecodeError) as exc:
                     skipped.append(vid_id)
-                    logger.warning(
-                        "Could not read %s: %s, skipping", html_file, exc
-                    )
+                    logger.warning("Could not read %s: %s, skipping", html_file, exc)
                     progress.advance(task)
                     continue
 
-                video_data.append({
-                    "meta": meta,
-                    "body_html": body,
-                })
+                video_data.append(
+                    {
+                        "meta": meta,
+                        "body_html": body,
+                    }
+                )
                 progress.advance(task)
 
         if not video_data:
@@ -244,6 +240,7 @@ class BundleReportGenerator:
         Returns:
             Inner HTML of the body element, or empty string if not found.
         """
+
         class _BodyExtractor(HTMLParser):
             def __init__(self) -> None:
                 super().__init__()
@@ -293,9 +290,7 @@ class BundleReportGenerator:
         Returns:
             List of video metadata dicts.
         """
-        videos_path = (
-            self.collect_dir / "channels" / channel_id / "videos_meta.json"
-        )
+        videos_path = self.collect_dir / "channels" / channel_id / "videos_meta.json"
         videos = read_json(videos_path)
         if not videos:
             return []
@@ -323,8 +318,10 @@ class BundleReportGenerator:
             List of segment dicts, or None if not available.
         """
         path = self.analyze_dir / "segments" / f"{video_id}.json"
-        return read_json(path)
-
+        data = read_json(path)
+        if data is None:
+            return None
+        return data if isinstance(data, list) else data.get("segments", [])
 
     @staticmethod
     def _compute_summary(videos: list[dict[str, Any]]) -> dict[str, Any]:

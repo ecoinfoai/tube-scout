@@ -198,9 +198,7 @@ class TestEmptyDataNihilist:
                 {
                     "id": "UCempty00000000000000000",
                     "snippet": {"title": "Empty Channel"},
-                    "contentDetails": {
-                        "relatedPlaylists": {"uploads": "UUempty"}
-                    },
+                    "contentDetails": {"relatedPlaylists": {"uploads": "UUempty"}},
                     "statistics": {
                         "videoCount": "0",
                         "subscriberCount": "10",
@@ -391,9 +389,7 @@ class TestQuotaExhaustor:
         """Quota hit after 3 successful report types — errors recorded."""
         mock_client = MagicMock()
         resp_429 = httplib2.Response({"status": "429"})
-        quota_error = HttpError(
-            resp_429, b'{"error": {"message": "quotaExceeded"}}'
-        )
+        quota_error = HttpError(resp_429, b'{"error": {"message": "quotaExceeded"}}')
 
         call_count = 0
 
@@ -443,8 +439,9 @@ class TestConcurrentChaosAgent:
         ckpt_dir.mkdir(parents=True)
         ckpt_file = ckpt_dir / "collection_state.json"
         ckpt_file.write_bytes(b"\x00\x01\x02\xff\xfe\xfd")
-        with pytest.raises((json.JSONDecodeError, UnicodeDecodeError)):
-            load_checkpoint(tmp_path, "UCchaos", "videos")
+        # FIXED: checkpoint now handles corruption gracefully
+        result = load_checkpoint(tmp_path, "UCchaos", "videos")
+        assert result is None
 
     def test_checkpoint_missing_required_fields(self, tmp_path: Path) -> None:
         """Checkpoint from older version missing 'phase' should fail."""
@@ -460,8 +457,9 @@ class TestConcurrentChaosAgent:
             }
         }
         write_json(ckpt_file, old_state)
-        with pytest.raises((ValidationError, TypeError)):
-            load_checkpoint(tmp_path, "UCold", "videos")
+        # FIXED: checkpoint now handles schema validation gracefully
+        result = load_checkpoint(tmp_path, "UCold", "videos")
+        assert result is None
 
     def test_checkpoint_extra_fields_tolerated(self, tmp_path: Path) -> None:
         """Checkpoint with extra unknown fields from newer version should load."""
@@ -493,10 +491,12 @@ class TestStorageAttacker:
     def test_parquet_wrong_columns(self, tmp_path: Path) -> None:
         """Reading parquet with unexpected columns should not crash."""
         filepath = tmp_path / "wrong_schema.parquet"
-        df = pl.DataFrame({
-            "wrong_col_a": [1, 2, 3],
-            "wrong_col_b": ["x", "y", "z"],
-        })
+        df = pl.DataFrame(
+            {
+                "wrong_col_a": [1, 2, 3],
+                "wrong_col_b": ["x", "y", "z"],
+            }
+        )
         write_parquet(filepath, df)
         loaded = read_parquet(filepath)
         assert loaded is not None
@@ -523,15 +523,11 @@ class TestStorageAttacker:
         assert len(config.channels) == 1
         assert config.channels[0].professor_name == "Prof Kim"
 
-    def test_missing_data_directory_read_returns_none(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_data_directory_read_returns_none(self, tmp_path: Path) -> None:
         """Reading from non-existent directory should return None."""
         result = read_json(tmp_path / "nonexistent" / "deep" / "file.json")
         assert result is None
-        result_pq = read_parquet(
-            tmp_path / "nonexistent" / "deep" / "file.parquet"
-        )
+        result_pq = read_parquet(tmp_path / "nonexistent" / "deep" / "file.parquet")
         assert result_pq is None
 
 
@@ -551,9 +547,7 @@ class TestForecastFool:
         """200 identical values should produce valid forecast with flat trend."""
         svc = ForecasterService()
         data = [{"date": 740000 + i, "value": 42.0} for i in range(200)]
-        result = svc.predict(
-            "UCtest", "views", data, model="linear", horizon_days=7
-        )
+        result = svc.predict("UCtest", "views", data, model="linear", horizon_days=7)
         assert len(result) == 7
         for r in result:
             assert not math.isnan(r["predicted_value"])
@@ -566,18 +560,14 @@ class TestForecastFool:
         data[50]["value"] = float("nan")
         # NaN will propagate through linear regression — this tests it
         # doesn't crash with an unhandled exception
-        result = svc.predict(
-            "UCtest", "views", data, model="linear", horizon_days=7
-        )
+        result = svc.predict("UCtest", "views", data, model="linear", horizon_days=7)
         assert len(result) == 7
 
     def test_negative_view_counts(self) -> None:
         """Negative values (data corruption) should not crash forecasting."""
         svc = ForecasterService()
         data = [{"date": 740000 + i, "value": -10.0 + i} for i in range(200)]
-        result = svc.predict(
-            "UCtest", "views", data, model="linear", horizon_days=7
-        )
+        result = svc.predict("UCtest", "views", data, model="linear", horizon_days=7)
         assert len(result) == 7
 
     def test_dates_in_wrong_order(self) -> None:
@@ -661,9 +651,7 @@ class TestCrossCuttingEdgeCases:
         from youtube_transcript_api import TranscriptsDisabled
 
         svc = TranscriptService()
-        with patch.object(
-            svc._api, "list", side_effect=TranscriptsDisabled("vid")
-        ):
+        with patch.object(svc._api, "list", side_effect=TranscriptsDisabled("vid")):
             result = svc.fetch_transcript("vid_disabled")
             assert result is None
 

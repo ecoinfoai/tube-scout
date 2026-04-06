@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+LLM_BATCH_SIZE = 20
+
 # --- Pydantic schemas for structured LLM output ---
 
 
@@ -101,10 +103,12 @@ class TopicExtractorService:
         questions: list[dict[str, Any]] = []
         for r in raw_results:
             if r["is_question"] and r.get("question_text"):
-                questions.append({
-                    "comment_id": r["comment_id"],
-                    "question_text": r["question_text"],
-                })
+                questions.append(
+                    {
+                        "comment_id": r["comment_id"],
+                        "question_text": r["question_text"],
+                    }
+                )
         return questions
 
     def cross_reference_with_hotspots(
@@ -139,23 +143,23 @@ class TopicExtractorService:
             ratio = best_hotspot["elapsed_ratio"]
             # Create a small window around the hotspot
             window = 0.05
-            matches.append({
-                "video_id": video_id,
-                "comment_id": question["comment_id"],
-                "question_text": question["question_text"],
-                "matched_hotspot_start": max(0.0, ratio - window),
-                "matched_hotspot_end": min(1.0, ratio + window),
-                "relevance_score": min(
-                    1.0,
-                    best_hotspot["audience_watch_ratio"] / 2.0,
-                ),
-            })
+            matches.append(
+                {
+                    "video_id": video_id,
+                    "comment_id": question["comment_id"],
+                    "question_text": question["question_text"],
+                    "matched_hotspot_start": max(0.0, ratio - window),
+                    "matched_hotspot_end": min(1.0, ratio + window),
+                    "relevance_score": min(
+                        1.0,
+                        best_hotspot["audience_watch_ratio"] / 2.0,
+                    ),
+                }
+            )
 
         return matches
 
-    def _analyze_comments(
-        self, comments: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _analyze_comments(self, comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Analyze comments via LLM in batches of 20.
 
         Args:
@@ -171,7 +175,7 @@ class TopicExtractorService:
             self._llm_adapter = self._create_llm_adapter()
 
         all_results: list[dict[str, Any]] = []
-        batch_size = 20
+        batch_size = LLM_BATCH_SIZE
         for i in range(0, len(comments), batch_size):
             batch = comments[i : i + batch_size]
             batch_results = self._call_llm_batch(batch)
@@ -200,9 +204,7 @@ class TopicExtractorService:
 
         return LLMAdapter()
 
-    def _call_llm_batch(
-        self, comments: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _call_llm_batch(self, comments: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Call LLM for a single batch of comments.
 
         Args:
@@ -242,9 +244,7 @@ class TopicExtractorService:
             List of TopicCluster dicts.
         """
         # Build a lookup for comment text
-        text_by_id: dict[str, str] = {
-            c["comment_id"]: c["text"] for c in comments
-        }
+        text_by_id: dict[str, str] = {c["comment_id"]: c["text"] for c in comments}
 
         # Group by topic_label
         groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -273,17 +273,17 @@ class TopicExtractorService:
 
             # Pick up to 3 representative comments
             representative = [
-                text_by_id[cid]
-                for cid in comment_ids[:3]
-                if cid in text_by_id
+                text_by_id[cid] for cid in comment_ids[:3] if cid in text_by_id
             ]
 
-            clusters.append({
-                "video_id": video_id,
-                "topic_label": topic_label,
-                "comment_ids": comment_ids,
-                "sentiment_distribution": sentiment_distribution,
-                "representative_comments": representative,
-            })
+            clusters.append(
+                {
+                    "video_id": video_id,
+                    "topic_label": topic_label,
+                    "comment_ids": comment_ids,
+                    "sentiment_distribution": sentiment_distribution,
+                    "representative_comments": representative,
+                }
+            )
 
         return clusters

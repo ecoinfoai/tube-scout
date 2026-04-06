@@ -10,6 +10,7 @@ from tube_scout.models.parsed_title import ParsedTitle
 from tube_scout.models.validation import ValidationFinding
 
 SEVERITY_ORDER = {"ERROR": 0, "WARNING": 1, "INFO": 2}
+MAX_ACADEMIC_WEEK = 16
 
 
 def _levenshtein_distance(s1: str, s2: str) -> int:
@@ -179,7 +180,7 @@ def check_invalid_week(
     for pt in parsed_titles:
         if pt.week is None:
             continue
-        if pt.week <= 0 or pt.week > 16:
+        if pt.week <= 0 or pt.week > MAX_ACADEMIC_WEEK:
             findings.append(
                 ValidationFinding(
                     rule_id="V-003",
@@ -219,13 +220,12 @@ def check_name_inconsistency(
             name2 = names[j]
             dist = _levenshtein_distance(name1, name2)
             if 0 < dist <= 2:
-                pair = tuple(sorted([name1, name2]))
+                sorted_names = sorted([name1, name2])
+                pair = (sorted_names[0], sorted_names[1])
                 if pair in seen_pairs:
                     continue
                 seen_pairs.add(pair)
-                all_video_ids = list(
-                    set(name_videos[name1] + name_videos[name2])
-                )
+                all_video_ids = list(set(name_videos[name1] + name_videos[name2]))
                 findings.append(
                     ValidationFinding(
                         rule_id="V-004",
@@ -267,8 +267,7 @@ def check_parse_failures(
                     severity="WARNING",
                     video_ids=[pt.video_id],
                     description=(
-                        f"Title could not be fully parsed: "
-                        f"'{pt.original_title[:80]}'"
+                        f"Title could not be fully parsed: '{pt.original_title[:80]}'"
                     ),
                     details={"original_title": pt.original_title},
                 )

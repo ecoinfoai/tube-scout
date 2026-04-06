@@ -86,9 +86,7 @@ def collect_videos_command(
 
             client = build_api("youtube", "v3", credentials=creds)
             service = YouTubeDataService(client=client)
-            console.print(
-                f"[dim]Using multi-channel auth for '{channel}'[/dim]"
-            )
+            console.print(f"[dim]Using multi-channel auth for '{channel}'[/dim]")
         else:
             from tube_scout.services.auth import build_data_client
 
@@ -307,9 +305,7 @@ def collect_retention_command(
                 retention = service.get_retention_data(vid_id)
                 if retention:
                     df = pl.DataFrame(retention)
-                    output_path = (
-                        mgr.collect_dir / "retention" / f"{vid_id}.parquet"
-                    )
+                    output_path = mgr.collect_dir / "retention" / f"{vid_id}.parquet"
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     write_parquet(output_path, df)
                     progress.console.print(
@@ -403,14 +399,10 @@ def collect_comments_command(
         raise typer.Exit(code=1)
 
     with create_progress() as progress:
-        task = progress.add_task(
-            "Collecting comments", total=len(video_ids_to_collect)
-        )
+        task = progress.add_task("Collecting comments", total=len(video_ids_to_collect))
         for vid_id in video_ids_to_collect:
             try:
-                comments = service.get_comments(
-                    vid_id, include_replies=include_replies
-                )
+                comments = service.get_comments(vid_id, include_replies=include_replies)
                 if comments:
                     output_path = mgr.collect_dir / "comments" / f"{vid_id}.json"
                     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -507,9 +499,7 @@ def collect_transcripts_command(
             try:
                 result = service.fetch_transcript(vid_id)
                 if result:
-                    output_path = (
-                        mgr.collect_dir / "transcripts" / f"{vid_id}.json"
-                    )
+                    output_path = mgr.collect_dir / "transcripts" / f"{vid_id}.json"
                     output_path.parent.mkdir(parents=True, exist_ok=True)
                     write_json(output_path, result)
                     progress.console.print(
@@ -636,9 +626,7 @@ def collect_analytics_command(
                     last = date_type.fromisoformat(last_dates[report_type])
                     actual_start = last + timedelta(days=1)
                 elif not report_type and last_dates:
-                    dates = [
-                        date_type.fromisoformat(d) for d in last_dates.values()
-                    ]
+                    dates = [date_type.fromisoformat(d) for d in last_dates.values()]
                     actual_start = min(dates) + timedelta(days=1)
 
         if actual_start > end:
@@ -821,26 +809,32 @@ def collect_all_command(
         try:
             stage_fn(**kwargs)
             duration = _time.monotonic() - stage_start
-            results.append(StageResult(
-                stage_name=stage_name,
-                status="completed",
-                duration_seconds=round(duration, 2),
-            ))
+            results.append(
+                StageResult(
+                    stage_name=stage_name,
+                    status="completed",
+                    duration_seconds=round(duration, 2),
+                )
+            )
         except SystemExit:
             duration = _time.monotonic() - stage_start
-            results.append(StageResult(
-                stage_name=stage_name,
-                status="completed",
-                duration_seconds=round(duration, 2),
-            ))
+            results.append(
+                StageResult(
+                    stage_name=stage_name,
+                    status="completed",
+                    duration_seconds=round(duration, 2),
+                )
+            )
         except Exception as e:
             duration = _time.monotonic() - stage_start
-            results.append(StageResult(
-                stage_name=stage_name,
-                status="failed",
-                error_message=str(e),
-                duration_seconds=round(duration, 2),
-            ))
+            results.append(
+                StageResult(
+                    stage_name=stage_name,
+                    status="failed",
+                    error_message=str(e),
+                    duration_seconds=round(duration, 2),
+                )
+            )
             console.print(f"  [red]Stage '{stage_name}' failed: {e}[/red]")
 
             # Abort pipeline if video listing fails (first stage)
@@ -862,13 +856,10 @@ def collect_all_command(
             )
         elif result.status == "failed":
             console.print(
-                f"  [red]{result.stage_name}: failed - "
-                f"{result.error_message}[/red]"
+                f"  [red]{result.stage_name}: failed - {result.error_message}[/red]"
             )
         elif result.status == "skipped":
-            console.print(
-                f"  [yellow]{result.stage_name}: skipped[/yellow]"
-            )
+            console.print(f"  [yellow]{result.stage_name}: skipped[/yellow]")
 
     total_duration = _time.monotonic() - pipeline_start
     failed = [r for r in results if r.status == "failed"]
@@ -942,9 +933,7 @@ def collect_bulk_command(
             types = service.list_report_types()
             console.print(f"  Available report types: {len(types)}")
             for rt in types:
-                console.print(
-                    f"    - {rt.get('id', 'unknown')}: {rt.get('name', '')}"
-                )
+                console.print(f"    - {rt.get('id', 'unknown')}: {rt.get('name', '')}")
         except Exception as e:
             console.print(f"[red]Error listing report types: {e}[/red]")
             raise typer.Exit(code=1)

@@ -5,11 +5,14 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+import requests
 from youtube_transcript_api import (
     NoTranscriptFound,
     TranscriptsDisabled,
     YouTubeTranscriptApi,
 )
+
+from tube_scout.models.config import DEFAULT_API_TIMEOUT_SECONDS
 
 if TYPE_CHECKING:
     from tube_scout.services.rate_limiter import RateLimiter
@@ -32,7 +35,9 @@ class TranscriptService:
             rate_limiter: Optional rate limiter for inter-request delays.
         """
         self.languages = languages or ["ko", "en"]
-        self._api = YouTubeTranscriptApi()
+        session = requests.Session()
+        session.timeout = DEFAULT_API_TIMEOUT_SECONDS  # type: ignore[attr-defined]
+        self._api = YouTubeTranscriptApi(http_client=session)
         self._rate_limiter = rate_limiter
 
     def fetch_transcript(
@@ -69,21 +74,11 @@ class TranscriptService:
             transcript = transcript_list.find_manually_created_transcript(
                 self.languages
             )
-            result = transcript.fetch()
-            snippets = result.snippets if hasattr(result, "snippets") else result
+            fetched = transcript.fetch()
             return {
                 "video_id": video_id,
                 "transcript_type": "manual",
-                "segments": [
-                    {
-                        "text": s.text if hasattr(s, "text") else s["text"],
-                        "start": s.start if hasattr(s, "start") else s["start"],
-                        "duration": (
-                            s.duration if hasattr(s, "duration") else s["duration"]
-                        ),
-                    }
-                    for s in snippets
-                ],
+                "segments": self._to_segments(fetched),
             }
         except NoTranscriptFound:
             pass
@@ -91,21 +86,11 @@ class TranscriptService:
         # Fallback to auto-generated
         try:
             transcript = transcript_list.find_generated_transcript(self.languages)
-            result = transcript.fetch()
-            snippets = result.snippets if hasattr(result, "snippets") else result
+            fetched = transcript.fetch()
             return {
                 "video_id": video_id,
                 "transcript_type": "auto_generated",
-                "segments": [
-                    {
-                        "text": s.text if hasattr(s, "text") else s["text"],
-                        "start": s.start if hasattr(s, "start") else s["start"],
-                        "duration": (
-                            s.duration if hasattr(s, "duration") else s["duration"]
-                        ),
-                    }
-                    for s in snippets
-                ],
+                "segments": self._to_segments(fetched),
             }
         except NoTranscriptFound:
             pass
@@ -116,6 +101,29 @@ class TranscriptService:
 
         logger.warning("No transcript found for video %s", video_id)
         return None
+
+    @staticmethod
+    def _to_segments(fetched: Any) -> list[dict[str, Any]]:
+        """Convert FetchedTranscript or list of dicts to segment dicts.
+
+        Args:
+            fetched: FetchedTranscript object (with .snippets) or list of dicts.
+
+        Returns:
+            List of segment dicts with text, start, duration keys.
+        """
+        snippets = fetched.snippets if hasattr(fetched, "snippets") else fetched
+        segments: list[dict[str, Any]] = []
+        for s in snippets:
+            if isinstance(s, dict):
+                segments.append(
+                    {"text": s["text"], "start": s["start"], "duration": s["duration"]}
+                )
+            else:
+                segments.append(
+                    {"text": s.text, "start": s.start, "duration": s.duration}
+                )
+        return segments
 
     def _whisper_fallback(
         self,

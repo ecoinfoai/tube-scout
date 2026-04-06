@@ -65,15 +65,11 @@ class YouTubeReportingService:
 
         try:
             response = (
-                client.jobs()
-                .create(body={"reportTypeId": report_type_id})
-                .execute()
+                client.jobs().create(body={"reportTypeId": report_type_id}).execute()
             )
         except HttpError as e:
             if e.resp.status in (401, 403):
-                raise PermissionError(
-                    f"Failed to create reporting job: {e}"
-                ) from e
+                raise PermissionError(f"Failed to create reporting job: {e}") from e
             raise RuntimeError(f"API error creating reporting job: {e}") from e
 
         return ReportingJob(
@@ -164,18 +160,13 @@ class YouTubeReportingService:
         """
         if not job.download_url:
             raise ValueError(
-                f"No download URL for job {job.job_id}. "
-                "Job may not be ready yet."
+                f"No download URL for job {job.job_id}. Job may not be ready yet."
             )
 
         client = self._require_client()
 
         try:
-            data = (
-                client.media()
-                .download(resourceName=job.download_url)
-                .execute()
-            )
+            data = client.media().download(resourceName=job.download_url).execute()
         except HttpError as e:
             raise RuntimeError(
                 f"Failed to download report for job {job.job_id}: {e}. "

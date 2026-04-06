@@ -84,7 +84,10 @@ class DepartmentReportGenerator:
             DepartmentOverview with computed metrics.
         """
         filtered_parsed, filtered_videos = self._filter_by_scope(
-            parsed_titles, videos, year, semester,
+            parsed_titles,
+            videos,
+            year,
+            semester,
         )
 
         video_map = {v.video_id: v for v in filtered_videos}
@@ -108,13 +111,9 @@ class DepartmentReportGenerator:
             if pt.video_id in video_map
         )
 
-        parse_success_count = sum(
-            1 for pt in filtered_parsed if not pt.parse_error
-        )
+        parse_success_count = sum(1 for pt in filtered_parsed if not pt.parse_error)
         parse_success_rate = (
-            parse_success_count / len(filtered_parsed)
-            if filtered_parsed
-            else 0.0
+            parse_success_count / len(filtered_parsed) if filtered_parsed else 0.0
         )
 
         return DepartmentOverview(
@@ -149,7 +148,10 @@ class DepartmentReportGenerator:
             List of ProfessorDetail, one per professor.
         """
         filtered_parsed, filtered_videos = self._filter_by_scope(
-            parsed_titles, videos, year, semester,
+            parsed_titles,
+            videos,
+            year,
+            semester,
         )
 
         if not filtered_parsed:
@@ -179,29 +181,25 @@ class DepartmentReportGenerator:
 
             total_duration = sum(v.duration_seconds for v in prof_videos)
             avg_duration_min = (
-                (total_duration / len(prof_videos) / 60)
-                if prof_videos
-                else 0.0
+                (total_duration / len(prof_videos) / 60) if prof_videos else 0.0
             )
 
             total_views = sum(v.view_count for v in prof_videos)
-            avg_views = (
-                total_views / len(prof_videos)
-                if prof_videos
-                else 0.0
-            )
+            avg_views = total_views / len(prof_videos) if prof_videos else 0.0
 
-            results.append(ProfessorDetail(
-                professor_name=prof_name,
-                video_count=len(titles),
-                courses=courses,
-                weekly_coverage=weekly_coverage,
-                session_completeness=session_completeness,
-                avg_duration_minutes=avg_duration_min,
-                total_views=total_views,
-                avg_views=avg_views,
-                validation_error_count=0,
-            ))
+            results.append(
+                ProfessorDetail(
+                    professor_name=prof_name,
+                    video_count=len(titles),
+                    courses=courses,
+                    weekly_coverage=weekly_coverage,
+                    session_completeness=session_completeness,
+                    avg_duration_minutes=avg_duration_min,
+                    total_views=total_views,
+                    avg_views=avg_views,
+                    validation_error_count=0,
+                )
+            )
 
         return results
 
@@ -233,8 +231,7 @@ class DepartmentReportGenerator:
 
         # Average completeness across weeks
         completeness_per_week = [
-            len(sessions) / max_sessions
-            for sessions in week_sessions.values()
+            len(sessions) / max_sessions for sessions in week_sessions.values()
         ]
         return sum(completeness_per_week) / len(completeness_per_week)
 
@@ -259,7 +256,10 @@ class DepartmentReportGenerator:
             List of ComplianceMatrix, one per professor.
         """
         filtered_parsed, filtered_videos = self._filter_by_scope(
-            parsed_titles, videos, year, semester,
+            parsed_titles,
+            videos,
+            year,
+            semester,
         )
 
         if not filtered_parsed:
@@ -311,16 +311,16 @@ class DepartmentReportGenerator:
                     week_statuses[week] = "missing"
 
             compliance_rate = (
-                on_time_count / uploaded_count
-                if uploaded_count > 0
-                else 0.0
+                on_time_count / uploaded_count if uploaded_count > 0 else 0.0
             )
 
-            results.append(ComplianceMatrix(
-                professor_name=prof_name,
-                week_statuses=week_statuses,
-                upload_deadline_compliance=compliance_rate,
-            ))
+            results.append(
+                ComplianceMatrix(
+                    professor_name=prof_name,
+                    week_statuses=week_statuses,
+                    upload_deadline_compliance=compliance_rate,
+                )
+            )
 
         return results
 
@@ -366,20 +366,22 @@ class DepartmentReportGenerator:
                 text_data.append(row_text)
 
             colorscale = [
-                [0, "#dc3545"],     # red = missing
-                [0.5, "#ffc107"],   # yellow = late
-                [1, "#28a745"],     # green = uploaded
+                [0, "#dc3545"],  # red = missing
+                [0.5, "#ffc107"],  # yellow = late
+                [1, "#28a745"],  # green = uploaded
             ]
 
-            fig = go.Figure(data=go.Heatmap(
-                z=z_data,
-                x=[f"W{w}" for w in weeks],
-                y=professors,
-                text=text_data,
-                texttemplate="%{text}",
-                colorscale=colorscale,
-                showscale=False,
-            ))
+            fig = go.Figure(
+                data=go.Heatmap(
+                    z=z_data,
+                    x=[f"W{w}" for w in weeks],
+                    y=professors,
+                    text=text_data,
+                    texttemplate="%{text}",
+                    colorscale=colorscale,
+                    showscale=False,
+                )
+            )
             fig.update_layout(
                 title="Upload Compliance Heatmap",
                 xaxis_title="Week",

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Pydantic schema for LLM JSON output
 # ---------------------------------------------------------------------------
 
+
 class _ChapterSchema(BaseModel):
     """Schema for a single chapter produced by the LLM."""
 

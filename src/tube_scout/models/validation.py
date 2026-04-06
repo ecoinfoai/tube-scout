@@ -41,9 +41,7 @@ class ValidationFinding(BaseModel):
     def severity_must_be_valid(cls, v: str) -> str:
         """Validate that severity is ERROR, WARNING, or INFO."""
         if v not in VALID_SEVERITIES:
-            raise ValueError(
-                f"severity must be one of {sorted(VALID_SEVERITIES)}"
-            )
+            raise ValueError(f"severity must be one of {sorted(VALID_SEVERITIES)}")
         return v
 
     @field_validator("description")

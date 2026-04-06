@@ -16,6 +16,7 @@ from tube_scout.services.segmenter import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_llm_adapter_mock(response_data: list[dict] | dict) -> MagicMock:
     """Create a mock LLMAdapter that returns given data from complete_json.
 
@@ -28,7 +29,9 @@ def _make_llm_adapter_mock(response_data: list[dict] | dict) -> MagicMock:
     adapter = MagicMock()
 
     def _complete_json(
-        system_prompt: str, user_prompt: str, schema: type[BaseModel],
+        system_prompt: str,
+        user_prompt: str,
+        schema: type[BaseModel],
     ) -> BaseModel:
         # Build the dict the schema expects
         if isinstance(response_data, list):
@@ -96,6 +99,7 @@ KOREAN_SEGMENTS = [
 # ===========================================================================
 # T056 — LLM-based segmentation with mocked LLMAdapter
 # ===========================================================================
+
 
 class TestSegmenterLLMBasic:
     """T056: LLM-based segmentation with mocked LLMAdapter."""
@@ -165,6 +169,7 @@ class TestSegmenterLLMBasic:
 # ===========================================================================
 # T057 — Difficulty prediction and retention comparison
 # ===========================================================================
+
 
 class TestDifficultyAndRetention:
     """T057: Difficulty scores and retention comparison."""
@@ -237,6 +242,7 @@ class TestDifficultyAndRetention:
 # T063 — Malformed LLM response handling
 # ===========================================================================
 
+
 class TestMalformedLLMResponse:
     """T063: Handling of malformed LLM responses."""
 
@@ -261,6 +267,7 @@ class TestMalformedLLMResponse:
 # T063a — Boundary accuracy with reference segmentation
 # ===========================================================================
 
+
 class TestBoundaryAccuracy:
     """T063a: Boundary accuracy against reference segmentation."""
 
@@ -268,9 +275,7 @@ class TestBoundaryAccuracy:
     def reference_data(self) -> dict:
         """Load reference segmentation fixture."""
         fixture_path = (
-            Path(__file__).parent.parent
-            / "fixtures"
-            / "reference_segmentation.json"
+            Path(__file__).parent.parent / "fixtures" / "reference_segmentation.json"
         )
         with open(fixture_path) as f:
             return json.load(f)

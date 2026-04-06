@@ -7,6 +7,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from tube_scout.models.config import DEFAULT_API_TIMEOUT_SECONDS
+
+LLM_MAX_TOKENS = 4096
+LLM_MAX_RETRIES = 2
+
 _SUPPORTED_PROVIDERS = {"claude", "openai"}
 
 _DEFAULT_MODELS: dict[str, str] = {
@@ -50,9 +55,7 @@ class LLMAdapter:
         api_key_var = _API_KEY_ENV_VARS[provider]
         api_key = os.environ.get(api_key_var)
         if not api_key:
-            raise ValueError(
-                f"Missing required environment variable: {api_key_var}"
-            )
+            raise ValueError(f"Missing required environment variable: {api_key_var}")
 
         self._client: Any = self._build_client(provider, api_key)
 
@@ -69,11 +72,13 @@ class LLMAdapter:
         if provider == "claude":
             import anthropic
 
-            return anthropic.Anthropic(api_key=api_key)
+            return anthropic.Anthropic(
+                api_key=api_key, timeout=DEFAULT_API_TIMEOUT_SECONDS
+            )
         else:
             import openai
 
-            return openai.OpenAI(api_key=api_key)
+            return openai.OpenAI(api_key=api_key, timeout=DEFAULT_API_TIMEOUT_SECONDS)
 
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         """Send a prompt and get a text completion.
@@ -92,7 +97,7 @@ class LLMAdapter:
         if self.provider == "claude":
             response = self._client.messages.create(
                 model=self.model,
-                max_tokens=4096,
+                max_tokens=LLM_MAX_TOKENS,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
             )
@@ -128,7 +133,7 @@ class LLMAdapter:
             ConnectionError: If LLM service is unreachable.
         """
         last_error: str = ""
-        for attempt in range(2):
+        for attempt in range(LLM_MAX_RETRIES):
             prompt = user_prompt
             if attempt > 0 and last_error:
                 prompt = (

@@ -106,20 +106,33 @@ class TestReportVideoFilterOptions:
 
         generated_ids: list[str] = []
 
-        def mock_generate(collect_dir: Path, analyze_dir: Path, video_id: str,
-                          channel_id: str, output_dir: Path, fmt: str) -> Path:
+        def mock_generate(
+            collect_dir: Path,
+            analyze_dir: Path,
+            video_id: str,
+            channel_id: str,
+            output_dir: Path,
+            fmt: str,
+        ) -> Path:
             generated_ids.append(video_id)
             return output_dir / f"{video_id}.html"
 
         with patch(
             "tube_scout.cli.report._generate_video_report", side_effect=mock_generate
         ):
-            result = runner.invoke(app, [
-                "--data-dir", str(tmp_path),
-                "--project-dir", str(proj_dir),
-                "--project", str(proj_dir / "test_run"),
-                "--keyword", "감염미생물학",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "--data-dir",
+                    str(tmp_path),
+                    "--project-dir",
+                    str(proj_dir),
+                    "--project",
+                    str(proj_dir / "test_run"),
+                    "--keyword",
+                    "감염미생물학",
+                ],
+            )
 
         assert result.exit_code == 0
         assert set(generated_ids) == {"vid001", "vid003"}
@@ -131,21 +144,35 @@ class TestReportVideoFilterOptions:
 
         generated_ids: list[str] = []
 
-        def mock_generate(collect_dir: Path, analyze_dir: Path, video_id: str,
-                          channel_id: str, output_dir: Path, fmt: str) -> Path:
+        def mock_generate(
+            collect_dir: Path,
+            analyze_dir: Path,
+            video_id: str,
+            channel_id: str,
+            output_dir: Path,
+            fmt: str,
+        ) -> Path:
             generated_ids.append(video_id)
             return output_dir / f"{video_id}.html"
 
         with patch(
             "tube_scout.cli.report._generate_video_report", side_effect=mock_generate
         ):
-            result = runner.invoke(app, [
-                "--data-dir", str(tmp_path),
-                "--project-dir", str(proj_dir),
-                "--project", str(proj_dir / "test_run"),
-                "--published-after", "2026-02-01",
-                "--published-before", "2026-03-31",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "--data-dir",
+                    str(tmp_path),
+                    "--project-dir",
+                    str(proj_dir),
+                    "--project",
+                    str(proj_dir / "test_run"),
+                    "--published-after",
+                    "2026-02-01",
+                    "--published-before",
+                    "2026-03-31",
+                ],
+            )
 
         assert result.exit_code == 0
         assert set(generated_ids) == {"vid002", "vid003"}
@@ -157,20 +184,33 @@ class TestReportVideoFilterOptions:
 
         generated_ids: list[str] = []
 
-        def mock_generate(collect_dir: Path, analyze_dir: Path, video_id: str,
-                          channel_id: str, output_dir: Path, fmt: str) -> Path:
+        def mock_generate(
+            collect_dir: Path,
+            analyze_dir: Path,
+            video_id: str,
+            channel_id: str,
+            output_dir: Path,
+            fmt: str,
+        ) -> Path:
             generated_ids.append(video_id)
             return output_dir / f"{video_id}.html"
 
         with patch(
             "tube_scout.cli.report._generate_video_report", side_effect=mock_generate
         ):
-            result = runner.invoke(app, [
-                "--data-dir", str(tmp_path),
-                "--project-dir", str(proj_dir),
-                "--project", str(proj_dir / "test_run"),
-                "--video-ids", "vid001,vid003",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "--data-dir",
+                    str(tmp_path),
+                    "--project-dir",
+                    str(proj_dir),
+                    "--project",
+                    str(proj_dir / "test_run"),
+                    "--video-ids",
+                    "vid001,vid003",
+                ],
+            )
 
         assert result.exit_code == 0
         assert set(generated_ids) == {"vid001", "vid003"}
@@ -180,12 +220,19 @@ class TestReportVideoFilterOptions:
         proj_dir = _setup_videos_meta(tmp_path)
         app = _make_app()
 
-        result = runner.invoke(app, [
-            "--data-dir", str(tmp_path),
-            "--project-dir", str(proj_dir),
-            "--project", str(proj_dir / "test_run"),
-            "--keyword", "존재하지않는과목",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "존재하지않는과목",
+            ],
+        )
 
         assert result.exit_code == 1
         assert "No videos matching" in result.output or "0" in result.output
@@ -195,13 +242,21 @@ class TestReportVideoFilterOptions:
         proj_dir = _setup_videos_meta(tmp_path)
         app = _make_app()
 
-        result = runner.invoke(app, [
-            "--data-dir", str(tmp_path),
-            "--project-dir", str(proj_dir),
-            "--project", str(proj_dir / "test_run"),
-            "--video-id", "vid001",
-            "--video-ids", "vid002,vid003",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--video-id",
+                "vid001",
+                "--video-ids",
+                "vid002,vid003",
+            ],
+        )
 
         assert result.exit_code == 1
 
@@ -216,21 +271,34 @@ class TestReportVideoDryRun:
 
         generated_ids: list[str] = []
 
-        def mock_generate(collect_dir: Path, analyze_dir: Path, video_id: str,
-                          channel_id: str, output_dir: Path, fmt: str) -> Path:
+        def mock_generate(
+            collect_dir: Path,
+            analyze_dir: Path,
+            video_id: str,
+            channel_id: str,
+            output_dir: Path,
+            fmt: str,
+        ) -> Path:
             generated_ids.append(video_id)
             return output_dir / f"{video_id}.html"
 
         with patch(
             "tube_scout.cli.report._generate_video_report", side_effect=mock_generate
         ):
-            result = runner.invoke(app, [
-                "--data-dir", str(tmp_path),
-                "--project-dir", str(proj_dir),
-                "--project", str(proj_dir / "test_run"),
-                "--keyword", "감염미생물학",
-                "--dry-run",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "--data-dir",
+                    str(tmp_path),
+                    "--project-dir",
+                    str(proj_dir),
+                    "--project",
+                    str(proj_dir / "test_run"),
+                    "--keyword",
+                    "감염미생물학",
+                    "--dry-run",
+                ],
+            )
 
         assert result.exit_code == 0
         assert len(generated_ids) == 0  # No reports generated
@@ -245,13 +313,20 @@ class TestReportVideoDryRun:
         app = _make_app()
 
         with patch("tube_scout.cli.report._generate_video_report"):
-            result = runner.invoke(app, [
-                "--data-dir", str(tmp_path),
-                "--project-dir", str(proj_dir),
-                "--project", str(proj_dir / "test_run"),
-                "--keyword", "감염미생물학",
-                "--dry-run",
-            ])
+            result = runner.invoke(
+                app,
+                [
+                    "--data-dir",
+                    str(tmp_path),
+                    "--project-dir",
+                    str(proj_dir),
+                    "--project",
+                    str(proj_dir / "test_run"),
+                    "--keyword",
+                    "감염미생물학",
+                    "--dry-run",
+                ],
+            )
 
         assert result.exit_code == 0
         assert "2" in result.output  # 2 matching videos
@@ -265,13 +340,20 @@ class TestReportBundleDryRun:
         proj_dir = _setup_videos_meta(tmp_path)
         app = _make_bundle_app()
 
-        result = runner.invoke(app, [
-            "--data-dir", str(tmp_path),
-            "--project-dir", str(proj_dir),
-            "--project", str(proj_dir / "test_run"),
-            "--keyword", "감염미생물학",
-            "--dry-run",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
+                "--keyword",
+                "감염미생물학",
+                "--dry-run",
+            ],
+        )
 
         assert result.exit_code == 0
         assert "vid001" in result.output
@@ -290,10 +372,15 @@ class TestBundleAutoFilenameSanitize:
         _setup_videos_meta(tmp_path)
         app = _make_bundle_app()
 
-        result = runner.invoke(app, [
-            "--data-dir", str(tmp_path),
-            "--keyword", "../../../etc/passwd",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--keyword",
+                "../../../etc/passwd",
+            ],
+        )
 
         # Should fail with no matching videos (the keyword won't match),
         # but even if it did, the filename must not contain path separators.
@@ -346,13 +433,20 @@ class TestBundleLargeFilterWarning:
         )
 
         app = _make_bundle_app()
-        result = runner.invoke(app, [
-            "--data-dir", str(tmp_path),
-            "--project-dir", str(proj_dir),
-            "--project", str(proj),
-            "--keyword", "강의",
-            "--dry-run",
-        ])
+        result = runner.invoke(
+            app,
+            [
+                "--data-dir",
+                str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj),
+                "--keyword",
+                "강의",
+                "--dry-run",
+            ],
+        )
 
         assert result.exit_code == 0
         assert "210" in result.output

@@ -121,9 +121,7 @@ class TestSearchServiceSingleFilter:
     def test_filter_by_professor(self, sample_titles: list[ParsedTitle]) -> None:
         query = SearchQuery(filters=SearchFilter(professor="홍길동"))
         results = SearchService.search(sample_titles, query)
-        assert all(
-            "홍길동" in pt.professor for pt in results
-        )
+        assert all("홍길동" in pt.professor for pt in results)
         assert len(results) == 7
 
     def test_filter_by_course(self, sample_titles: list[ParsedTitle]) -> None:
@@ -157,9 +155,7 @@ class TestSearchServiceSingleFilter:
         results = SearchService.search(sample_titles, query)
         assert len(results) == 2
         assert all(
-            "홍길동" in pt.professor
-            and pt.course == "감염미생물학"
-            and pt.year == 2024
+            "홍길동" in pt.professor and pt.course == "감염미생물학" and pt.year == 2024
             for pt in results
         )
 
@@ -169,16 +165,12 @@ class TestSearchServiceSingleFilter:
         assert all(pt.week is not None and 3 <= pt.week <= 5 for pt in results)
         assert len(results) == 6
 
-    def test_partial_match_professor(
-        self, sample_titles: list[ParsedTitle]
-    ) -> None:
+    def test_partial_match_professor(self, sample_titles: list[ParsedTitle]) -> None:
         query = SearchQuery(filters=SearchFilter(professor="정광"))
         results = SearchService.search(sample_titles, query)
         assert len(results) == 7  # "홍길동" contains "정광"
 
-    def test_partial_match_course(
-        self, sample_titles: list[ParsedTitle]
-    ) -> None:
+    def test_partial_match_course(self, sample_titles: list[ParsedTitle]) -> None:
         query = SearchQuery(filters=SearchFilter(course="감염"))
         results = SearchService.search(sample_titles, query)
         assert len(results) == 4  # "감염미생물학" contains "감염"
@@ -200,9 +192,7 @@ class TestSearchServiceOrQueries:
         assert "vid002" in video_ids  # 인체구조와기능 2024
         assert "vid008" in video_ids  # 감염미생물학 2024 보완영상
 
-    def test_or_queries_deduplicate(
-        self, sample_titles: list[ParsedTitle]
-    ) -> None:
+    def test_or_queries_deduplicate(self, sample_titles: list[ParsedTitle]) -> None:
         query = SearchQuery(
             queries=[
                 SearchFilter(professor="홍길동", year=2024),
@@ -218,9 +208,7 @@ class TestSearchServiceOrQueries:
 class TestSearchServiceExclude:
     """Tests for exclusion rules."""
 
-    def test_exclude_by_title_keyword(
-        self, sample_titles: list[ParsedTitle]
-    ) -> None:
+    def test_exclude_by_title_keyword(self, sample_titles: list[ParsedTitle]) -> None:
         query = SearchQuery(
             filters=SearchFilter(professor="홍길동"),
             exclude=ExcludeRule(title_contains=["질문응답"]),
@@ -229,9 +217,7 @@ class TestSearchServiceExclude:
         assert all("질문응답" not in pt.original_title for pt in results)
         assert "vid005" not in {pt.video_id for pt in results}
 
-    def test_exclude_multiple_keywords(
-        self, sample_titles: list[ParsedTitle]
-    ) -> None:
+    def test_exclude_multiple_keywords(self, sample_titles: list[ParsedTitle]) -> None:
         query = SearchQuery(
             filters=SearchFilter(professor="홍길동"),
             exclude=ExcludeRule(title_contains=["질문응답", "보완영상", "OT"]),
@@ -246,12 +232,8 @@ class TestSearchServiceExclude:
 class TestSearchServiceEmptyResults:
     """Tests for empty results."""
 
-    def test_no_match_returns_empty(
-        self, sample_titles: list[ParsedTitle]
-    ) -> None:
-        query = SearchQuery(
-            filters=SearchFilter(professor="존재하지않는교수")
-        )
+    def test_no_match_returns_empty(self, sample_titles: list[ParsedTitle]) -> None:
+        query = SearchQuery(filters=SearchFilter(professor="존재하지않는교수"))
         results = SearchService.search(sample_titles, query)
         assert results == []
 
@@ -260,9 +242,7 @@ class TestSearchServiceEmptyResults:
         results = SearchService.search([], query)
         assert results == []
 
-    def test_empty_query_returns_all(
-        self, sample_titles: list[ParsedTitle]
-    ) -> None:
+    def test_empty_query_returns_all(self, sample_titles: list[ParsedTitle]) -> None:
         query = SearchQuery()
         results = SearchService.search(sample_titles, query)
         assert len(results) == len(sample_titles)
@@ -285,9 +265,7 @@ class TestSearchServiceLoadConfig:
 
     def test_load_minimal_config(self, tmp_path: Path) -> None:
         config = tmp_path / "minimal.yaml"
-        config.write_text(
-            "filters:\n  professor: '홍길동'\n", encoding="utf-8"
-        )
+        config.write_text("filters:\n  professor: '홍길동'\n", encoding="utf-8")
         query = SearchService.load_config(config)
         assert query.filters is not None
         assert query.filters.professor == "홍길동"

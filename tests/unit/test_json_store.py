@@ -61,3 +61,19 @@ class TestJsonStore:
         write_json(filepath, {"new": "data"})
         result = read_json(filepath)
         assert result == {"new": "data"}
+
+    def test_write_rejects_non_serializable_types(self, tmp_path: Path) -> None:
+        """write_json should raise TypeError for non-serializable objects (M-03)."""
+        from datetime import datetime
+
+        filepath = tmp_path / "test.json"
+        with pytest.raises(TypeError):
+            write_json(filepath, {"ts": datetime.now()})
+
+    def test_read_bom_file(self, tmp_path: Path) -> None:
+        """read_json should handle BOM-prefixed UTF-8 files (M-04)."""
+        filepath = tmp_path / "bom.json"
+        # Write a BOM-prefixed JSON file
+        filepath.write_bytes(b"\xef\xbb\xbf" + b'{"key": "value"}')
+        result = read_json(filepath)
+        assert result == {"key": "value"}

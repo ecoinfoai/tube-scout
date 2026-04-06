@@ -46,13 +46,10 @@ def show_status(
             state = load_checkpoint(ckpt_dir, channel.channel_id, phase)
             if state:
                 status_str = (
-                    f"{state.status} "
-                    f"({state.total_collected}/{state.total_expected})"
+                    f"{state.status} ({state.total_collected}/{state.total_expected})"
                 )
                 if phase == "analytics" and state.analytics_last_dates:
-                    report_types = ", ".join(
-                        sorted(state.analytics_last_dates.keys())
-                    )
+                    report_types = ", ".join(sorted(state.analytics_last_dates.keys()))
                     status_str += f" [{report_types}]"
             else:
                 status_str = "not started"
@@ -85,9 +82,7 @@ def show_list(
     coll_dir = collect_dir or (data_dir / "raw")
 
     for channel in config.channels:
-        videos_path = (
-            coll_dir / "channels" / channel.channel_id / "videos_meta.json"
-        )
+        videos_path = coll_dir / "channels" / channel.channel_id / "videos_meta.json"
         videos_data = read_json(videos_path)
         if videos_data is None:
             console.print(

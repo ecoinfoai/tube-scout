@@ -36,9 +36,7 @@ class TestLocalSentimentBackend:
     """Tests for SentimentService with backend='local'."""
 
     @patch("tube_scout.services.sentiment._load_local_pipeline")
-    def test_korean_comment_classification(
-        self, mock_load: MagicMock
-    ) -> None:
+    def test_korean_comment_classification(self, mock_load: MagicMock) -> None:
         """Korean comments are classified into positive/neutral/negative."""
         mock_load.return_value = _make_mock_pipeline()
 
@@ -61,10 +59,7 @@ class TestLocalSentimentBackend:
         mock_load.return_value = _make_mock_pipeline()
 
         service = SentimentService(backend="local")
-        comments = [
-            {"comment_id": f"c{i}", "text": f"Comment {i}"}
-            for i in range(10)
-        ]
+        comments = [{"comment_id": f"c{i}", "text": f"Comment {i}"} for i in range(10)]
         results = service.analyze_batch(comments)
 
         assert len(results) == 10
@@ -85,9 +80,7 @@ class TestLocalSentimentBackend:
         mock_load.assert_not_called()
 
     @patch("tube_scout.services.sentiment._load_local_pipeline")
-    def test_caching_works_with_local_backend(
-        self, mock_load: MagicMock
-    ) -> None:
+    def test_caching_works_with_local_backend(self, mock_load: MagicMock) -> None:
         """Content-hash caching works with local backend too."""
         mock_pipe = _make_mock_pipeline()
         mock_load.return_value = mock_pipe
@@ -112,8 +105,7 @@ class TestLocalSentimentBackend:
             samples = json.load(f)
 
         comments = [
-            {"comment_id": f"s{i}", "text": s["text"]}
-            for i, s in enumerate(samples)
+            {"comment_id": f"s{i}", "text": s["text"]} for i, s in enumerate(samples)
         ]
         expected_labels = [s["label"] for s in samples]
 
@@ -133,6 +125,5 @@ class TestLocalSentimentBackend:
             if r["sentiment"] != exp
         ]
         assert accuracy >= 0.80, (
-            f"Accuracy {accuracy:.0%} is below 80% threshold. "
-            f"Mismatches: {mismatches}"
+            f"Accuracy {accuracy:.0%} is below 80% threshold. Mismatches: {mismatches}"
         )

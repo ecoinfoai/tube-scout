@@ -94,11 +94,9 @@ class YouTubeAnalyticsService:
         last_error: HttpError | None = None
         for attempt in range(max_retries):
             try:
-                response = (
-                    self._client.reports()
-                    .query(**query_kwargs)
-                    .execute()
-                )
+                response = self._client.reports().query(**query_kwargs).execute()
+                if response is None:
+                    return []
                 return response.get("rows", [])
             except HttpError as e:
                 if e.resp.status in (401, 403):
@@ -112,7 +110,7 @@ class YouTubeAnalyticsService:
                         if self._rate_limiter is not None:
                             self._rate_limiter.wait_on_error(attempt)
                         else:
-                            time.sleep(_RETRY_BASE_DELAY * (2 ** attempt))
+                            time.sleep(_RETRY_BASE_DELAY * (2**attempt))
                         continue
                 raise
 
@@ -161,6 +159,8 @@ class YouTubeAnalyticsService:
                 ) from e
             raise
 
+        if response is None:
+            return []
         rows = response.get("rows", [])
         result = []
         for row in rows:

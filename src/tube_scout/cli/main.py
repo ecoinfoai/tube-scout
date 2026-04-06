@@ -274,8 +274,7 @@ def calendar_set(
     data_path.mkdir(parents=True, exist_ok=True)
     write_json(data_path / "calendar.json", calendar.model_dump(mode="json"))
     console.print(
-        f"[green]Academic calendar saved with "
-        f"{len(calendar.events)} event(s).[/green]"
+        f"[green]Academic calendar saved with {len(calendar.events)} event(s).[/green]"
     )
 
 

@@ -28,9 +28,7 @@ class ForecasterService:
         else:
             return "prophet"
 
-    def fill_missing_days(
-        self, data: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def fill_missing_days(self, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Fill gaps in time-series data with linear interpolation.
 
         Args:
@@ -43,9 +41,7 @@ class ForecasterService:
             return list(data)
 
         sorted_data = sorted(data, key=lambda d: d["date"])
-        date_to_value: dict[int, float] = {
-            d["date"]: d["value"] for d in sorted_data
-        }
+        date_to_value: dict[int, float] = {d["date"]: d["value"] for d in sorted_data}
 
         min_date = sorted_data[0]["date"]
         max_date = sorted_data[-1]["date"]
@@ -65,9 +61,8 @@ class ForecasterService:
 
                 if before_ord in date_to_value and after_ord in date_to_value:
                     frac = (ordinal - before_ord) / (after_ord - before_ord)
-                    val = (
-                        date_to_value[before_ord]
-                        + frac * (date_to_value[after_ord] - date_to_value[before_ord])
+                    val = date_to_value[before_ord] + frac * (
+                        date_to_value[after_ord] - date_to_value[before_ord]
                     )
                 elif before_ord in date_to_value:
                     val = date_to_value[before_ord]
@@ -129,7 +124,10 @@ class ForecasterService:
             )
         elif model == "prophet":
             return self._predict_prophet(
-                channel_id, metric_name, filled_data, horizon_days,
+                channel_id,
+                metric_name,
+                filled_data,
+                horizon_days,
                 calendar_events,
             )
         else:
@@ -176,16 +174,18 @@ class ForecasterService:
         for day in range(1, horizon_days + 1):
             future_date = last_date + day
             pred = slope * future_date + intercept
-            results.append({
-                "channel_id": channel_id,
-                "metric_name": metric_name,
-                "date": future_date,
-                "predicted_value": pred,
-                "lower_bound": pred - 1.96 * rse,
-                "upper_bound": pred + 1.96 * rse,
-                "is_anomaly": False,
-                "model_used": model_name,
-            })
+            results.append(
+                {
+                    "channel_id": channel_id,
+                    "metric_name": metric_name,
+                    "date": future_date,
+                    "predicted_value": pred,
+                    "lower_bound": pred - 1.96 * rse,
+                    "upper_bound": pred + 1.96 * rse,
+                    "is_anomaly": False,
+                    "model_used": model_name,
+                }
+            )
 
         return results
 
@@ -232,16 +232,18 @@ class ForecasterService:
         results = []
         for i in range(horizon_days):
             future_date = last_date + i + 1
-            results.append({
-                "channel_id": channel_id,
-                "metric_name": metric_name,
-                "date": future_date,
-                "predicted_value": float(predicted[i]),
-                "lower_bound": float(conf_int[i, 0]),
-                "upper_bound": float(conf_int[i, 1]),
-                "is_anomaly": False,
-                "model_used": "arima",
-            })
+            results.append(
+                {
+                    "channel_id": channel_id,
+                    "metric_name": metric_name,
+                    "date": future_date,
+                    "predicted_value": float(predicted[i]),
+                    "lower_bound": float(conf_int[i, 0]),
+                    "upper_bound": float(conf_int[i, 1]),
+                    "is_anomaly": False,
+                    "model_used": "arima",
+                }
+            )
 
         return results
 
@@ -271,10 +273,12 @@ class ForecasterService:
         last_date = max(d["date"] for d in data)
 
         # Prophet requires a DataFrame with 'ds' (datetime) and 'y' columns
-        df = pd.DataFrame({
-            "ds": [date.fromordinal(d["date"]) for d in data],
-            "y": [d["value"] for d in data],
-        })
+        df = pd.DataFrame(
+            {
+                "ds": [date.fromordinal(d["date"]) for d in data],
+                "y": [d["value"] for d in data],
+            }
+        )
 
         model = Prophet(
             daily_seasonality=False,
@@ -290,12 +294,14 @@ class ForecasterService:
                 end = date.fromisoformat(event["end_date"])
                 current = start
                 while current <= end:
-                    holidays_rows.append({
-                        "holiday": event["name"],
-                        "ds": pd.Timestamp(current),
-                        "lower_window": 0,
-                        "upper_window": 0,
-                    })
+                    holidays_rows.append(
+                        {
+                            "holiday": event["name"],
+                            "ds": pd.Timestamp(current),
+                            "lower_window": 0,
+                            "upper_window": 0,
+                        }
+                    )
                     current += timedelta(days=1)
             if holidays_rows:
                 holidays_df = pd.DataFrame(holidays_rows)
@@ -317,16 +323,18 @@ class ForecasterService:
         results = []
         for i, (_, row) in enumerate(forecast_rows.iterrows()):
             future_date = last_date + i + 1
-            results.append({
-                "channel_id": channel_id,
-                "metric_name": metric_name,
-                "date": future_date,
-                "predicted_value": float(row["yhat"]),
-                "lower_bound": float(row["yhat_lower"]),
-                "upper_bound": float(row["yhat_upper"]),
-                "is_anomaly": False,
-                "model_used": "prophet",
-            })
+            results.append(
+                {
+                    "channel_id": channel_id,
+                    "metric_name": metric_name,
+                    "date": future_date,
+                    "predicted_value": float(row["yhat"]),
+                    "lower_bound": float(row["yhat_lower"]),
+                    "upper_bound": float(row["yhat_upper"]),
+                    "is_anomaly": False,
+                    "model_used": "prophet",
+                }
+            )
 
         return results
 
@@ -365,11 +373,13 @@ class ForecasterService:
         for d in data:
             z_score = abs(d["value"] - mean_val) / std_val
             is_anomaly = z_score > threshold_sigma
-            results.append({
-                "date": d["date"],
-                "value": d["value"],
-                "is_anomaly": is_anomaly,
-                "z_score": z_score,
-            })
+            results.append(
+                {
+                    "date": d["date"],
+                    "value": d["value"],
+                    "is_anomaly": is_anomaly,
+                    "z_score": z_score,
+                }
+            )
 
         return results

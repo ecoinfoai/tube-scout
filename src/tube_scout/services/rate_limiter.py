@@ -59,9 +59,7 @@ class RateLimiter:
                 f"Max retries ({self.profile.max_retries}) exceeded "
                 f"at attempt {attempt}"
             )
-        delay = self.profile.base_delay * (
-            self.profile.backoff_multiplier ** attempt
-        )
+        delay = self.profile.base_delay * (self.profile.backoff_multiplier**attempt)
         if self.profile.jitter > 0:
             delay += random.uniform(-self.profile.jitter, self.profile.jitter)
         delay = max(0.0, delay)

@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 
 _VALID_DEVICES = {"cpu", "cuda"}
 
+DEFAULT_API_TIMEOUT_SECONDS: int = 60
+
 
 def get_device() -> str:
     """Read TUBE_SCOUT_DEVICE env var and return validated device string.
@@ -25,8 +27,7 @@ def get_device() -> str:
         return "cpu"
     if device not in _VALID_DEVICES:
         raise ValueError(
-            f"TUBE_SCOUT_DEVICE must be one of {sorted(_VALID_DEVICES)}, "
-            f"got {device!r}"
+            f"TUBE_SCOUT_DEVICE must be one of {sorted(_VALID_DEVICES)}, got {device!r}"
         )
     return device
 
@@ -155,14 +156,16 @@ class CollectionState(BaseModel):
     stage_completed: bool = False
 
 
-VALID_EVENT_TYPES = frozenset({
-    "semester_start",
-    "semester_end",
-    "exam",
-    "assignment",
-    "holiday",
-    "other",
-})
+VALID_EVENT_TYPES = frozenset(
+    {
+        "semester_start",
+        "semester_end",
+        "exam",
+        "assignment",
+        "holiday",
+        "other",
+    }
+)
 
 
 class CalendarEvent(BaseModel):
@@ -186,9 +189,7 @@ class CalendarEvent(BaseModel):
     def event_type_must_be_valid(cls, v: str) -> str:
         """Validate that event_type is one of the allowed values."""
         if v not in VALID_EVENT_TYPES:
-            raise ValueError(
-                f"event_type must be one of {sorted(VALID_EVENT_TYPES)}"
-            )
+            raise ValueError(f"event_type must be one of {sorted(VALID_EVENT_TYPES)}")
         return v
 
     @field_validator("end_date")
@@ -209,7 +210,8 @@ class AcademicCalendar(BaseModel):
     @field_validator("events")
     @classmethod
     def events_must_not_be_empty(
-        cls, v: list[CalendarEvent],
+        cls,
+        v: list[CalendarEvent],
     ) -> list[CalendarEvent]:
         """Validate that at least one event is configured."""
         if not v:
@@ -240,9 +242,7 @@ class ChannelRegistration(BaseModel):
     def channel_id_must_start_with_uc(cls, v: str) -> str:
         """Validate that channel_id starts with 'UC'."""
         if not v.startswith("UC"):
-            raise ValueError(
-                "channel_id must start with 'UC'"
-            )
+            raise ValueError("channel_id must start with 'UC'")
         return v
 
     @field_validator("channel_name")

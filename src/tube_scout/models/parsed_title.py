@@ -65,7 +65,5 @@ class ParsedTitle(BaseModel):
     def category_must_be_valid(cls, v: str) -> str:
         """Validate that category is 'regular' or 'supplementary'."""
         if v not in VALID_CATEGORIES:
-            raise ValueError(
-                f"category must be one of {sorted(VALID_CATEGORIES)}"
-            )
+            raise ValueError(f"category must be one of {sorted(VALID_CATEGORIES)}")
         return v

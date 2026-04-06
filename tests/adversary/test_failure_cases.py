@@ -167,23 +167,23 @@ class TestCorruptedCheckpoint:
     """Persona: Checkpoint file is corrupted mid-resume."""
 
     def test_corrupted_checkpoint_json(self, tmp_path: Path) -> None:
-        """Corrupted checkpoint JSON should raise on load."""
+        """Corrupted checkpoint JSON should return None gracefully."""
         ckpt_dir = tmp_path / "checkpoints"
         ckpt_dir.mkdir(parents=True)
         ckpt_file = ckpt_dir / "collection_state.json"
         ckpt_file.write_text("{broken json###", encoding="utf-8")
-        with pytest.raises(json.JSONDecodeError):
-            load_checkpoint(tmp_path, "UCfake", "videos")
+        result = load_checkpoint(tmp_path, "UCfake", "videos")
+        assert result is None
 
     def test_checkpoint_with_wrong_schema(self, tmp_path: Path) -> None:
-        """Checkpoint with unexpected schema should raise Pydantic error."""
+        """Checkpoint with unexpected schema should return None and backup."""
         ckpt_dir = tmp_path / "checkpoints"
         ckpt_dir.mkdir(parents=True)
         ckpt_file = ckpt_dir / "collection_state.json"
         # Valid JSON but wrong schema for CollectionState
         write_json(ckpt_file, {"UCfake:videos": {"wrong_field": "wrong_value"}})
-        with pytest.raises((ValidationError, TypeError)):
-            load_checkpoint(tmp_path, "UCfake", "videos")
+        result = load_checkpoint(tmp_path, "UCfake", "videos")
+        assert result is None
 
     def test_save_checkpoint_creates_dirs(self, tmp_path: Path) -> None:
         """save_checkpoint should create directories if not present."""
@@ -628,6 +628,9 @@ class TestQuotaExhaustion:
 # ============================================================
 # PERSONA 15: Forecaster with insufficient data
 # ============================================================
+pytest.importorskip("numpy")
+
+
 class TestForecasterEdgeCases:
     """Persona: Forecast requests with insufficient or unusual data."""
 
@@ -791,12 +794,10 @@ class TestJsonStoreEdgeCases:
         assert result["version"] == 2
 
     def test_non_serializable_data_raises(self, tmp_path: Path) -> None:
-        """Non-JSON-serializable data should raise."""
+        """Non-JSON-serializable data should raise TypeError."""
         filepath = tmp_path / "bad.json"
-        # set is not JSON serializable — but default=str might handle it
-        # Actually the write_json uses default=str, so sets will be converted
-        write_json(filepath, {"data": {1, 2, 3}})
-        # Just verify it doesn't crash
+        with pytest.raises(TypeError):
+            write_json(filepath, {"data": {1, 2, 3}})
 
 
 # ============================================================

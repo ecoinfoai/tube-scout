@@ -52,9 +52,7 @@ class CommentReportGenerator:
             topics=topics,
             questions=questions,
             hotspot_matches=hotspot_matches,
-            total_comments=sum(
-                len(t.get("comment_ids", [])) for t in topics
-            ),
+            total_comments=sum(len(t.get("comment_ids", [])) for t in topics),
             generated_at=datetime.now(UTC).isoformat(),
         )
 

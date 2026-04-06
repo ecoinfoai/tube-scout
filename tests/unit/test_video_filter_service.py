@@ -94,10 +94,16 @@ class TestVideoFilterService:
         from datetime import date
 
         videos = [
-            {"video_id": "good", "title": "Valid",
-             "published_at": "2026-02-01T00:00:00Z"},
-            {"video_id": "bad1", "title": "Invalid partial",
-             "published_at": "2026-02-XX"},
+            {
+                "video_id": "good",
+                "title": "Valid",
+                "published_at": "2026-02-01T00:00:00Z",
+            },
+            {
+                "video_id": "bad1",
+                "title": "Invalid partial",
+                "published_at": "2026-02-XX",
+            },
             {"video_id": "bad2", "title": "Invalid empty", "published_at": ""},
         ]
         vf = VideoFilter(
@@ -111,10 +117,16 @@ class TestVideoFilterService:
     def test_video_ids_csv_whitespace_stripped(self) -> None:
         """Video IDs with surrounding whitespace should still match."""
         videos = [
-            {"video_id": "vid001", "title": "A",
-             "published_at": "2026-01-01T00:00:00Z"},
-            {"video_id": "vid002", "title": "B",
-             "published_at": "2026-01-01T00:00:00Z"},
+            {
+                "video_id": "vid001",
+                "title": "A",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
+            {
+                "video_id": "vid002",
+                "title": "B",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
         ]
         vf = VideoFilter(video_ids=["vid001", " vid002"])
         result = VideoFilterService.filter_videos(videos, vf)
@@ -186,10 +198,16 @@ class TestSpecialCharKeyword:
     def test_keyword_with_parentheses(self) -> None:
         """Keyword containing parentheses matches correctly."""
         videos = [
-            {"video_id": "v1", "title": "해부학(1) 강의",
-             "published_at": "2026-01-01T00:00:00Z"},
-            {"video_id": "v2", "title": "해부학 강의",
-             "published_at": "2026-01-01T00:00:00Z"},
+            {
+                "video_id": "v1",
+                "title": "해부학(1) 강의",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
+            {
+                "video_id": "v2",
+                "title": "해부학 강의",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
         ]
         vf = VideoFilter(keyword="해부학(1)")
         result = VideoFilterService.filter_videos(videos, vf)
@@ -199,10 +217,16 @@ class TestSpecialCharKeyword:
     def test_keyword_with_quotes(self) -> None:
         """Keyword containing quotes matches correctly."""
         videos = [
-            {"video_id": "v1", "title": '해부학 "심화" 과정',
-             "published_at": "2026-01-01T00:00:00Z"},
-            {"video_id": "v2", "title": "해부학 기초",
-             "published_at": "2026-01-01T00:00:00Z"},
+            {
+                "video_id": "v1",
+                "title": '해부학 "심화" 과정',
+                "published_at": "2026-01-01T00:00:00Z",
+            },
+            {
+                "video_id": "v2",
+                "title": "해부학 기초",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
         ]
         vf = VideoFilter(keyword='"심화"')
         result = VideoFilterService.filter_videos(videos, vf)
@@ -212,10 +236,16 @@ class TestSpecialCharKeyword:
     def test_keyword_with_ampersand(self) -> None:
         """Keyword containing & matches correctly."""
         videos = [
-            {"video_id": "v1", "title": "A&P 해부학 강의",
-             "published_at": "2026-01-01T00:00:00Z"},
-            {"video_id": "v2", "title": "해부학 강의",
-             "published_at": "2026-01-01T00:00:00Z"},
+            {
+                "video_id": "v1",
+                "title": "A&P 해부학 강의",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
+            {
+                "video_id": "v2",
+                "title": "해부학 강의",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
         ]
         vf = VideoFilter(keyword="A&P")
         result = VideoFilterService.filter_videos(videos, vf)
@@ -225,10 +255,16 @@ class TestSpecialCharKeyword:
     def test_keyword_with_brackets(self) -> None:
         """Keyword containing brackets matches correctly."""
         videos = [
-            {"video_id": "v1", "title": "[특강] 미생물학",
-             "published_at": "2026-01-01T00:00:00Z"},
-            {"video_id": "v2", "title": "미생물학 정규",
-             "published_at": "2026-01-01T00:00:00Z"},
+            {
+                "video_id": "v1",
+                "title": "[특강] 미생물학",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
+            {
+                "video_id": "v2",
+                "title": "미생물학 정규",
+                "published_at": "2026-01-01T00:00:00Z",
+            },
         ]
         vf = VideoFilter(keyword="[특강]")
         result = VideoFilterService.filter_videos(videos, vf)

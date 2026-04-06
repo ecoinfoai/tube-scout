@@ -51,8 +51,6 @@ class VideoFilter(BaseModel):
             and self.published_before is not None
             and self.published_after > self.published_before
         ):
-            raise ValueError(
-                "published_after must be <= published_before"
-            )
+            raise ValueError("published_after must be <= published_before")
 
         return self

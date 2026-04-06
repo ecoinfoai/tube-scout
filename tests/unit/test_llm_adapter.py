@@ -89,9 +89,7 @@ class TestLLMAdapterComplete:
         adapter = LLMAdapter(provider="openai")
         mock_response = MagicMock()
         mock_response.choices = [MagicMock(message=MagicMock(content="Hello from GPT"))]
-        adapter._client.chat.completions.create = MagicMock(
-            return_value=mock_response
-        )
+        adapter._client.chat.completions.create = MagicMock(return_value=mock_response)
 
         result = adapter.complete("You are a helper.", "Say hello.")
         assert result == "Hello from GPT"
@@ -144,9 +142,7 @@ class TestLLMAdapterCompleteJson:
         mock_good = MagicMock()
         mock_good.content = [MagicMock(text=valid_json)]
 
-        adapter._client.messages.create = MagicMock(
-            side_effect=[mock_bad, mock_good]
-        )
+        adapter._client.messages.create = MagicMock(side_effect=[mock_bad, mock_good])
 
         result = adapter.complete_json("Return JSON.", "Give me data.", SampleSchema)
         assert isinstance(result, SampleSchema)
@@ -161,9 +157,7 @@ class TestLLMAdapterCompleteJson:
         mock_bad = MagicMock()
         mock_bad.content = [MagicMock(text=malformed)]
 
-        adapter._client.messages.create = MagicMock(
-            return_value=mock_bad
-        )
+        adapter._client.messages.create = MagicMock(return_value=mock_bad)
 
         with pytest.raises(ValueError, match="Failed to parse"):
             adapter.complete_json("Return JSON.", "Give me data.", SampleSchema)
@@ -183,12 +177,8 @@ class TestLLMAdapterCompleteJson:
         adapter = LLMAdapter(provider="openai")
         valid_json = json.dumps({"name": "openai_test", "score": 0.8})
         mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(message=MagicMock(content=valid_json))
-        ]
-        adapter._client.chat.completions.create = MagicMock(
-            return_value=mock_response
-        )
+        mock_response.choices = [MagicMock(message=MagicMock(content=valid_json))]
+        adapter._client.chat.completions.create = MagicMock(return_value=mock_response)
 
         result = adapter.complete_json("Return JSON.", "Give me data.", SampleSchema)
         assert isinstance(result, SampleSchema)

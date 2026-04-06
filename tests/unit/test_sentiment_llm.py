@@ -25,10 +25,7 @@ def _make_comments(n: int = 3) -> list[dict[str, Any]]:
         "정말 좋은 강의입니다!",
         "이해가 안 됩니다.",
     ]
-    return [
-        {"comment_id": f"c{i}", "text": texts[i % len(texts)]}
-        for i in range(n)
-    ]
+    return [{"comment_id": f"c{i}", "text": texts[i % len(texts)]} for i in range(n)]
 
 
 class TestLLMSentimentBackend:
@@ -91,9 +88,7 @@ class TestLLMSentimentBackend:
         for i, r in enumerate(results):
             assert r["comment_id"] == f"c{i}"
 
-    def test_mixed_korean_english_comments(
-        self, mock_adapter: MagicMock
-    ) -> None:
+    def test_mixed_korean_english_comments(self, mock_adapter: MagicMock) -> None:
         """Mixed Korean+English comments are handled correctly."""
         comments = [
             {"comment_id": "c0", "text": "Great lecture!"},
@@ -137,9 +132,7 @@ class TestLLMSentimentBackend:
         for r in results:
             assert r["sentiment"] in ("positive", "neutral", "negative")
 
-    def test_content_hash_caching_works(
-        self, mock_adapter: MagicMock
-    ) -> None:
+    def test_content_hash_caching_works(self, mock_adapter: MagicMock) -> None:
         """Content-hash caching prevents duplicate LLM calls."""
         comments = [{"comment_id": "c0", "text": "Test comment"}]
         mock_result = MagicMock()
@@ -203,9 +196,7 @@ class TestLLMSentimentBackend:
         # Should be called 3 times: 20 + 20 + 5
         assert mock_adapter.complete_json.call_count == 3
 
-    def test_empty_comments_returns_empty(
-        self, mock_adapter: MagicMock
-    ) -> None:
+    def test_empty_comments_returns_empty(self, mock_adapter: MagicMock) -> None:
         """Empty comment list returns empty result without calling LLM."""
         service = SentimentService(backend="llm")
         service._llm_adapter = mock_adapter

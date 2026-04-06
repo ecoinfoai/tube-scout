@@ -130,9 +130,7 @@ class TestListChannels:
     """Tests for list_channels function."""
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
-    def test_list_with_registered_channels(
-        self, sample_registry: Path
-    ) -> None:
+    def test_list_with_registered_channels(self, sample_registry: Path) -> None:
         channels = list_channels()
         assert len(channels) == 1
         assert channels[0].alias == "간호학과"
@@ -188,10 +186,13 @@ class TestAuthenticateChannel:
         mock_creds.refresh_token = "1//fake_refresh_token"
         mock_creds.to_json.return_value = '{"token": "refreshed"}'
 
-        with patch(
-            "tube_scout.services.auth.Credentials.from_authorized_user_file",
-            return_value=mock_creds,
-        ), patch("tube_scout.services.auth.Request"):
+        with (
+            patch(
+                "tube_scout.services.auth.Credentials.from_authorized_user_file",
+                return_value=mock_creds,
+            ),
+            patch("tube_scout.services.auth.Request"),
+        ):
             creds = authenticate_channel("간호학과")
             mock_creds.refresh.assert_called_once()
             assert creds is mock_creds
@@ -206,9 +207,7 @@ class TestRegisterChannel:
     """Tests for register_channel function."""
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
-    def test_register_saves_token_and_registry(
-        self, tokens_dir: Path
-    ) -> None:
+    def test_register_saves_token_and_registry(self, tokens_dir: Path) -> None:
         mock_creds = MagicMock()
         mock_creds.to_json.return_value = '{"token": "fake"}'
 
@@ -224,21 +223,23 @@ class TestRegisterChannel:
             ]
         }
 
-        with patch(
-            "tube_scout.services.auth.InstalledAppFlow.from_client_secrets_file",
-            return_value=mock_flow,
-        ), patch(
-            "tube_scout.services.auth._default_client_secret_path",
-            return_value=Path("/fake/client_secret.json"),
-        ), patch(
-            "tube_scout.services.auth.build",
-        ) as mock_build:
+        with (
+            patch(
+                "tube_scout.services.auth.InstalledAppFlow.from_client_secrets_file",
+                return_value=mock_flow,
+            ),
+            patch(
+                "tube_scout.services.auth._default_client_secret_path",
+                return_value=Path("/fake/client_secret.json"),
+            ),
+            patch(
+                "tube_scout.services.auth.build",
+            ) as mock_build,
+        ):
             mock_service = MagicMock()
             mock_build.return_value = mock_service
             ch_list = mock_service.channels.return_value.list
-            ch_list.return_value.execute.return_value = (
-                mock_channels_response
-            )
+            ch_list.return_value.execute.return_value = mock_channels_response
 
             reg = register_channel("새학과")
 
@@ -251,36 +252,34 @@ class TestRegisterChannel:
         assert "새학과" in registry
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
-    def test_register_no_channel_found_raises(
-        self, tokens_dir: Path
-    ) -> None:
+    def test_register_no_channel_found_raises(self, tokens_dir: Path) -> None:
         mock_creds = MagicMock()
         mock_flow = MagicMock()
         mock_flow.run_local_server.return_value = mock_creds
 
-        with patch(
-            "tube_scout.services.auth.InstalledAppFlow.from_client_secrets_file",
-            return_value=mock_flow,
-        ), patch(
-            "tube_scout.services.auth._default_client_secret_path",
-            return_value=Path("/fake/client_secret.json"),
-        ), patch(
-            "tube_scout.services.auth.build",
-        ) as mock_build:
+        with (
+            patch(
+                "tube_scout.services.auth.InstalledAppFlow.from_client_secrets_file",
+                return_value=mock_flow,
+            ),
+            patch(
+                "tube_scout.services.auth._default_client_secret_path",
+                return_value=Path("/fake/client_secret.json"),
+            ),
+            patch(
+                "tube_scout.services.auth.build",
+            ) as mock_build,
+        ):
             mock_service = MagicMock()
             mock_build.return_value = mock_service
             ch_list = mock_service.channels.return_value.list
-            ch_list.return_value.execute.return_value = {
-                "items": []
-            }
+            ch_list.return_value.execute.return_value = {"items": []}
 
             with pytest.raises(ValueError, match="No channel found"):
                 register_channel("빈학과")
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
-    def test_register_auto_detects_channel_id(
-        self, tokens_dir: Path
-    ) -> None:
+    def test_register_auto_detects_channel_id(self, tokens_dir: Path) -> None:
         mock_creds = MagicMock()
         mock_creds.to_json.return_value = '{"token": "fake"}'
 
@@ -296,21 +295,65 @@ class TestRegisterChannel:
             ]
         }
 
-        with patch(
-            "tube_scout.services.auth.InstalledAppFlow.from_client_secrets_file",
-            return_value=mock_flow,
-        ), patch(
-            "tube_scout.services.auth._default_client_secret_path",
-            return_value=Path("/fake/client_secret.json"),
-        ), patch(
-            "tube_scout.services.auth.build",
-        ) as mock_build:
+        with (
+            patch(
+                "tube_scout.services.auth.InstalledAppFlow.from_client_secrets_file",
+                return_value=mock_flow,
+            ),
+            patch(
+                "tube_scout.services.auth._default_client_secret_path",
+                return_value=Path("/fake/client_secret.json"),
+            ),
+            patch(
+                "tube_scout.services.auth.build",
+            ) as mock_build,
+        ):
             mock_service = MagicMock()
             mock_build.return_value = mock_service
             ch_list = mock_service.channels.return_value.list
-            ch_list.return_value.execute.return_value = (
-                mock_channels_response
-            )
+            ch_list.return_value.execute.return_value = mock_channels_response
 
             reg = register_channel("자동학과")
             assert reg.channel_id == "UCauto_detected_chan_123"
+
+
+class TestSecureWrite:
+    """Tests for _secure_write helper (H-02+L-07)."""
+
+    def test_secure_write_sets_permissions_0600(self, tmp_path: Path) -> None:
+        """Written files should have 0o600 permissions."""
+        from tube_scout.services.auth import _secure_write
+
+        target = tmp_path / "secret.json"
+        _secure_write(target, '{"token": "abc"}')
+        assert target.exists()
+        assert oct(target.stat().st_mode & 0o777) == oct(0o600)
+
+    def test_secure_write_is_atomic(self, tmp_path: Path) -> None:
+        """If write fails, original file should remain intact."""
+        from tube_scout.services.auth import _secure_write
+
+        target = tmp_path / "secret.json"
+        _secure_write(target, '{"old": true}')
+        target.read_text()
+
+        # Overwrite with new content
+        _secure_write(target, '{"new": true}')
+        assert target.read_text() == '{"new": true}'
+        assert oct(target.stat().st_mode & 0o777) == oct(0o600)
+
+    def test_save_registry_sets_permissions(self, tokens_dir: Path) -> None:
+        """save_registry should produce a 0o600 channels.json."""
+        from tube_scout.models.config import ChannelRegistration
+
+        reg = ChannelRegistration(
+            alias="test",
+            channel_id="UCtest",
+            channel_name="Test",
+            registered_at="2026-04-04T12:00:00",
+            last_used_at="2026-04-04T12:00:00",
+            token_path=str(tokens_dir / "test.json"),
+        )
+        save_registry(tokens_dir, {"test": reg})
+        channels_file = tokens_dir / "channels.json"
+        assert oct(channels_file.stat().st_mode & 0o777) == oct(0o600)

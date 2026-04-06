@@ -97,6 +97,4 @@ class TestProfileValidation:
     def test_negative_max_retries_invalid(self) -> None:
         """max_retries < 0 should be rejected."""
         with pytest.raises(Exception):
-            RateLimitProfile(
-                base_delay=1.0, max_retries=-1, backoff_multiplier=2.0
-            )
+            RateLimitProfile(base_delay=1.0, max_retries=-1, backoff_multiplier=2.0)

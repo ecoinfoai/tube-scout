@@ -11,6 +11,7 @@ from tube_scout.services.eqs import EQSService
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_llm_adapter_mock(scores: dict[str, float]) -> MagicMock:
     """Create a mock LLMAdapter returning RACED scores.
 
@@ -23,7 +24,9 @@ def _make_llm_adapter_mock(scores: dict[str, float]) -> MagicMock:
     adapter = MagicMock()
 
     def _complete_json(
-        system_prompt: str, user_prompt: str, schema: type[BaseModel],
+        system_prompt: str,
+        user_prompt: str,
+        schema: type[BaseModel],
     ) -> BaseModel:
         return schema.model_validate(scores)
 
@@ -53,6 +56,7 @@ SAMPLE_COMMENTS = [
 # ===========================================================================
 # T064 — Unit tests for EQS LLM evaluation
 # ===========================================================================
+
 
 class TestEQSLLMEvaluation:
     """T064: EQS LLM-based RACED 5-axis evaluation."""
@@ -102,8 +106,14 @@ class TestEQSLLMEvaluation:
             comment_data=[],
         )
 
-        for axis in ("relevance", "accuracy", "clarity",
-                      "engagement", "depth", "overall"):
+        for axis in (
+            "relevance",
+            "accuracy",
+            "clarity",
+            "engagement",
+            "depth",
+            "overall",
+        ):
             assert 0.0 <= result[axis] <= 1.0
 
     def test_empty_transcript_returns_zeros(self) -> None:
@@ -119,8 +129,7 @@ class TestEQSLLMEvaluation:
         )
 
         assert result["overall"] == 0.0
-        for axis in ("relevance", "accuracy", "clarity",
-                      "engagement", "depth"):
+        for axis in ("relevance", "accuracy", "clarity", "engagement", "depth"):
             assert result[axis] == 0.0
         adapter.complete_json.assert_not_called()
 
@@ -163,6 +172,7 @@ class TestEQSLLMEvaluation:
 # T066 — Consistency and normalization
 # ===========================================================================
 
+
 class TestEQSConsistency:
     """T066: Scores comparable across videos."""
 
@@ -175,8 +185,8 @@ class TestEQSConsistency:
         call1_system = adapter.complete_json.call_args[0][0]
 
         adapter.reset_mock()
-        adapter.complete_json.side_effect = (
-            lambda s, u, schema: schema.model_validate(SAMPLE_SCORES)
+        adapter.complete_json.side_effect = lambda s, u, schema: schema.model_validate(
+            SAMPLE_SCORES
         )
 
         service.evaluate("vid002", "Content B", [], [])
@@ -198,8 +208,7 @@ class TestEQSConsistency:
 
         result = service.evaluate("vid001", "Content...", [], [])
 
-        for axis in ("relevance", "accuracy", "clarity",
-                      "engagement", "depth"):
+        for axis in ("relevance", "accuracy", "clarity", "engagement", "depth"):
             assert 0.0 <= result[axis] <= 1.0
 
 
@@ -207,15 +216,14 @@ class TestEQSConsistency:
 # T067 — Malformed LLM response handling
 # ===========================================================================
 
+
 class TestEQSMalformedResponse:
     """T067: Handling malformed LLM responses."""
 
     def test_llm_value_error_propagates(self) -> None:
         """ValueError from LLMAdapter propagates to caller."""
         adapter = MagicMock()
-        adapter.complete_json.side_effect = ValueError(
-            "Failed to parse LLM response"
-        )
+        adapter.complete_json.side_effect = ValueError("Failed to parse LLM response")
         service = EQSService(llm=adapter)
 
         with pytest.raises(ValueError, match="Failed to parse"):

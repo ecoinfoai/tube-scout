@@ -276,3 +276,56 @@ class TestExcelExporter:
         assert "V-001" in values
         assert "WARNING" in values
         wb.close()
+
+    def test_sanitize_cell_prefixes_formula_characters(self) -> None:
+        """_sanitize_cell should prefix =, +, -, @ with a single quote."""
+        from tube_scout.reporting.excel_export import _sanitize_cell
+
+        assert _sanitize_cell("=SUM(A1:A10)") == "'=SUM(A1:A10)"
+        assert _sanitize_cell("+cmd|' /C calc'!A0") == "'+cmd|' /C calc'!A0"
+        assert _sanitize_cell("-1+1") == "'-1+1"
+        assert _sanitize_cell("@SUM(A1)") == "'@SUM(A1)"
+
+    def test_sanitize_cell_passes_through_safe_strings(self) -> None:
+        """_sanitize_cell should not modify safe values."""
+        from tube_scout.reporting.excel_export import _sanitize_cell
+
+        assert _sanitize_cell("Normal text") == "Normal text"
+        assert _sanitize_cell("") == ""
+        assert _sanitize_cell(42) == 42
+        assert _sanitize_cell(None) is None
+
+    def test_formula_injection_in_professor_name(
+        self,
+        tmp_path: Path,
+        overview: DepartmentOverview,
+        compliance_entries: list[ComplianceMatrix],
+    ) -> None:
+        """Professor names with formula chars should be sanitized in output."""
+        import openpyxl
+
+        malicious_details = [
+            ProfessorDetail(
+                professor_name='=HYPERLINK("http://evil.com","Click")',
+                video_count=1,
+                courses=["Course1"],
+                weekly_coverage=0.5,
+                session_completeness=0.8,
+                avg_duration_minutes=30.0,
+                total_views=100,
+                avg_views=100.0,
+                validation_error_count=0,
+            ),
+        ]
+        output_path = tmp_path / "report.xlsx"
+        ExcelExporter().export(
+            overview=overview,
+            professor_details=malicious_details,
+            compliance_entries=compliance_entries,
+            output_path=output_path,
+        )
+        wb = openpyxl.load_workbook(output_path)
+        ws = wb["교수별 상세"]
+        prof_cell = ws.cell(row=2, column=1).value
+        assert prof_cell.startswith("'")
+        wb.close()

@@ -31,10 +31,13 @@ class TestGetDailyMetrics:
     def test_returns_daily_metrics(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["2024-01-01", 100, 50.5, 120.0, 45.0],
-            ["2024-01-02", 200, 100.0, 130.0, 50.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["2024-01-01", 100, 50.5, 120.0, 45.0],
+                ["2024-01-02", 200, 100.0, 130.0, 50.0],
+            ],
+        )
         result = service.get_daily_metrics(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),
@@ -77,9 +80,12 @@ class TestGetDailyMetrics:
     def test_with_video_filter(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["2024-01-01", 50, 25.0, 100.0, 40.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["2024-01-01", 50, 25.0, 100.0, 40.0],
+            ],
+        )
         service.get_daily_metrics(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),
@@ -96,10 +102,13 @@ class TestGetTrafficSources:
     def test_returns_traffic_sources(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["SUGGESTED", 500, 250.0],
-            ["SEARCH", 300, 150.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["SUGGESTED", 500, 250.0],
+                ["SEARCH", 300, 150.0],
+            ],
+        )
         result = service.get_traffic_sources(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),
@@ -128,10 +137,13 @@ class TestGetDemographics:
     def test_returns_demographics(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["25-34", "male", 35.5],
-            ["18-24", "female", 20.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["25-34", "male", 35.5],
+                ["18-24", "female", 20.0],
+            ],
+        )
         result = service.get_demographics(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),
@@ -161,10 +173,13 @@ class TestGetGeography:
     def test_returns_geography(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["KR", 10000, 5000.0],
-            ["US", 500, 250.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["KR", 10000, 5000.0],
+                ["US", 500, 250.0],
+            ],
+        )
         result = service.get_geography(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),
@@ -193,10 +208,13 @@ class TestGetDevices:
     def test_returns_devices(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["MOBILE", "ANDROID", 300, 150.0],
-            ["DESKTOP", "WINDOWS", 200, 100.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["MOBILE", "ANDROID", 300, 150.0],
+                ["DESKTOP", "WINDOWS", 200, 100.0],
+            ],
+        )
         result = service.get_devices(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),
@@ -225,10 +243,13 @@ class TestGetPlaybackLocations:
     def test_returns_playback_locations(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["WATCH", 1000, 500.0],
-            ["EMBEDDED", 200, 100.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["WATCH", 1000, 500.0],
+                ["EMBEDDED", 200, 100.0],
+            ],
+        )
         result = service.get_playback_locations(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),
@@ -257,10 +278,13 @@ class TestGetSubscriberChanges:
     def test_returns_subscriber_changes(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["2024-01-01", 10, 2],
-            ["2024-01-02", 8, 1],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["2024-01-01", 10, 2],
+                ["2024-01-02", 8, 1],
+            ],
+        )
         result = service.get_subscriber_changes(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),
@@ -291,9 +315,12 @@ class TestGetEngagementMetrics:
     def test_returns_engagement_metrics(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            [5, 50, 10, 45.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                [5, 50, 10, 45.0],
+            ],
+        )
         result = service.get_engagement_metrics(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             video_id="dQw4w9WgXcQ",
@@ -330,9 +357,12 @@ class TestCollectAllReports:
     def test_collects_single_report_type(
         self, service: YouTubeAnalyticsService, mock_client: MagicMock
     ) -> None:
-        _setup_query_response(mock_client, [
-            ["2024-01-01", 100, 50.5, 120.0, 45.0],
-        ])
+        _setup_query_response(
+            mock_client,
+            [
+                ["2024-01-01", 100, 50.5, 120.0, 45.0],
+            ],
+        )
         result = service.collect_all_reports(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxx",
             start_date=date(2024, 1, 1),

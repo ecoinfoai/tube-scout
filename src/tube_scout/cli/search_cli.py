@@ -1,9 +1,15 @@
 """Search CLI subcommand for structured video search."""
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typer
+
+if TYPE_CHECKING:
+    from tube_scout.models.parsed_title import ParsedTitle
 from rich.console import Console
 from rich.table import Table
 
@@ -150,7 +156,7 @@ def search_command(
 def _load_parsed_titles(
     channel: str | None,
     output_dir: str | None = None,
-) -> list:
+) -> list[ParsedTitle]:
     """Load parsed titles from the latest output directory.
 
     Args:

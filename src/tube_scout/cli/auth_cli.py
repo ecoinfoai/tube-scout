@@ -1,6 +1,5 @@
 """Auth CLI subcommands for multi-channel token management."""
 
-
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -110,9 +109,7 @@ def _revoke_channel(alias: str) -> None:
 
     try:
         revoke_channel(alias)
-        console.print(
-            f"[green]Channel '{alias}' revoked successfully.[/green]"
-        )
+        console.print(f"[green]Channel '{alias}' revoked successfully.[/green]")
     except KeyError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1)

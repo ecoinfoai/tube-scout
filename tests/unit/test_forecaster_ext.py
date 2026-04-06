@@ -5,7 +5,12 @@ from typing import Any
 
 import pytest
 
-from tube_scout.services.forecaster import ForecasterService
+np = pytest.importorskip("numpy", reason="numpy not available", exc_type=ImportError)
+pytest.importorskip(
+    "statsmodels", reason="statsmodels not available", exc_type=ImportError
+)
+
+from tube_scout.services.forecaster import ForecasterService  # noqa: E402
 
 
 def _make_linear_series(
@@ -31,10 +36,12 @@ def _make_linear_series(
     for i in range(n_days):
         d = start + timedelta(days=i)
         noise = noise_amp * (((i * 7) % 13) - 6) / 6.0  # deterministic pseudo-noise
-        result.append({
-            "date": d.toordinal(),
-            "value": base + slope * i + noise,
-        })
+        result.append(
+            {
+                "date": d.toordinal(),
+                "value": base + slope * i + noise,
+            }
+        )
     return result
 
 
@@ -56,14 +63,17 @@ def _make_seasonal_series(
         List of dicts with 'date' (ordinal) and 'value'.
     """
     import math
+
     result = []
     for i in range(n_days):
         d = start + timedelta(days=i)
         seasonal = 30.0 * math.sin(2 * math.pi * i / 7)
-        result.append({
-            "date": d.toordinal(),
-            "value": base + slope * i + seasonal,
-        })
+        result.append(
+            {
+                "date": d.toordinal(),
+                "value": base + slope * i + seasonal,
+            }
+        )
     return result
 
 
@@ -87,10 +97,12 @@ def _make_series_with_gaps(
         if i in gap_indices:
             continue
         d = start + timedelta(days=i)
-        result.append({
-            "date": d.toordinal(),
-            "value": 100.0 + i * 1.5,
-        })
+        result.append(
+            {
+                "date": d.toordinal(),
+                "value": 100.0 + i * 1.5,
+            }
+        )
     return result
 
 
@@ -257,7 +269,7 @@ class TestMissingDaysHandling:
         dates = sorted(r["date"] for r in filled)
         for i in range(1, len(dates)):
             assert dates[i] - dates[i - 1] == 1, (
-                f"Gap found between ordinal {dates[i-1]} and {dates[i]}"
+                f"Gap found between ordinal {dates[i - 1]} and {dates[i]}"
             )
 
     def test_fill_missing_days_interpolates_values(self) -> None:

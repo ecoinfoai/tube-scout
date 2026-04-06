@@ -37,8 +37,7 @@ class SearchService:
         if not isinstance(data, dict):
             type_name = type(data).__name__
             raise ValueError(
-                f"Failed to parse search config: "
-                f"expected a mapping, got {type_name}"
+                f"Failed to parse search config: expected a mapping, got {type_name}"
             )
 
         return _build_query_from_dict(data)

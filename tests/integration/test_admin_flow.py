@@ -140,9 +140,7 @@ class TestAdminFlowEndToEnd:
         """Test search against parsed titles."""
         from tube_scout.models.search import SearchFilter, SearchQuery
 
-        query = SearchQuery(
-            filters=SearchFilter(professor="홍길동", year=2024)
-        )
+        query = SearchQuery(filters=SearchFilter(professor="홍길동", year=2024))
         results = SearchService.search(sample_parsed_titles, query)
         assert len(results) == 4
 
@@ -212,9 +210,7 @@ class TestAdminFlowEndToEnd:
         mgr.update_latest_link(run1)
         parsed_dir1 = run1 / "parsed" / "ch1"
         parsed_dir1.mkdir(parents=True)
-        (parsed_dir1 / "parsed_titles.json").write_text(
-            '"run1_data"', encoding="utf-8"
-        )
+        (parsed_dir1 / "parsed_titles.json").write_text('"run1_data"', encoding="utf-8")
 
         # Second run
         run2_path = output_dir / "report-20260405-0900"
@@ -222,9 +218,7 @@ class TestAdminFlowEndToEnd:
         mgr.update_latest_link(run2_path)
         parsed_dir2 = run2_path / "parsed" / "ch1"
         parsed_dir2.mkdir(parents=True)
-        (parsed_dir2 / "parsed_titles.json").write_text(
-            '"run2_data"', encoding="utf-8"
-        )
+        (parsed_dir2 / "parsed_titles.json").write_text('"run2_data"', encoding="utf-8")
 
         # First run's data is unchanged
         data1 = (parsed_dir1 / "parsed_titles.json").read_text(encoding="utf-8")

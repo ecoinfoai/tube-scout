@@ -28,6 +28,7 @@ from tube_scout.reporting.bundle_report import BundleReportGenerator
 # Shared fixtures / helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_video(
     video_id: str = "vid001",
     title: str = "홍길동 2025 감염미생물학 1주차 1차시",
@@ -54,18 +55,14 @@ def _write_videos_project(proj_path: Path, channel_id: str, videos: list) -> Non
     """Write videos to project structure (01_collect/)."""
     videos_dir = proj_path / "01_collect" / "channels" / channel_id
     videos_dir.mkdir(parents=True, exist_ok=True)
-    (videos_dir / "videos_meta.json").write_text(
-        json.dumps(videos), encoding="utf-8"
-    )
+    (videos_dir / "videos_meta.json").write_text(json.dumps(videos), encoding="utf-8")
 
 
 def _write_videos_legacy(data_path: Path, channel_id: str, videos: list) -> None:
     """Write videos to legacy structure (raw/) for direct generator tests."""
     videos_dir = data_path / "raw" / "channels" / channel_id
     videos_dir.mkdir(parents=True, exist_ok=True)
-    (videos_dir / "videos_meta.json").write_text(
-        json.dumps(videos), encoding="utf-8"
-    )
+    (videos_dir / "videos_meta.json").write_text(json.dumps(videos), encoding="utf-8")
 
 
 def _setup_minimal(
@@ -101,14 +98,18 @@ def _setup_legacy(tmp_path: Path, channel_id: str = "UC_TEST") -> Path:
 def _proj_args(data_path: Path, project_dir: Path, project_path: Path) -> list[str]:
     """Return common project CLI args."""
     return [
-        "--data-dir", str(data_path),
-        "--project-dir", str(project_dir),
-        "--project", str(project_path),
+        "--data-dir",
+        str(data_path),
+        "--project-dir",
+        str(project_dir),
+        "--project",
+        str(project_path),
     ]
 
 
 def _get_app():
     from tube_scout.cli.main import app
+
     return app
 
 
@@ -134,9 +135,11 @@ class TestKeywordExtremeInput:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "",
+                "--keyword",
+                "",
             ],
         )
         # BUG: empty string keyword is treated as absent (falsy), exit code 1
@@ -152,9 +155,11 @@ class TestKeywordExtremeInput:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "{{7*7}}",  # Jinja2 SSTI probe
+                "--keyword",
+                "{{7*7}}",  # Jinja2 SSTI probe
             ],
         )
         # Filter will yield 0 results (no title contains "{{7*7}}")
@@ -171,9 +176,11 @@ class TestKeywordExtremeInput:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "{%- for x in range(9999) -%}crash{%- endfor -%}",
+                "--keyword",
+                "{%- for x in range(9999) -%}crash{%- endfor -%}",
             ],
         )
         assert result.exit_code in (0, 1)
@@ -187,9 +194,11 @@ class TestKeywordExtremeInput:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "A" * 50000,
+                "--keyword",
+                "A" * 50000,
             ],
         )
         assert result.exit_code in (0, 1)
@@ -202,9 +211,11 @@ class TestKeywordExtremeInput:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "../../etc/passwd",
+                "--keyword",
+                "../../etc/passwd",
             ],
         )
         assert result.exit_code in (0, 1)
@@ -297,9 +308,11 @@ class TestDateFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--published-after", "2025/03/01",
+                "--published-after",
+                "2025/03/01",
             ],
         )
         assert result.exit_code != 0
@@ -311,9 +324,11 @@ class TestDateFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--published-after", "2025년3월1일",
+                "--published-after",
+                "2025년3월1일",
             ],
         )
         assert result.exit_code != 0
@@ -327,9 +342,11 @@ class TestDateFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--published-after", "9999-01-01",
+                "--published-after",
+                "9999-01-01",
             ],
         )
         assert result.exit_code == 1  # no videos match
@@ -341,10 +358,13 @@ class TestDateFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--published-after", "2025-12-31",
-                "--published-before", "2025-01-01",
+                "--published-after",
+                "2025-12-31",
+                "--published-before",
+                "2025-01-01",
             ],
         )
         assert result.exit_code != 0
@@ -356,9 +376,11 @@ class TestDateFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--published-after", "2025-03",
+                "--published-after",
+                "2025-03",
             ],
         )
         assert result.exit_code != 0
@@ -370,9 +392,11 @@ class TestDateFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--published-before", "2099-12-31",
+                "--published-before",
+                "2099-12-31",
             ],
         )
         # Should succeed if any videos exist before that date
@@ -393,9 +417,11 @@ class TestVideoIdsFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-ids", ",",
+                "--video-ids",
+                ",",
             ],
         )
         # split(",") -> ["", ""] -- neither matches any video_id
@@ -408,9 +434,11 @@ class TestVideoIdsFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-ids", "NONEXISTENT_AAA,NONEXISTENT_BBB",
+                "--video-ids",
+                "NONEXISTENT_AAA,NONEXISTENT_BBB",
             ],
         )
         assert result.exit_code == 1
@@ -422,9 +450,11 @@ class TestVideoIdsFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-ids", "vid001, vid002, vid003",  # spaces after commas
+                "--video-ids",
+                "vid001, vid002, vid003",  # spaces after commas
                 "--dry-run",
             ],
         )
@@ -455,9 +485,11 @@ class TestVideoIdsFormatAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--video-ids", "   ",
+                "--video-ids",
+                "   ",
             ],
         )
         assert result.exit_code in (0, 1)
@@ -555,10 +587,13 @@ class TestFromHtmlAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "감염미생물학",
-                "--from-html", str(tmp_path / "nonexistent_html_dir"),
+                "--keyword",
+                "감염미생물학",
+                "--from-html",
+                str(tmp_path / "nonexistent_html_dir"),
             ],
         )
         # No HTML files found -> ValueError -> exit 1
@@ -574,10 +609,13 @@ class TestFromHtmlAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "감염미생물학",
-                "--from-html", str(empty_dir),
+                "--keyword",
+                "감염미생물학",
+                "--from-html",
+                str(empty_dir),
             ],
         )
         assert result.exit_code == 1
@@ -591,10 +629,13 @@ class TestFromHtmlAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "감염미생물학",
-                "--from-html", "../../../etc",
+                "--keyword",
+                "감염미생물학",
+                "--from-html",
+                "../../../etc",
             ],
         )
         assert result.exit_code == 1
@@ -614,9 +655,12 @@ class TestDataDirAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
-                "--data-dir", str(tmp_path / "nonexistent"),
-                "--keyword", "감염",
+                "report",
+                "bundle",
+                "--data-dir",
+                str(tmp_path / "nonexistent"),
+                "--keyword",
+                "감염",
             ],
         )
         assert result.exit_code == 1
@@ -630,9 +674,12 @@ class TestDataDirAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
-                "--data-dir", str(file_path),
-                "--keyword", "감염",
+                "report",
+                "bundle",
+                "--data-dir",
+                str(file_path),
+                "--keyword",
+                "감염",
             ],
         )
         assert result.exit_code != 0
@@ -643,9 +690,12 @@ class TestDataDirAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
-                "--data-dir", str(tmp_path) + "\x00evil",
-                "--keyword", "감염",
+                "report",
+                "bundle",
+                "--data-dir",
+                str(tmp_path) + "\x00evil",
+                "--keyword",
+                "감염",
             ],
         )
         assert result.exit_code != 0
@@ -671,11 +721,16 @@ class TestDataDirAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
-                "--data-dir", str(link),
-                "--project-dir", str(project_dir),
-                "--project", str(project_path),
-                "--keyword", "감염미생물학",
+                "report",
+                "bundle",
+                "--data-dir",
+                str(link),
+                "--project-dir",
+                str(project_dir),
+                "--project",
+                str(project_path),
+                "--keyword",
+                "감염미생물학",
             ],
         )
         assert result.exit_code == 0
@@ -695,10 +750,13 @@ class TestSortCLIAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "감염미생물학",
-                "--sort", "COMPLETELY_INVALID",
+                "--keyword",
+                "감염미생물학",
+                "--sort",
+                "COMPLETELY_INVALID",
             ],
         )
         assert result.exit_code == 0
@@ -710,10 +768,13 @@ class TestSortCLIAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "감염미생물학",
-                "--sort", "; rm -rf /",
+                "--keyword",
+                "감염미생물학",
+                "--sort",
+                "; rm -rf /",
             ],
         )
         assert result.exit_code in (0, 1)
@@ -726,10 +787,13 @@ class TestSortCLIAttacker:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "감염미생물학",
-                "--sort", "0",
+                "--keyword",
+                "감염미생물학",
+                "--sort",
+                "0",
             ],
         )
         assert result.exit_code in (0, 1)
@@ -780,9 +844,11 @@ class TestAutoFilenameInjection:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "../../../etc/passwd",
+                "--keyword",
+                "../../../etc/passwd",
             ],
         )
         # No video title contains this string -> exit 1 (no match)
@@ -818,12 +884,17 @@ class TestCombinedAttackCombo:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, project_dir, project_path),
-                "--keyword", "감염",
-                "--published-after", "2025-01-01",
-                "--published-before", "2025-12-31",
-                "--video-ids", "vid001",
+                "--keyword",
+                "감염",
+                "--published-after",
+                "2025-01-01",
+                "--published-before",
+                "2025-12-31",
+                "--video-ids",
+                "vid001",
             ],
         )
         assert result.exit_code == 0
@@ -854,6 +925,7 @@ class TestCombinedAttackCombo:
         content = html_path.read_text(encoding="utf-8")
         # Both the video title and report title must have <script> escaped
         import re
+
         raw_script_tags = re.findall(r"<script\b", content, re.IGNORECASE)
         assert len(raw_script_tags) == 0, (
             f"Unescaped <script> found {len(raw_script_tags)} times in output HTML"
@@ -866,14 +938,21 @@ class TestCombinedAttackCombo:
         result = runner.invoke(
             _get_app(),
             [
-                "report", "bundle",
+                "report",
+                "bundle",
                 *_proj_args(data_path, proj_dir, proj),
-                "--keyword", "{{7*7}}" + "A" * 10000,
-                "--published-after", "2024-01-01",
-                "--published-before", "2024-12-31",
-                "--video-ids", "NONE1,NONE2,NONE3",
-                "--title", "<script>alert(1)</script>" + "T" * 10000,
-                "--sort", "; cat /etc/passwd",
+                "--keyword",
+                "{{7*7}}" + "A" * 10000,
+                "--published-after",
+                "2024-01-01",
+                "--published-before",
+                "2024-12-31",
+                "--video-ids",
+                "NONE1,NONE2,NONE3",
+                "--title",
+                "<script>alert(1)</script>" + "T" * 10000,
+                "--sort",
+                "; cat /etc/passwd",
             ],
         )
         assert result.exit_code == 1  # no matching videos

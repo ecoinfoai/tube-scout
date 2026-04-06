@@ -17,7 +17,7 @@ def read_json(filepath: Path) -> dict[str, Any] | None:
     """
     if not filepath.exists():
         return None
-    with open(filepath, encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8-sig") as f:
         return json.load(f)
 
 
@@ -37,7 +37,7 @@ def write_json(filepath: Path, data: Any) -> None:
     fd, tmp_path = tempfile.mkstemp(dir=filepath.parent, suffix=".tmp", prefix=".json_")
     try:
         with open(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+            json.dump(data, f, ensure_ascii=False, indent=2)
         Path(tmp_path).replace(filepath)
     except Exception:
         Path(tmp_path).unlink(missing_ok=True)

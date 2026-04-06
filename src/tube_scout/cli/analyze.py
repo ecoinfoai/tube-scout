@@ -336,10 +336,13 @@ def analyze_topic_command(
 
             questions_dir = mgr.analyze_dir / "questions"
             questions_dir.mkdir(parents=True, exist_ok=True)
-            write_json(questions_dir / f"{vid}.json", {
-                "questions": questions,
-                "hotspot_matches": matches,
-            })
+            write_json(
+                questions_dir / f"{vid}.json",
+                {
+                    "questions": questions,
+                    "hotspot_matches": matches,
+                },
+            )
 
             # Display topic summary
             table = Table(title=f"Topic Clusters: {vid}")
@@ -575,9 +578,7 @@ def analyze_eqs_command(
 
             for axis in ["relevance", "accuracy", "clarity", "engagement", "depth"]:
                 table.add_row(axis.capitalize(), f"{result.get(axis, 0):.2f}")
-            table.add_row(
-                "Overall", f"{result.get('overall', 0):.2f}", style="bold"
-            )
+            table.add_row("Overall", f"{result.get('overall', 0):.2f}", style="bold")
             progress.console.print(table)
             progress.advance(task)
 
@@ -706,9 +707,7 @@ def analyze_forecast_command(
         )
 
 
-def _load_daily_metrics(
-    collect_dir: Path, channel_id: str
-) -> list[dict[str, object]]:
+def _load_daily_metrics(collect_dir: Path, channel_id: str) -> list[dict[str, object]]:
     """Load daily metrics from analytics Parquet data (T071).
 
     Args:
@@ -720,9 +719,7 @@ def _load_daily_metrics(
     """
     from tube_scout.storage.parquet_store import read_parquet
 
-    parquet_path = (
-        collect_dir / "analytics" / channel_id / "daily_metrics.parquet"
-    )
+    parquet_path = collect_dir / "analytics" / channel_id / "daily_metrics.parquet"
     df = read_parquet(parquet_path)
     if df is None:
         return []
@@ -733,10 +730,12 @@ def _load_daily_metrics(
     for row in df.to_dicts():
         try:
             d = dt_date.fromisoformat(str(row["date"]))
-            result.append({
-                "date": d.toordinal(),
-                "value": row.get("views", 0),
-            })
+            result.append(
+                {
+                    "date": d.toordinal(),
+                    "value": row.get("views", 0),
+                }
+            )
         except (ValueError, TypeError, KeyError):
             continue
     return result
@@ -762,9 +761,7 @@ def _load_video_time_series(
         return []
 
     videos = (
-        videos_data
-        if isinstance(videos_data, list)
-        else videos_data.get("videos", [])
+        videos_data if isinstance(videos_data, list) else videos_data.get("videos", [])
     )
 
     result = []
@@ -773,10 +770,12 @@ def _load_video_time_series(
             pub = v["published_at"][:10]
             try:
                 d = dt_date.fromisoformat(pub)
-                result.append({
-                    "date": d.toordinal(),
-                    "value": v["view_count"],
-                })
+                result.append(
+                    {
+                        "date": d.toordinal(),
+                        "value": v["view_count"],
+                    }
+                )
             except (ValueError, TypeError):
                 continue
     return result

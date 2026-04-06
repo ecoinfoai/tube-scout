@@ -6,16 +6,18 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-VALID_REPORT_TYPES = frozenset({
-    "daily_metrics",
-    "traffic_sources",
-    "demographics",
-    "geography",
-    "devices",
-    "playback_locations",
-    "subscriber_changes",
-    "viewing_patterns",
-})
+VALID_REPORT_TYPES = frozenset(
+    {
+        "daily_metrics",
+        "traffic_sources",
+        "demographics",
+        "geography",
+        "devices",
+        "playback_locations",
+        "subscriber_changes",
+        "viewing_patterns",
+    }
+)
 
 
 class AnalyticsReport(BaseModel):
@@ -34,9 +36,7 @@ class AnalyticsReport(BaseModel):
     def report_type_must_be_valid(cls, v: str) -> str:
         """Validate that report_type is one of the 8 known types."""
         if v not in VALID_REPORT_TYPES:
-            raise ValueError(
-                f"report_type must be one of {sorted(VALID_REPORT_TYPES)}"
-            )
+            raise ValueError(f"report_type must be one of {sorted(VALID_REPORT_TYPES)}")
         return v
 
     @field_validator("channel_id")
@@ -114,9 +114,7 @@ class GeographyData(BaseModel):
     def country_must_be_iso_alpha2(cls, v: str) -> str:
         """Validate that country is ISO 3166-1 alpha-2 (2 uppercase letters)."""
         if not re.match(r"^[A-Z]{2}$", v):
-            raise ValueError(
-                "country must be ISO 3166-1 alpha-2 (2 uppercase letters)"
-            )
+            raise ValueError("country must be ISO 3166-1 alpha-2 (2 uppercase letters)")
         return v
 
 

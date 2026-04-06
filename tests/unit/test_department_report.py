@@ -104,7 +104,9 @@ class TestComputeOverview:
     ) -> None:
         """Overview should count total videos."""
         overview = generator.compute_overview(
-            sample_parsed_titles, sample_videos, "UCtest123",
+            sample_parsed_titles,
+            sample_videos,
+            "UCtest123",
         )
         assert isinstance(overview, DepartmentOverview)
         assert overview.total_videos == 5
@@ -117,7 +119,9 @@ class TestComputeOverview:
     ) -> None:
         """Overview should count unique professors."""
         overview = generator.compute_overview(
-            sample_parsed_titles, sample_videos, "UCtest123",
+            sample_parsed_titles,
+            sample_videos,
+            "UCtest123",
         )
         assert overview.total_professors == 2
 
@@ -129,7 +133,9 @@ class TestComputeOverview:
     ) -> None:
         """Overview should count unique courses."""
         overview = generator.compute_overview(
-            sample_parsed_titles, sample_videos, "UCtest123",
+            sample_parsed_titles,
+            sample_videos,
+            "UCtest123",
         )
         assert overview.total_courses == 2
 
@@ -141,7 +147,9 @@ class TestComputeOverview:
     ) -> None:
         """Overview should calculate total duration in hours."""
         overview = generator.compute_overview(
-            sample_parsed_titles, sample_videos, "UCtest123",
+            sample_parsed_titles,
+            sample_videos,
+            "UCtest123",
         )
         # 1800+2400+1200+3600+900 = 9900 seconds = 2.75 hours
         assert overview.total_duration_hours == pytest.approx(2.75, abs=0.01)
@@ -154,7 +162,9 @@ class TestComputeOverview:
     ) -> None:
         """Overview should sum all views."""
         overview = generator.compute_overview(
-            sample_parsed_titles, sample_videos, "UCtest123",
+            sample_parsed_titles,
+            sample_videos,
+            "UCtest123",
         )
         assert overview.total_views == 1550
 
@@ -170,7 +180,9 @@ class TestComputeOverview:
             _make_parsed("v3", ["ProfB"], parse_error=True),
         ]
         overview = generator.compute_overview(
-            parsed, sample_videos[:3], "UCtest123",
+            parsed,
+            sample_videos[:3],
+            "UCtest123",
         )
         # 2 out of 3 parsed successfully
         assert overview.parse_success_rate == pytest.approx(2 / 3, abs=0.01)
@@ -196,7 +208,9 @@ class TestComputeOverview:
     ) -> None:
         """Overview should include the channel_id."""
         overview = generator.compute_overview(
-            sample_parsed_titles, sample_videos, "UCtest123",
+            sample_parsed_titles,
+            sample_videos,
+            "UCtest123",
         )
         assert overview.channel_id == "UCtest123"
 
@@ -215,7 +229,8 @@ class TestComputeProfessorDetails:
     ) -> None:
         """Should return a list of ProfessorDetail."""
         details = generator.compute_professor_details(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         assert len(details) == 2
         assert all(isinstance(d, ProfessorDetail) for d in details)
@@ -228,7 +243,8 @@ class TestComputeProfessorDetails:
     ) -> None:
         """Each professor should have correct video count."""
         details = generator.compute_professor_details(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         by_name = {d.professor_name: d for d in details}
         assert by_name["ProfA"].video_count == 3
@@ -242,7 +258,8 @@ class TestComputeProfessorDetails:
     ) -> None:
         """Each professor should have unique courses listed."""
         details = generator.compute_professor_details(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         by_name = {d.professor_name: d for d in details}
         assert by_name["ProfA"].courses == ["Course1"]
@@ -256,7 +273,8 @@ class TestComputeProfessorDetails:
     ) -> None:
         """Weekly coverage = weeks with uploads / 16."""
         details = generator.compute_professor_details(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         by_name = {d.professor_name: d for d in details}
         # ProfA has weeks 1, 2, 3 -> 3/16
@@ -272,12 +290,14 @@ class TestComputeProfessorDetails:
     ) -> None:
         """Average duration should be computed in minutes."""
         details = generator.compute_professor_details(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         by_name = {d.professor_name: d for d in details}
         # ProfA: v1=1800, v2=2400, v5=900 -> avg=1700 sec -> 28.33 min
         assert by_name["ProfA"].avg_duration_minutes == pytest.approx(
-            1700 / 60, abs=0.1,
+            1700 / 60,
+            abs=0.1,
         )
 
     def test_total_and_avg_views(
@@ -288,7 +308,8 @@ class TestComputeProfessorDetails:
     ) -> None:
         """Total and average views should be correct."""
         details = generator.compute_professor_details(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         by_name = {d.professor_name: d for d in details}
         # ProfA: v1=500, v2=300, v5=400 -> total=1200, avg=400
@@ -349,7 +370,8 @@ class TestComputeCompliance:
     ) -> None:
         """Should return a list of ComplianceMatrix entries."""
         compliance = generator.compute_compliance(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         assert len(compliance) == 2
         assert all(isinstance(c, ComplianceMatrix) for c in compliance)
@@ -362,7 +384,8 @@ class TestComputeCompliance:
     ) -> None:
         """Weeks with uploads should be marked 'uploaded'."""
         compliance = generator.compute_compliance(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         by_name = {c.professor_name: c for c in compliance}
         assert by_name["ProfA"].week_statuses[1] == "uploaded"
@@ -377,7 +400,8 @@ class TestComputeCompliance:
     ) -> None:
         """Weeks without uploads should be marked 'missing'."""
         compliance = generator.compute_compliance(
-            sample_parsed_titles, sample_videos,
+            sample_parsed_titles,
+            sample_videos,
         )
         by_name = {c.professor_name: c for c in compliance}
         # ProfA has weeks 1,2,3 but not 4-16
@@ -449,7 +473,8 @@ class TestComputeCompliance:
         by_name = {c.professor_name: c for c in compliance}
         # 1 on-time out of 2 uploaded = 0.5
         assert by_name["ProfA"].upload_deadline_compliance == pytest.approx(
-            0.5, abs=0.01,
+            0.5,
+            abs=0.01,
         )
 
     def test_empty_input(
@@ -481,7 +506,10 @@ class TestYearSemesterScoping:
             _make_video("v2", "2026", 1800, 200),
         ]
         overview = generator.compute_overview(
-            parsed, videos, "UCtest123", year=2026,
+            parsed,
+            videos,
+            "UCtest123",
+            year=2026,
         )
         assert overview.total_videos == 1
         assert overview.total_views == 200
@@ -501,7 +529,10 @@ class TestYearSemesterScoping:
             _make_video("v2", "Sem2", 1800, 200),
         ]
         overview = generator.compute_overview(
-            parsed, videos, "UCtest123", semester=1,
+            parsed,
+            videos,
+            "UCtest123",
+            semester=1,
         )
         assert overview.total_videos == 1
         assert overview.total_views == 100
@@ -523,7 +554,11 @@ class TestYearSemesterScoping:
             _make_video("v3", "2026-2", 1800, 300),
         ]
         overview = generator.compute_overview(
-            parsed, videos, "UCtest123", year=2026, semester=1,
+            parsed,
+            videos,
+            "UCtest123",
+            year=2026,
+            semester=1,
         )
         assert overview.total_videos == 1
         assert overview.total_views == 200
@@ -542,7 +577,9 @@ class TestYearSemesterScoping:
             _make_video("v2", "2025", 1800, 200),
         ]
         details = generator.compute_professor_details(
-            parsed, videos, year=2026,
+            parsed,
+            videos,
+            year=2026,
         )
         assert len(details) == 1
         assert details[0].professor_name == "ProfA"
@@ -561,7 +598,9 @@ class TestYearSemesterScoping:
             _make_video("v2", "2025", 1800, 200),
         ]
         compliance = generator.compute_compliance(
-            parsed, videos, year=2026,
+            parsed,
+            videos,
+            year=2026,
         )
         assert len(compliance) == 1
         assert compliance[0].professor_name == "ProfA"

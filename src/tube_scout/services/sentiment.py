@@ -7,7 +7,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+LLM_BATCH_SIZE = 20
+
 # --- Pydantic schemas for structured LLM output ---
+
 
 class SentimentResult(BaseModel):
     """Single comment sentiment analysis result."""
@@ -170,9 +173,8 @@ class SentimentService:
         if self._llm_adapter is None:
             self._llm_adapter = self._create_llm_adapter()
 
-        # Process in batches of 20
         all_results: list[dict[str, Any]] = []
-        batch_size = 20
+        batch_size = LLM_BATCH_SIZE
         for i in range(0, len(comments), batch_size):
             batch = comments[i : i + batch_size]
             batch_results = self._call_llm_batch(batch)

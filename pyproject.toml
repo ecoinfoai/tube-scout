@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tube-scout"
-version = "0.1.0"
+version = "0.1.1"
 description = "YouTube lecture video analytics CLI tool"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -61,3 +61,10 @@ select = ["E", "F", "I", "N", "W", "UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["tube_scout"]
+
+[dependency-groups]
+dev = [
+    "bandit>=1.9.4",
+    "mypy>=1.20.0",
+    "vulture>=2.16",
+]

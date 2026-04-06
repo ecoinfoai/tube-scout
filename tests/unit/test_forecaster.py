@@ -2,6 +2,10 @@
 
 from datetime import date
 
+import pytest
+
+pytest.importorskip("numpy")
+
 from tube_scout.services.forecaster import ForecasterService
 
 

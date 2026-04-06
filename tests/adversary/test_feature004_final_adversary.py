@@ -27,6 +27,7 @@ from tube_scout.services.video_filter_service import VideoFilterService
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_video(
     video_id: str = "vid001",
     title: str = "홍길동 2025 감염미생물학 1주차 1차시",
@@ -47,10 +48,12 @@ def _make_video(
 
 def _write_config(data_path: Path, channel_id: str = "UC_TEST") -> None:
     (data_path / "config.json").write_text(
-        json.dumps({
-            "channels": [{"channel_id": channel_id, "professor_name": "홍길동"}],
-            "settings": {},
-        }),
+        json.dumps(
+            {
+                "channels": [{"channel_id": channel_id, "professor_name": "홍길동"}],
+                "settings": {},
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -76,6 +79,7 @@ def _setup(tmp_path: Path, videos: list | None = None) -> Path:
 
 def _app():
     from tube_scout.cli.main import app
+
     return app
 
 
@@ -283,8 +287,12 @@ class TestComputeSummaryAttacker:
     def test_none_view_count_raises_or_handled(self) -> None:
         """None view_count in video must not silently corrupt sum."""
         videos = [
-            {"video_id": "v1", "view_count": None,
-             "duration_seconds": 100, "like_count": 5},
+            {
+                "video_id": "v1",
+                "view_count": None,
+                "duration_seconds": 100,
+                "like_count": 5,
+            },
         ]
         # sum() with None raises TypeError
         with pytest.raises(TypeError):
@@ -293,8 +301,12 @@ class TestComputeSummaryAttacker:
     def test_none_duration_seconds_raises_or_handled(self) -> None:
         """None duration_seconds must raise TypeError in sum()."""
         videos = [
-            {"video_id": "v1", "view_count": 100,
-             "duration_seconds": None, "like_count": 5},
+            {
+                "video_id": "v1",
+                "view_count": 100,
+                "duration_seconds": None,
+                "like_count": 5,
+            },
         ]
         with pytest.raises(TypeError):
             BundleReportGenerator._compute_summary(videos)
@@ -320,8 +332,9 @@ class TestComputeSummaryAttacker:
 
     def test_missing_all_numeric_fields_uses_defaults(self) -> None:
         """Video dict missing all numeric fields falls back to 0 via .get(key, 0)."""
-        videos = [{"video_id": "v1", "title": "test",
-                    "published_at": "2025-01-01T00:00:00Z"}]
+        videos = [
+            {"video_id": "v1", "title": "test", "published_at": "2025-01-01T00:00:00Z"}
+        ]
         result = BundleReportGenerator._compute_summary(videos)
         assert result["video_count"] == 1
         assert result["total_duration_minutes"] == 0
@@ -329,16 +342,22 @@ class TestComputeSummaryAttacker:
 
     def test_very_large_view_count_no_overflow(self) -> None:
         """view_count > 2^32 must not crash (Python arbitrary precision)."""
-        videos = [_make_video("v1", view_count=10 ** 15)]
+        videos = [_make_video("v1", view_count=10**15)]
         result = BundleReportGenerator._compute_summary(videos)
-        assert result["avg_views"] == 10 ** 15
+        assert result["avg_views"] == 10**15
 
     def test_mixed_none_and_int_in_view_count(self) -> None:
         """Mix of valid and None view_count in list must raise TypeError."""
         videos = [
             _make_video("v1", view_count=100),
-            {"video_id": "v2", "title": "t", "published_at": "2025-01-01T00:00:00Z",
-             "view_count": None, "duration_seconds": 60, "like_count": 0},
+            {
+                "video_id": "v2",
+                "title": "t",
+                "published_at": "2025-01-01T00:00:00Z",
+                "view_count": None,
+                "duration_seconds": 60,
+                "like_count": 0,
+            },
         ]
         with pytest.raises(TypeError):
             BundleReportGenerator._compute_summary(videos)
@@ -355,8 +374,11 @@ class TestCourseSortAttacker:
         """None title with course sort: .get('title', '') returns None — TypeError."""
         videos = [
             {"video_id": "v1", "title": None, "published_at": "2025-01-01T00:00:00Z"},
-            {"video_id": "v2", "title": "감염미생물학",
-             "published_at": "2025-01-01T00:00:00Z"},
+            {
+                "video_id": "v2",
+                "title": "감염미생물학",
+                "published_at": "2025-01-01T00:00:00Z",
+            },
         ]
         # sorted() with key=lambda v: v.get("title", "") returns None for v1
         # comparing None < str raises TypeError in Python 3
@@ -395,8 +417,12 @@ class TestCourseSortAttacker:
     def test_views_sort_none_view_count_uses_default_zero(self) -> None:
         """None view_count with views sort: .get('view_count', 0) is None, TypeError."""
         videos = [
-            {"video_id": "v1", "title": "a", "published_at": "2025-01-01T00:00:00Z",
-             "view_count": None},
+            {
+                "video_id": "v1",
+                "title": "a",
+                "published_at": "2025-01-01T00:00:00Z",
+                "view_count": None,
+            },
             _make_video("v2", view_count=100),
         ]
         # .get("view_count", 0) returns None (key exists but value is None)
@@ -417,6 +443,7 @@ class TestBugFixRegression:
     def test_regression_invalid_date_excluded_not_passed(self) -> None:
         """Bug #1 regression: 'not-a-date' must be excluded by date filter."""
         from datetime import date
+
         vf = VideoFilter(published_after=date(2025, 1, 1))
         videos = [{"video_id": "v1", "title": "test", "published_at": "not-a-date"}]
         result = VideoFilterService.filter_videos(videos, vf)
@@ -425,6 +452,7 @@ class TestBugFixRegression:
     def test_regression_various_bad_dates_excluded(self) -> None:
         """Bug #1 regression: multiple non-ISO date formats all excluded."""
         from datetime import date
+
         bad_dates = ["2025/03/01", "01-03-2025", "March 1", "z-z-z", "", "99999-99-99"]
         vf = VideoFilter(published_after=date(2025, 1, 1))
         for bad in bad_dates:
@@ -435,9 +463,11 @@ class TestBugFixRegression:
     def test_regression_valid_iso_date_still_passes(self) -> None:
         """Bug #1 regression: valid ISO dates still pass date filter correctly."""
         from datetime import date
+
         vf = VideoFilter(published_after=date(2025, 1, 1))
-        videos = [{"video_id": "v1", "title": "test",
-                    "published_at": "2025-06-01T00:00:00Z"}]
+        videos = [
+            {"video_id": "v1", "title": "test", "published_at": "2025-06-01T00:00:00Z"}
+        ]
         result = VideoFilterService.filter_videos(videos, vf)
         assert len(result) == 1, "REGRESSION: valid ISO date incorrectly excluded"
 
@@ -468,6 +498,7 @@ class TestBugFixRegression:
     def test_regression_traversal_keyword_sanitized(self) -> None:
         """Bug #3 regression: '../../../etc/passwd' sanitized to stay in bundle/."""
         from tube_scout.cli.report import _sanitize_filename_part
+
         sanitized = _sanitize_filename_part("../../../etc/passwd")
         assert "/" not in sanitized
         assert "\\" not in sanitized
@@ -476,12 +507,14 @@ class TestBugFixRegression:
     def test_regression_slash_keyword_sanitized(self) -> None:
         """Bug #3 regression: '/tmp/evil' sanitized — no path separator."""
         from tube_scout.cli.report import _sanitize_filename_part
+
         sanitized = _sanitize_filename_part("/tmp/evil")
         assert "/" not in sanitized
 
     def test_regression_normal_keyword_unchanged_structure(self) -> None:
         """Bug #3 regression: normal Korean keyword still usable in filename."""
         from tube_scout.cli.report import _sanitize_filename_part
+
         sanitized = _sanitize_filename_part("감염미생물학")
         assert sanitized == "감염미생물학"
 
@@ -492,9 +525,12 @@ class TestBugFixRegression:
         result = runner.invoke(
             _app(),
             [
-                "report", "bundle",
-                "--data-dir", str(data_path),
-                "--keyword", "../../../etc/passwd",
+                "report",
+                "bundle",
+                "--data-dir",
+                str(data_path),
+                "--keyword",
+                "../../../etc/passwd",
             ],
         )
         bundle_dir = (data_path / "reports" / "bundle").resolve()

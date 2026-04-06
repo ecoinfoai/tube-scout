@@ -339,12 +339,18 @@ class TestProfessorNameConfuser:
         """'홍길동' vs '홍길 동' should be detected by V-004 name inconsistency."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=1, session=1,
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=1,
+                session=1,
             ),
             _make_parsed_title(
-                "v2", professor=["홍길 동"], course="간호학",
-                week=2, session=1,
+                "v2",
+                professor=["홍길 동"],
+                course="간호학",
+                week=2,
+                session=1,
             ),
         ]
         findings = check_name_inconsistency(titles)
@@ -356,12 +362,18 @@ class TestProfessorNameConfuser:
         """Same professor name across different courses should not trigger V-004."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=1, session=1,
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=1,
+                session=1,
             ),
             _make_parsed_title(
-                "v2", professor=["홍길동"], course="미생물학",
-                week=1, session=1,
+                "v2",
+                professor=["홍길동"],
+                course="미생물학",
+                week=1,
+                session=1,
             ),
         ]
         findings = check_name_inconsistency(titles)
@@ -423,8 +435,11 @@ class TestWeekNumberExtremist:
         """Week 0 should trigger V-003 ERROR."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=0, session=1,
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=0,
+                session=1,
             ),
         ]
         findings = check_invalid_week(titles)
@@ -436,8 +451,11 @@ class TestWeekNumberExtremist:
         """Negative week should trigger V-003 ERROR."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=-1, session=1,
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=-1,
+                session=1,
             ),
         ]
         findings = check_invalid_week(titles)
@@ -448,8 +466,11 @@ class TestWeekNumberExtremist:
         """Week 100 should trigger V-003 ERROR."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=100, session=1,
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=100,
+                session=1,
             ),
         ]
         findings = check_invalid_week(titles)
@@ -459,8 +480,11 @@ class TestWeekNumberExtremist:
         """week=None should be silently skipped by V-003."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=None, session=1,
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=None,
+                session=1,
             ),
         ]
         findings = check_invalid_week(titles)
@@ -470,12 +494,18 @@ class TestWeekNumberExtremist:
         """session=0 or session=None should not crash session gap check."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=1, session=None,
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=1,
+                session=None,
             ),
             _make_parsed_title(
-                "v2", professor=["홍길동"], course="간호학",
-                week=2, session=2,
+                "v2",
+                professor=["홍길동"],
+                course="간호학",
+                week=2,
+                session=2,
             ),
         ]
         findings = check_session_gaps(titles)
@@ -632,9 +662,7 @@ class TestConcurrencyChaosAgent:
                 "analytics_enabled": True,
             }
         }
-        channels_file.write_text(
-            json.dumps(data, ensure_ascii=False), encoding="utf-8"
-        )
+        channels_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         loaded = load_registry(tokens_dir)
         assert "간호학과" in loaded
         assert loaded["간호학과"].channel_id == "UCtest123456789012345678"
@@ -663,13 +691,14 @@ class TestMultichannelCrossCutting:
         """SQL injection in professor filter should not crash search."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=1, session=1,
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=1,
+                session=1,
             ),
         ]
-        query = SearchQuery(
-            filters=SearchFilter(professor="'; DROP TABLE videos; --")
-        )
+        query = SearchQuery(filters=SearchFilter(professor="'; DROP TABLE videos; --"))
         results = SearchService.search(titles, query)
         assert results == []
 
@@ -677,17 +706,29 @@ class TestMultichannelCrossCutting:
         """Mix of regular and supplementary should only validate regular."""
         titles = [
             _make_parsed_title(
-                "v1", professor=["홍길동"], course="간호학",
-                week=1, session=1, category="regular",
+                "v1",
+                professor=["홍길동"],
+                course="간호학",
+                week=1,
+                session=1,
+                category="regular",
             ),
             _make_parsed_title(
-                "v2", professor=["홍길동"], course="간호학",
-                week=3, session=1, category="regular",
+                "v2",
+                professor=["홍길동"],
+                course="간호학",
+                week=3,
+                session=1,
+                category="regular",
             ),
             # Supplementary at week 2 should NOT fill the gap
             _make_parsed_title(
-                "v3", professor=["홍길동"], course="간호학",
-                week=2, session=1, category="supplementary",
+                "v3",
+                professor=["홍길동"],
+                course="간호학",
+                week=2,
+                session=1,
+                category="supplementary",
             ),
         ]
         findings = check_missing_weeks(titles)
@@ -708,12 +749,19 @@ class TestMultichannelCrossCutting:
         """Overview scoped to non-matching year returns zeros."""
         gen = DepartmentReportGenerator()
         pt = _make_parsed_title(
-            "v1", professor=["홍길동"], course="간호학",
-            year=2025, week=1, session=1,
+            "v1",
+            professor=["홍길동"],
+            course="간호학",
+            year=2025,
+            week=1,
+            session=1,
         )
         vid = _make_video("v1")
         overview = gen.compute_overview(
-            [pt], [vid], "UCtest123456789012345678", year=2026,
+            [pt],
+            [vid],
+            "UCtest123456789012345678",
+            year=2026,
         )
         assert overview.total_videos == 0
         assert overview.total_professors == 0

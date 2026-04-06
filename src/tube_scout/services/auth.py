@@ -5,22 +5,44 @@ Supports both single-channel (legacy) and multi-channel token management.
 
 import json
 import os
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import httplib2
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google_auth_httplib2 import AuthorizedHttp
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from tube_scout.models.config import ChannelRegistration
+from tube_scout.models.config import DEFAULT_API_TIMEOUT_SECONDS, ChannelRegistration
 
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.readonly",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
 ]
 TOKEN_FILE = "token.json"
+
+
+def _secure_write(path: Path, content: str) -> None:
+    """Write content to file atomically with 0o600 permissions.
+
+    Args:
+        path: Target file path.
+        content: String content to write.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, suffix=".tmp", prefix=".token_")
+    try:
+        with open(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.chmod(tmp_path, 0o600)
+        os.rename(tmp_path, path)
+    except Exception:
+        os.unlink(tmp_path)
+        raise
 
 
 def _default_client_secret_path() -> Path:
@@ -97,8 +119,21 @@ def authenticate() -> Credentials:
         flow = InstalledAppFlow.from_client_secrets_file(str(client_secret), SCOPES)
         creds = flow.run_local_server(port=8080)
 
-    token_path.write_text(creds.to_json())
+    _secure_write(token_path, creds.to_json())
     return creds
+
+
+def _authorized_http(creds: Credentials) -> AuthorizedHttp:
+    """Create an AuthorizedHttp transport with default timeout.
+
+    Args:
+        creds: Authenticated Google OAuth2 credentials.
+
+    Returns:
+        AuthorizedHttp with timeout configured.
+    """
+    http = httplib2.Http(timeout=DEFAULT_API_TIMEOUT_SECONDS)
+    return AuthorizedHttp(creds, http=http)
 
 
 def build_data_client() -> Any:
@@ -108,7 +143,7 @@ def build_data_client() -> Any:
         YouTube Data API v3 client resource (with OAuth, can access unlisted videos).
     """
     creds = authenticate()
-    return build("youtube", "v3", credentials=creds)
+    return build("youtube", "v3", http=_authorized_http(creds))
 
 
 def build_analytics_client() -> Any:
@@ -118,7 +153,7 @@ def build_analytics_client() -> Any:
         YouTube Analytics API client resource.
     """
     creds = authenticate()
-    return build("youtubeAnalytics", "v2", credentials=creds)
+    return build("youtubeAnalytics", "v2", http=_authorized_http(creds))
 
 
 def build_reporting_client() -> Any:
@@ -128,7 +163,7 @@ def build_reporting_client() -> Any:
         YouTube Reporting API v1 client resource.
     """
     creds = authenticate()
-    return build("youtubereporting", "v1", credentials=creds)
+    return build("youtubereporting", "v1", http=_authorized_http(creds))
 
 
 # ─── Multi-channel registry management ───
@@ -154,10 +189,7 @@ def load_registry(tokens_path: Path | None = None) -> dict[str, ChannelRegistrat
 
     raw = channels_file.read_text(encoding="utf-8")
     data = json.loads(raw)
-    return {
-        alias: ChannelRegistration(**entry)
-        for alias, entry in data.items()
-    }
+    return {alias: ChannelRegistration(**entry) for alias, entry in data.items()}
 
 
 def save_registry(
@@ -173,12 +205,10 @@ def save_registry(
     tokens_path = tokens_path or _tokens_dir()
     tokens_path.mkdir(parents=True, exist_ok=True)
     channels_file = tokens_path / "channels.json"
-    data = {
-        alias: reg.model_dump() for alias, reg in registry.items()
-    }
-    channels_file.write_text(
+    data = {alias: reg.model_dump() for alias, reg in registry.items()}
+    _secure_write(
+        channels_file,
         json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8",
     )
 
 
@@ -239,9 +269,7 @@ def authenticate_channel(alias: str) -> Credentials:
     reg = registry[alias]
     token_file = Path(reg.token_path)
     if not token_file.exists():
-        raise FileNotFoundError(
-            f"Token file not found for '{alias}': {reg.token_path}"
-        )
+        raise FileNotFoundError(f"Token file not found for '{alias}': {reg.token_path}")
 
     creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
 
@@ -251,7 +279,7 @@ def authenticate_channel(alias: str) -> Credentials:
 
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
-        token_file.write_text(creds.to_json())
+        _secure_write(token_file, creds.to_json())
         update_last_used(tokens_path, alias)
         return creds
 
@@ -304,7 +332,7 @@ def register_channel(alias: str) -> ChannelRegistration:
 
     # Save token file
     token_file = tokens_path / f"{alias}.json"
-    token_file.write_text(creds.to_json(), encoding="utf-8")
+    _secure_write(token_file, creds.to_json())
 
     # Update registry
     now = datetime.now(UTC).isoformat()
@@ -336,9 +364,7 @@ def revoke_channel(alias: str) -> None:
     tokens_path = _tokens_dir()
     registry = load_registry(tokens_path)
     if alias not in registry:
-        raise KeyError(
-            f"Channel '{alias}' is not registered. Nothing to revoke."
-        )
+        raise KeyError(f"Channel '{alias}' is not registered. Nothing to revoke.")
 
     # Delete token file if it exists
     token_file = Path(registry[alias].token_path)

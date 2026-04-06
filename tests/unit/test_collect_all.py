@@ -40,8 +40,9 @@ class TestCollectAllChannel:
         # Videos should be called with channel param
         mock_videos.assert_called_once()
         call_kwargs = mock_videos.call_args
-        assert call_kwargs.kwargs.get("channel") == "간호학과" or \
-            (len(call_kwargs.args) > 0 and "간호학과" in str(call_kwargs))
+        assert call_kwargs.kwargs.get("channel") == "간호학과" or (
+            len(call_kwargs.args) > 0 and "간호학과" in str(call_kwargs)
+        )
 
     @patch("tube_scout.cli.collect.collect_analytics_command")
     @patch("tube_scout.cli.collect.collect_retention_command")

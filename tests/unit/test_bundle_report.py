@@ -202,8 +202,8 @@ class TestExtractHtmlBody:
     def test_extracts_body_content(self) -> None:
         """Extracts content between <body> and </body> tags."""
         html = (
-            '<!DOCTYPE html><html><head><title>Test</title></head>'
-            '<body><h1>Hello</h1><p>World</p></body></html>'
+            "<!DOCTYPE html><html><head><title>Test</title></head>"
+            "<body><h1>Hello</h1><p>World</p></body></html>"
         )
         result = BundleReportGenerator._extract_html_body(html)
         assert "<h1>Hello</h1>" in result

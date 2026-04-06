@@ -1,6 +1,5 @@
 """Adversary tests for validation edge cases (T050)."""
 
-
 from tube_scout.models.parsed_title import ParsedTitle
 from tube_scout.services.validator import (
     check_duplicates,
@@ -59,8 +58,7 @@ class TestAllValidData:
 
     def test_no_findings_for_perfect_data(self) -> None:
         parsed = [
-            _make_parsed(video_id=f"v{i}", week=i, session=1)
-            for i in range(1, 6)
+            _make_parsed(video_id=f"v{i}", week=i, session=1) for i in range(1, 6)
         ]
         videos = [
             _make_video(

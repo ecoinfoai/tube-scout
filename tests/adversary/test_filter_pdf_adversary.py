@@ -28,6 +28,7 @@ from tube_scout.services.video_filter_service import VideoFilterService
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_video(
     video_id: str = "vid001",
     title: str = "홍길동 2025 감염미생물학 1주차 1차시",
@@ -128,6 +129,7 @@ class TestKeywordInjectionAttacker:
         # Title string itself may contain the raw payload — but when rendered
         # through Jinja2 autoescape=True it must be escaped. Verify autoescape enabled.
         from jinja2 import Environment
+
         env = Environment(autoescape=True)
         tmpl = env.from_string("{{ title }}")
         rendered = tmpl.render(title=title)
@@ -245,8 +247,13 @@ class TestCorruptedVideoMetaAttacker:
     def test_none_title_value(self) -> None:
         """Video with None title and keyword filter must raise TypeError."""
         vf = VideoFilter(keyword="감염")
-        videos = [{"video_id": "vid001", "title": None,
-                    "published_at": "2025-03-01T00:00:00Z"}]
+        videos = [
+            {
+                "video_id": "vid001",
+                "title": None,
+                "published_at": "2025-03-01T00:00:00Z",
+            }
+        ]
         with pytest.raises(TypeError):
             VideoFilterService.filter_videos(videos, vf)
 
@@ -269,13 +276,13 @@ class TestMassiveVideoListAttacker:
     def test_10000_videos_keyword_filter(self) -> None:
         """Filter 10000 videos by keyword must complete without error."""
         vf = VideoFilter(keyword="감염미생물학")
+
         def _title(i: int) -> str:
             subj = "감염미생물학" if i % 10 == 0 else "인체구조"
             return f"홍길동 2025 {subj} {i}주차"
 
         videos = [
-            _make_video(video_id=f"vid{i:05d}", title=_title(i))
-            for i in range(10000)
+            _make_video(video_id=f"vid{i:05d}", title=_title(i)) for i in range(10000)
         ]
         result = VideoFilterService.filter_videos(videos, vf)
         assert len(result) == 1000  # every 10th video matches
@@ -368,9 +375,12 @@ class TestBadDateFormatAttacker:
         result = runner.invoke(
             app,
             [
-                "report", "bundle",
-                "--data-dir", str(data_path),
-                "--published-after", "2025/03/01",  # slash format — invalid
+                "report",
+                "bundle",
+                "--data-dir",
+                str(data_path),
+                "--published-after",
+                "2025/03/01",  # slash format — invalid
             ],
         )
         assert result.exit_code != 0
@@ -442,9 +452,12 @@ class TestEmptyChannelNihilist:
         result = runner.invoke(
             app,
             [
-                "report", "bundle",
-                "--data-dir", str(data_path),
-                "--keyword", "존재하지않는키워드XYZ123",
+                "report",
+                "bundle",
+                "--data-dir",
+                str(data_path),
+                "--keyword",
+                "존재하지않는키워드XYZ123",
             ],
         )
         assert result.exit_code == 1
@@ -474,8 +487,12 @@ class TestSortOptionAttacker:
 
         videos = [
             {"video_id": "v1", "title": "a", "published_at": "2025-01-01T00:00:00Z"},
-            {"video_id": "v2", "title": "b",
-             "published_at": "2025-01-01T00:00:00Z", "view_count": 500},
+            {
+                "video_id": "v2",
+                "title": "b",
+                "published_at": "2025-01-01T00:00:00Z",
+                "view_count": 500,
+            },
         ]
         result = VideoFilterService.sort_videos(videos, "views")
         # v2 (500 views) should be first; v1 defaults to 0
@@ -509,10 +526,14 @@ class TestMutualExclusionAttacker:
         result = runner.invoke(
             app,
             [
-                "report", "video",
-                "--data-dir", str(data_path),
-                "--video-id", "vid001",
-                "--video-ids", "vid002,vid003",
+                "report",
+                "video",
+                "--data-dir",
+                str(data_path),
+                "--video-id",
+                "vid001",
+                "--video-ids",
+                "vid002,vid003",
             ],
         )
         assert result.exit_code == 1
@@ -529,8 +550,10 @@ class TestMutualExclusionAttacker:
         result = runner.invoke(
             app,
             [
-                "report", "bundle",
-                "--data-dir", str(data_path),
+                "report",
+                "bundle",
+                "--data-dir",
+                str(data_path),
                 # No filter option provided
             ],
         )

@@ -36,9 +36,7 @@ class VideoReportGenerator:
             self.collect_dir = data_dir / "raw"
             self.analyze_dir = data_dir / "processed"
         else:
-            raise ValueError(
-                "Either data_dir or collect_dir must be provided."
-            )
+            raise ValueError("Either data_dir or collect_dir must be provided.")
         templates_dir = Path(__file__).parent / "templates"
         self._env = Environment(
             loader=FileSystemLoader(str(templates_dir)),
@@ -82,9 +80,7 @@ class VideoReportGenerator:
 
     def _load_video_meta(self, video_id: str, channel_id: str) -> dict[str, Any]:
         """Load video metadata."""
-        videos_path = (
-            self.collect_dir / "channels" / channel_id / "videos_meta.json"
-        )
+        videos_path = self.collect_dir / "channels" / channel_id / "videos_meta.json"
         videos = read_json(videos_path)
         if videos:
             vlist = videos if isinstance(videos, list) else videos.get("videos", [])
@@ -101,7 +97,10 @@ class VideoReportGenerator:
     def _load_segments(self, video_id: str) -> list[dict[str, Any]] | None:
         """Load transcript segments."""
         path = self.analyze_dir / "segments" / f"{video_id}.json"
-        return read_json(path)
+        data = read_json(path)
+        if data is None:
+            return None
+        return data if isinstance(data, list) else data.get("segments", [])
 
 
 def generate_suggestions(
