@@ -1,201 +1,187 @@
-# Module Boundary QA Verification — 005-oauth-ratelimit-gpu
+# Module Boundary & Integration QA — Final Verification (006 complete)
 
-**Date**: 2026-04-05
+**Date**: 2026-04-06
 **Verifier**: qa-engineer
-**Result**: **PASS** — 0 mismatches found
+**Result**: **PASS** — 0 boundary mismatches, 0 integration call gaps
+**Test status**: 1245 passed, 0 failed
 
 ---
 
-## 1. Function Signature Verification
+## 1. Boundary: cli/report.py -> services/video_filter_service.py
 
-### 1.1 RateLimiter(profile, on_backoff) — callers match
+### 1.1 filter_videos
 
-| Caller | File | Args Passed | Match? |
-|--------|------|-------------|--------|
-| collect.py:468 | `RateLimiter(config.settings.rate_limit_transcript, on_backoff=...)` | `RateLimitProfile, Callable[[int, float], None]` | OK |
-| transcript.py:36 | stores as `self._rate_limiter` | Type hint `RateLimiter | None` via TYPE_CHECKING | OK |
-| youtube_analytics.py:34 | stores as `self._rate_limiter` | Type hint `RateLimiter | None` via TYPE_CHECKING | OK |
+| Caller | File:Line | Args Passed | Signature | Match? |
+|--------|-----------|-------------|-----------|--------|
+| report_video_command | report.py:226 | `list[dict], VideoFilter` | `filter_videos(videos: list[dict], video_filter: VideoFilter) -> list[dict]` | OK |
+| report_bundle_command | report.py:690 | `list[dict], VideoFilter` | same | OK |
 
-### 1.2 RateLimiter.wait() — callers match
+### 1.2 sort_videos
 
-| Caller | File:Line | Expected Signature | Match? |
-|--------|-----------|-------------------|--------|
-| transcript.py:56 | `self._rate_limiter.wait()` | `wait(self) -> None` | OK |
-| youtube_analytics.py:75 | `self._rate_limiter.wait()` | `wait(self) -> None` | OK |
+| Caller | File:Line | Args Passed | Signature | Match? |
+|--------|-----------|-------------|-----------|--------|
+| report_bundle_command | report.py:691 | `list[dict], str` | `sort_videos(videos: list[dict], sort_by: str) -> list[dict]` | OK |
 
-### 1.3 RateLimiter.wait_on_error(attempt) — callers match
-
-| Caller | File:Line | Args Passed | Match? |
-|--------|-----------|-------------|--------|
-| youtube_analytics.py:113 | `self._rate_limiter.wait_on_error(attempt)` | `int` | OK — param is `attempt: int` |
-
-### 1.4 YouTubeDataService(client) — callers match
-
-| Caller | File:Line | Args Passed | Match? |
-|--------|-----------|-------------|--------|
-| collect.py:88 | `YouTubeDataService(client=client)` | `Any` (from build()) | OK |
-| collect.py:96 | `YouTubeDataService(client=client)` | `Any` (from build_data_client()) | OK |
-| collect.py:373 | `YouTubeDataService(client=client)` | `Any` (from build_data_client()) | OK |
-
-**Spec check**: data-model.md says `__init__(self, client: Any)` — no api_key param. Code matches: `__init__(self, client: Any) -> None` at youtube_data.py:33. OK.
-
-### 1.5 YouTubeAnalyticsService(client, rate_limiter) — callers match
-
-| Caller | File:Line | Args Passed | Match? |
-|--------|-----------|-------------|--------|
-| collect.py:265 | `YouTubeAnalyticsService(client=client)` | `Any, None` | OK (rate_limiter defaults to None) |
-| collect.py:599 | `YouTubeAnalyticsService(client=client)` | `Any, None` | OK |
-| collect.py:604 | `YouTubeAnalyticsService(client=client)` | `Any, None` | OK |
-
-### 1.6 authenticate_channel(alias) — callers match
-
-| Caller | File:Line | Args Passed | Match? |
-|--------|-----------|-------------|--------|
-| collect.py:84 | `authenticate_channel(channel)` | `str` | OK — param is `alias: str` |
-| collect.py:595 | `authenticate_channel(channel)` | `str` | OK |
-
-### 1.7 get_device() — callers match
-
-| Caller | File:Line | Return Used As | Match? |
-|--------|-----------|---------------|--------|
-| sentiment.py:66 | `device = get_device()` | `str` passed to `pipeline(device=...)` | OK — returns `str` |
-
-### 1.8 checkpoint functions — callers match
-
-| Function | Caller | File:Line | Args | Match? |
-|----------|--------|-----------|------|--------|
-| `save_checkpoint(data_dir, state)` | collect.py:127,200,... | `Path, CollectionState` | OK |
-| `load_checkpoint(data_dir, channel_id, phase)` | collect.py:110,633,657 | `Path, str, str` | OK |
-| `is_stage_complete(data_dir, channel_id, stage_name)` | (not called in collect_all yet) | N/A | Signature valid |
-| `mark_stage_complete(data_dir, channel_id, stage_name)` | (not called in collect_all yet) | N/A | Signature valid |
+**sort default changed**: `--sort` default is now `"date_asc"` (report.py:616). `sort_videos` accepts `"date_asc"` at video_filter_service.py:97-102. **MATCH.**
 
 ---
 
-## 2. Return Type Verification
+## 2. Boundary: cli/report.py -> reporting/bundle_report.py
 
-| Function | Declared Return | Caller Expectation | Match? |
-|----------|----------------|--------------------|--------|
-| `get_device()` | `str` | sentiment.py expects `str` for `device=` kwarg | OK |
-| `RateLimiter.wait()` | `None` | callers use as statement | OK |
-| `RateLimiter.wait_on_error(attempt)` | `None` (or raises RuntimeError) | caller catches exception or uses as statement | OK |
-| `authenticate_channel(alias)` | `Credentials` | collect.py passes to `build("youtube", ...)` as `credentials=` | OK |
-| `build_data_client()` | `Any` | collect.py passes to `YouTubeDataService(client=)` | OK |
-| `build_analytics_client()` | `Any` | collect.py passes to `YouTubeAnalyticsService(client=)` | OK |
-| `load_checkpoint(...)` | `CollectionState | None` | collect.py checks `if checkpoint and checkpoint.status == "completed"` | OK |
-| `is_stage_complete(...)` | `bool` | Not yet called in pipeline but return type correct | OK |
+### 2.1 BundleReportGenerator.__init__
 
----
+| Caller | File:Line | Args Passed | Signature | Match? |
+|--------|-----------|-------------|-----------|--------|
+| report_bundle_command | report.py:683-686 | `collect_dir=Path, analyze_dir=Path` | `__init__(data_dir=None, *, collect_dir=None, analyze_dir=None)` | OK |
 
-## 3. Exception Handling Verification
+### 2.2 _load_videos_meta (internal, called from orchestrator)
 
-| Raiser | Exception | Handler | File:Line | Match? |
-|--------|-----------|---------|-----------|--------|
-| `RateLimiter.__init__` | `TypeError` | Not caught (caller never passes wrong type) | N/A | OK — internal invariant |
-| `RateLimiter.wait_on_error` | `RuntimeError` | youtube_analytics.py:109-116 re-raises HttpError after retries exhausted | OK — RuntimeError stops retry loop |
-| `authenticate_channel` | `KeyError, FileNotFoundError, ValueError` | collect.py:100 catches `(FileNotFoundError, ValueError)` | **Note**: `KeyError` not explicitly caught, but typer will show traceback. Acceptable — KeyError means misconfiguration. | OK |
-| `_default_client_secret_path` | `ValueError, FileNotFoundError` | auth.py:96 calls it, exceptions bubble to collect.py:100 | OK |
-| `get_device()` | `ValueError` | sentiment.py calls it during pipeline load; exception propagates to `SentimentService._analyze_local` | OK — fail-fast on bad env var |
+| Caller | File:Line | Args | Signature | Match? |
+|--------|-----------|------|-----------|--------|
+| report_bundle_command | report.py:689 | `str` | `_load_videos_meta(self, channel_id: str) -> list[dict]` | OK |
 
----
+### 2.3 generate
 
-## 4. Pydantic Model vs data-model.md Verification
+| Caller | File:Line | Args Passed | Signature | Match? |
+|--------|-----------|-------------|-----------|--------|
+| report_bundle_command | report.py:726-732 | `video_filter=VideoFilter, channel_id=str, output_path=Path, sort_by=str, title=str\|None` | `generate(self, video_filter, channel_id, output_path, sort_by="date", title=None) -> Path` | OK |
 
-### RateLimitProfile
+### 2.4 generate_from_html
 
-| Field (spec) | Type (spec) | Default (spec) | Code (config.py:35-45) | Match? |
-|--------------|-------------|----------------|------------------------|--------|
-| base_delay | float | varies | `float, Field(..., ge=0.0)` | OK |
-| max_retries | int | varies | `int, Field(..., ge=0)` | OK |
-| backoff_multiplier | float | varies | `float, Field(..., ge=1.0)` | OK |
-| jitter | float | 0.5 | `float, Field(default=0.5, ge=0.0)` | OK |
+| Caller | File:Line | Args Passed | Signature | Match? |
+|--------|-----------|-------------|-----------|--------|
+| report_bundle_command | report.py:717-724 | `html_dir=Path, video_filter=VideoFilter, channel_id=str, output_path=Path, sort_by=str, title=str\|None` | `generate_from_html(self, html_dir, video_filter, channel_id, output_path, sort_by="date", title=None) -> Path` | OK |
 
-### Preset Instances
+### 2.5 render_pdf
 
-| Preset (spec) | base_delay | max_retries | backoff_multiplier | jitter | Code | Match? |
-|---------------|-----------|-------------|-------------------|--------|------|--------|
-| TRANSCRIPT_PROFILE | 2.0 | 5 | 3.0 | 0.5 | config.py:48-53 | OK |
-| YOUTUBE_API_PROFILE | 0.1 | 3 | 2.0 | 0.0 | config.py:55-60 | OK |
+| Caller | File:Line | Args | Signature | Match? |
+|--------|-----------|------|-----------|--------|
+| report_bundle_command | report.py:742 | `Path` | `render_pdf(self, html_path: Path) -> Path \| None` | OK |
 
-### StageResult
+### 2.6 Return type handling
 
-| Field (spec) | Type (spec) | Default (spec) | Code (config.py:63-72) | Match? |
-|--------------|-------------|----------------|------------------------|--------|
-| stage_name | str | required | `str, Field(...)` | OK |
-| status | Literal["completed","failed","skipped"] | required | `Literal["completed","failed","skipped"], Field(...)` | OK |
-| error_message | str | None | `str | None = None` | OK |
-| items_processed | int | 0 | `int = 0` | OK |
-| duration_seconds | float | 0.0 | `float = 0.0` | OK |
+| Method | Return | Caller Handling | Match? |
+|--------|--------|-----------------|--------|
+| generate | `Path` | L726 -> `html_path`, passed to render_pdf | OK |
+| generate_from_html | `Path` | L717 -> `html_path`, passed to render_pdf | OK |
+| render_pdf | `Path \| None` | L742: `if pdf_path:` check | OK |
 
-### PipelineResult
+### 2.7 Exception handling
 
-| Field (spec) | Type (spec) | Default (spec) | Code (config.py:75-82) | Match? |
-|--------------|-------------|----------------|------------------------|--------|
-| channel_alias | str | None | `str | None = None` | OK |
-| stages | list[StageResult] | [] | `list[StageResult], Field(default_factory=list)` | OK |
-| started_at | datetime | required | `datetime, Field(default_factory=...)` | OK |
-| completed_at | datetime | None | `datetime | None = None` | OK |
-| resumed | bool | False | `bool = False` | OK |
-
-### CollectionState.stage_completed (new field)
-
-| Field (spec) | Type (spec) | Default (spec) | Code (config.py:156) | Match? |
-|--------------|-------------|----------------|----------------------|--------|
-| stage_completed | bool | False | `stage_completed: bool = False` | OK |
-
-### Settings rate limit fields
-
-| Field (spec) | Type (spec) | Default (spec) | Code (config.py:120-125) | Match? |
-|--------------|-------------|----------------|--------------------------|--------|
-| rate_limit_transcript | RateLimitProfile | TRANSCRIPT_PROFILE | `Field(default_factory=lambda: TRANSCRIPT_PROFILE.model_copy())` | OK |
-| rate_limit_youtube_api | RateLimitProfile | YOUTUBE_API_PROFILE | `Field(default_factory=lambda: YOUTUBE_API_PROFILE.model_copy())` | OK |
-
-### get_device() (utility function)
-
-| Spec | Code (config.py:15-32) | Match? |
-|------|------------------------|--------|
-| Returns `str`, reads `TUBE_SCOUT_DEVICE`, validates `{"cpu","cuda"}`, defaults to `"cpu"` | Exact match | OK |
+| Method | Raises | Handler | Match? |
+|--------|--------|---------|--------|
+| generate | `ValueError` | report.py:733 `except ValueError` -> Exit(0) | OK |
+| generate_from_html | `ValueError` | report.py:733 same | OK |
 
 ---
 
-## 5. Import / Circular Reference Check
+## 3. Boundary: reporting/bundle_report.py -> storage/json_store.py (read_json)
 
-**Import graph** (arrows = imports from):
+| Caller | File:Line | Args | Match? |
+|--------|-----------|------|--------|
+| _load_videos_meta | bundle_report.py:360 | `Path` | OK |
+| _load_retention | bundle_report.py:375 | `Path` | OK |
+| _load_segments | bundle_report.py:387 | `Path` | OK |
+| _load_channel_meta (NEW) | bundle_report.py:304 | `Path` | OK |
+| _load_parsed_titles (NEW) | bundle_report.py:319 | `Path` | OK |
 
-```
-models/config.py        → (no internal imports)
-services/rate_limiter.py → models/config (RateLimitProfile)
-services/transcript.py   → services/rate_limiter (TYPE_CHECKING only)
-services/youtube_analytics.py → services/rate_limiter (TYPE_CHECKING only)
-services/youtube_data.py → (no internal imports)
-services/auth.py         → models/config (ChannelRegistration)
-services/sentiment.py    → models/config (get_device, lazy import)
-storage/checkpoint.py    → models/config (CollectionState), storage/json_store
-cli/collect.py           → models/config, services/*, storage/checkpoint, storage/json_store, storage/parquet_store
-```
+All 5 callers pass `Path`, matching `read_json(filepath: Path) -> dict[str, Any] | None`.
 
-**Circular references**: None detected. `transcript.py` and `youtube_analytics.py` use `TYPE_CHECKING` guard for `RateLimiter`, avoiding runtime circular imports. `sentiment.py` imports `get_device` lazily inside `_load_local_pipeline()`.
+**Note (non-blocking)**: `read_json` return annotation is `dict[str, Any] | None` but `json.load` can return `list`. Callers handle via `isinstance` checks. Runtime correct.
 
 ---
 
-## 6. CLI Contract vs Implementation
+## 4. Boundary: reporting/bundle_report.py -> templates
 
-### `collect all --channel`
+### 4.1 bundle_report.html template variables
 
-| Contract | Implementation (collect.py:757-760) | Match? |
-|----------|-------------------------------------|--------|
-| `--channel ALIAS` option, str, default None | `channel: str | None = typer.Option(None, "--channel", ...)` | OK |
-| With --channel: uses `authenticate_channel(alias)` | collect.py:82-88, 593-598 | OK |
-| Stage failure on videos: abort pipeline | collect.py:834-839 | OK |
-| Stage failure on others: continue with summary | collect.py:840 (no break) | OK |
-| Exit code 0/1/2 | typer.Exit codes used appropriately | OK |
+| Variable | Provided at | Type | Template usage | Match? |
+|----------|------------|------|---------------|--------|
+| title | generate():L113 | str | `{{ title }}` | OK |
+| channel_id | generate():L114 | str | `{{ channel_id }}` | OK |
+| channel_name (NEW) | generate():L115 | str | `{{ channel_name \| default(channel_id) }}` | OK |
+| filter_description | generate():L116 | str | `{{ filter_description }}` | OK |
+| videos | generate():L117 | list[dict] | `{% for v in videos %}` | OK |
+| summary | generate():L118 | dict | `{{ summary.video_count }}` etc. | OK |
+| channel_summary (NEW) | generate():L119 | dict | `{% if channel_summary %}` | OK |
+| generated_at | generate():L120 | str | `{{ generated_at }}` | OK |
 
-### auth.py: `TUBE_SCOUT_CLIENT_SECRET` env var only
+### 4.2 bundle_from_html.html template variables
 
-| Contract | Implementation (auth.py:26-49) | Match? |
-|----------|-------------------------------|--------|
-| No file-glob, env var only | `os.environ.get("TUBE_SCOUT_CLIENT_SECRET")` only | OK |
-| Raises ValueError if not set | auth.py:38-41 | OK |
-| Raises FileNotFoundError if file missing | auth.py:44-48 | OK |
+| Variable | Provided at | Type | Template usage | Match? |
+|----------|------------|------|---------------|--------|
+| channel_name (NEW) | generate_from_html():L230 | str | `{{ channel_name \| default(channel_id) }}` | OK |
+| channel_summary (NEW) | generate_from_html():L234 | dict | `{% if channel_summary %}` | OK |
+| skipped | generate_from_html():L235 | list[str] | `{% if skipped %}` | OK |
+| (other vars same as bundle_report.html) | | | | OK |
+
+### 4.3 channel_summary structure vs template expectations
+
+Template accesses: `channel_summary.professor_distribution` (dict), `channel_summary.course_list` (list).
+`_compute_channel_summary()` returns: `{"professor_distribution": dict[str,int], "course_list": list[str]}`. **MATCH.**
+
+---
+
+## 5. Boundary: cli/report.py -> models/parsed_title.py
+
+| Usage | File:Line | Match? |
+|-------|-----------|--------|
+| `ParsedTitle(**p)` | report.py:474 | OK -- Pydantic model constructor |
+
+---
+
+## 6. Internal: bundle_report.py -> services/video_filter_service.py
+
+| Method | File:Line | Args | Signature | Match? |
+|--------|-----------|------|-----------|--------|
+| filter_videos | bundle_report.py:83 | `list[dict], VideoFilter` | `(list[dict], VideoFilter) -> list[dict]` | OK |
+| sort_videos | bundle_report.py:88 | `list[dict], str` | `(list[dict], str) -> list[dict]` | OK |
+| filter_videos | bundle_report.py:171 | `list[dict], VideoFilter` | same | OK |
+| sort_videos | bundle_report.py:176 | `list[dict], str` | same | OK |
+
+---
+
+## 7. INTEGRATION: Orchestrator (report_bundle_command) final state
+
+### 7.1 All CLI options and their downstream propagation
+
+| Option | Default | Passed to | Match? |
+|--------|---------|-----------|--------|
+| `--keyword` | None | `VideoFilter(keyword=...)` | OK |
+| `--published-after` | None | `VideoFilter(published_after=...)` via `date.fromisoformat` | OK |
+| `--published-before` | None | `VideoFilter(published_before=...)` via `date.fromisoformat` | OK |
+| `--video-ids` | None | `VideoFilter(video_ids=...)` via `.split(",")` | OK |
+| `--output` | None | `output_path = Path(output)` | OK |
+| `--title` | None | `gen.generate(..., title=title)` | OK -- generate handles None via `_auto_title` |
+| `--format` | `"pdf"` | Local guard only (`if format == "html": return`) | OK -- not passed to boundary |
+| `--sort` | `"date_asc"` | `VideoFilterService.sort_videos(filtered, sort)` + `gen.generate(..., sort_by=sort)` | OK |
+| `--dry-run` | False | Local guard only | OK |
+| `--no-confirm` | False | Local guard only | OK |
+| `--from-html` | None | `gen.generate_from_html(html_dir=Path(from_html), ...)` | OK |
+
+### 7.2 Stage 2: Required arg default suspicion
+
+| Arg | Value at call site | Suspect? | Verdict |
+|-----|-------------------|----------|---------|
+| video_filter | Constructed L669-678 | No -- model validator enforces >= 1 condition | OK |
+| channel_id | From `channel_config.channel_id` | No -- AppConfig validates | OK |
+| output_path | L708-713, always Path | No | OK |
+| sort / sort_by | `"date_asc"` default | No -- accepted by sort_videos | OK |
+| title | None allowed | No -- `_auto_title` fallback | OK |
+| no_confirm | False | No -- boolean | OK |
+| format | `"pdf"` | No -- string, not passed to boundary | OK |
+
+### 7.3 Control flow paths
+
+| Path | Condition | Behavior | Correct? |
+|------|-----------|----------|----------|
+| 0 results | L693 | Print warning, Exit(0) | OK |
+| dry_run | L697-699 | Print table, return | OK |
+| confirm declined | L703-706 | Print cancelled, Exit(0) | OK |
+| format=html | L739-740 | Print HTML path, return (skip PDF) | OK |
+| format=pdf, weasyprint OK | L742-744 | Print PDF path | OK |
+| format=pdf, no weasyprint | L745-750 | Print warning with install hint | OK |
+| ValueError in generate | L733-735 | Caught, Exit(0) | OK |
 
 ---
 
@@ -203,11 +189,20 @@ cli/collect.py           → models/config, services/*, storage/checkpoint, stor
 
 | Check Category | Items Verified | Mismatches |
 |---------------|---------------|------------|
-| Function signatures | 8 functions, 14 call sites | 0 |
-| Return types | 8 functions | 0 |
-| Exception handling | 5 exception paths | 0 |
-| Pydantic models vs spec | 6 models, 22 fields | 0 |
-| Import / circular refs | 9 modules | 0 |
-| CLI contract | 3 commands | 0 |
+| cli/report.py -> VideoFilterService | 3 call sites | 0 |
+| cli/report.py -> BundleReportGenerator | 5 call sites | 0 |
+| bundle_report.py -> json_store.read_json | 5 call sites (incl. 2 new) | 0 |
+| bundle_report.py -> VideoFilterService | 4 call sites | 0 |
+| bundle_report.py -> templates | 8+8 template vars (incl. 2+2 new) | 0 |
+| cli/report.py -> ParsedTitle | 1 usage | 0 |
+| Orchestrator CLI options | 11 options | 0 |
+| Return type handling | 5 methods | 0 |
+| Exception handling | 3 paths | 0 |
+| Control flow paths | 7 paths | 0 |
+| Required arg defaults (Stage 2) | 7 arguments | 0 |
 
-**VERDICT: PASS — 0 mismatches**
+**Notes**:
+1. Non-blocking: `read_json` return annotation narrower than runtime (`dict` vs `list|dict`). Handled by `isinstance` checks.
+2. Minor UX: `--format` accepts any string, no validation against `{"pdf","html"}`. Unknown values fall through to PDF path. Not a boundary issue.
+
+**VERDICT: PASS -- 0 boundary mismatches, 0 integration call gaps**

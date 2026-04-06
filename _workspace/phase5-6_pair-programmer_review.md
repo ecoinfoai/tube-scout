@@ -40,3 +40,63 @@
 ## Judgment
 
 **PASS** -- FR-005, FR-015, FR-016 fully implemented with code and tests. No gaps found.
+
+---
+
+# Phase 4-5 FR Traceability Review (US2 + US3)
+
+**Reviewer**: pair-programmer
+**Date**: 2026-04-06
+**Scope**: Phase 4-5 commit — US2 preview/confirm + US3 PDF bundle generation
+**Changed files**:
+- `src/tube_scout/cli/report.py` — --no-confirm, --format, view_count column, confirm flow, HTML fallback, weasyprint install guidance
+- `src/tube_scout/reporting/bundle_report.py` — _load_channel_meta, _load_parsed_titles, _compute_channel_summary, channel_name/channel_summary in template render
+- `src/tube_scout/reporting/templates/bundle_report.html` — channel_name on cover, total_duration on cover, channel summary section, .chart-container page-break-inside:avoid
+- `src/tube_scout/reporting/templates/bundle_from_html.html` — same cover/channel_summary changes
+- `tests/unit/test_report_cli_filter.py` — TestBundlePreviewUS2 (T010-T012)
+- `tests/unit/test_bundle_report.py` — TestCoverPageUS3, TestChannelSummaryUS3, TestTocUS3, TestPageNumbersUS3, TestPageBreaksUS3, TestWeasprintFallbackUS3, TestFormatHtmlUS3
+
+## Full FR Execution Path Traceability (FR-001~FR-017)
+
+| FR | CLI Entry | Service/Generator | Template/Output | Status |
+|----|-----------|-------------------|------------------|--------|
+| FR-001 Keyword filter | `report_bundle_command` --keyword | VideoFilterService._matches: keyword in title | Filtered list | CONNECTED |
+| FR-002 Date range filter | `report_bundle_command` --published-after/before | VideoFilterService._matches: date range check | Filtered list | CONNECTED |
+| FR-003 AND logic | VideoFilter built with all params | _matches: sequential AND checks | Combined filter | CONNECTED |
+| FR-004 Preview table | Lines 700-704: always shows preview before confirm | `_print_dry_run_table`: video_id, title, published_at, **view_count** | Rich table + count + duration | CONNECTED |
+| FR-005 Confirm/cancel | Line 705-708: `typer.confirm("Generate report?")` | --no-confirm skips; "Cancelled" + exit(0) on decline | Interactive confirm/cancel | **CONNECTED** |
+| FR-006 Single PDF | -> BundleReportGenerator.generate -> render_pdf | HTML -> weasyprint PDF | Single PDF | CONNECTED |
+| FR-007 Cover page | _load_channel_meta, _compute_summary | cover: **channel_name**, filter_description, video count, **total_duration_minutes**, generated_at | Cover rendered | CONNECTED |
+| FR-008 Channel summary | _load_parsed_titles + _compute_channel_summary | channel-summary section: professor_distribution, course_list | Channel summary page | CONNECTED |
+| FR-009 Auto-generated TOC | bundle_report.html TOC section | `{% for video %}` anchor links + published_at | TOC with titles | CONNECTED |
+| FR-010 Page numbers | @page CSS | `"p. " counter(page) " / " counter(pages)` | CSS rule | CONNECTED |
+| FR-011 New page per video | .video-section CSS | `page-break-before: always` | CSS rule | CONNECTED |
+| FR-012 No chart/table split | table + .chart-container CSS | `page-break-inside: avoid` on both | CSS rules | CONNECTED |
+| FR-013 Three sort orders | --sort (date/date_asc/course/views) | VideoFilterService.sort_videos | Sorted list | CONNECTED |
+| FR-014 Graceful data omission | Jinja conditionals | `{% if video.retention %}`, `{% if video.segments %}` | Sections skipped | CONNECTED |
+| FR-015 PDF tool missing error | Line 748-752 | "weasyprint not available. Install weasyprint for PDF output." | Warning with guidance | CONNECTED |
+| FR-016 HTML fallback | Line 741-742: `if format == "html": return` | render_pdf returns None -> HTML path | HTML saved | CONNECTED |
+| FR-017 Existing data | _load_videos_meta | read_json(videos_meta.json) | Reads existing data | CONNECTED |
+
+## Key Improvements Over Previous Review
+
+1. **FR-005 CONNECTED** (was PARTIAL): `typer.confirm("Generate report?")` at line 706 provides interactive confirm/cancel. `--no-confirm` skips for automation.
+2. **FR-007 cover complete** (was missing total_duration): Template line 116-118 adds total_duration on cover. Line 111 uses channel_name.
+3. **FR-008 channel summary NEW**: _load_channel_meta, _load_parsed_titles, _compute_channel_summary in bundle_report.py. Template has professor_distribution + course_list.
+4. **FR-012 strengthened**: `.chart-container { page-break-inside: avoid }` added.
+5. **FR-015 improved**: Install guidance added to error message.
+
+## Issues (Minor)
+
+1. **Exit code inconsistency** (carried over): bundle uses exit(0) for 0-result, video uses exit(1). Design decision — not a correctness bug.
+2. **Double filter execution**: report_bundle_command pre-filters at line 690, then gen.generate() filters again at bundle_report.py:83. Performance-only concern (negligible for 214 videos).
+3. **--format default "pdf"**: If weasyprint not installed, default run shows warning. Previous implicit behavior was more forgiving. UX consideration only.
+
+## FR Traceability
+
+- **Connected**: 17/17
+- **Rate**: 100%
+
+## Judgment
+
+**PASS** — FR traceability rate 100%. All 17 FRs have complete 3-layer execution paths. US2 (preview/confirm) and US3 (PDF bundle) fully implemented and tested (25/25 bundle, 18/18 cli_filter).
