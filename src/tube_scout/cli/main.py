@@ -15,6 +15,7 @@ from tube_scout.cli.analyze import (
     analyze_transcript_command,
 )
 from tube_scout.cli.auth_cli import auth_command
+from tube_scout.cli.content import content_app
 from tube_scout.cli.collect import (
     collect_all_command,
     collect_analytics_command,
@@ -62,6 +63,7 @@ app.add_typer(collect_app, name="collect")
 app.add_typer(analyze_app, name="analyze")
 app.add_typer(report_app, name="report")
 app.add_typer(calendar_app, name="calendar")
+app.add_typer(content_app, name="content")
 
 # Register collect subcommands
 collect_app.command(name="videos")(collect_videos_command)
