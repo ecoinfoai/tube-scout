@@ -13,6 +13,8 @@ Auto-generated from all feature plans. Last updated: 2026-04-07
 - JSON (atomic write) + Parquet (polars), checkpoint JSON (005-oauth-ratelimit-gpu)
 - Python 3.11 + typer, rich, jinja2, weasyprint (optional), pydantic v2, plotly (006-report-filter-pdf-bundle)
 - JSON (videos_meta.json, parsed_titles.json, channel_meta.json) — 기존 수집 데이터 사용 (006-report-filter-pdf-bundle)
+- Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pydantic v2, sentence-transformers, polars, plotly, jinja2, openpyxl (007-content-reuse-detection)
+- SQLite (processing status, comparison results, review status) + Parquet (embeddings) + JSON (captions, metadata) (007-content-reuse-detection)
 
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, statsmodels/prophet (001-lecture-video-analytics)
 
@@ -32,9 +34,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 007-content-reuse-detection: Added Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pydantic v2, sentence-transformers, polars, plotly, jinja2, openpyxl
 - 006-report-filter-pdf-bundle: Added Python 3.11 + typer, rich, jinja2, weasyprint (optional), pydantic v2, plotly
 - 005-oauth-ratelimit-gpu: Added Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pydantic v2, transformers, torch
-- 004-report-filter-pdf-bundle: Added Python 3.11 + typer, rich, jinja2, weasyprint, pydantic v2, plotly (static image export)
 
 
 <!-- MANUAL ADDITIONS START -->

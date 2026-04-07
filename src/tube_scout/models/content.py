@@ -1,13 +1,12 @@
 """Content reuse detection data models."""
 
 from datetime import datetime
-from enum import Enum
-from typing import Literal
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class SuspicionGrade(str, Enum):
+class SuspicionGrade(StrEnum):
     """Priority grade for suspicion score."""
 
     CRITICAL = "critical"
@@ -16,13 +15,16 @@ class SuspicionGrade(str, Enum):
     NORMAL = "normal"
 
 
-VALID_PROCESSING_STATUSES = frozenset(
-    {"pending", "collecting", "collected", "fingerprinted", "compared", "failed", "no_caption"}
-)
+VALID_PROCESSING_STATUSES = frozenset({
+    "pending", "collecting", "collected",
+    "fingerprinted", "compared", "failed", "no_caption",
+})
 
 VALID_CAPTION_SOURCES = frozenset({"transcript_api", "captions_api", "whisper"})
 
-VALID_REVIEW_STATUSES = frozenset({"UNREVIEWED", "CONFIRMED_DUPLICATE", "FALSE_POSITIVE"})
+VALID_REVIEW_STATUSES = frozenset({
+    "UNREVIEWED", "CONFIRMED_DUPLICATE", "FALSE_POSITIVE",
+})
 
 VALID_GRADES = frozenset({"critical", "high", "moderate", "normal"})
 
@@ -55,7 +57,9 @@ class ProcessingStatus(BaseModel):
     def status_must_be_valid(cls, v: str) -> str:
         """Validate that status is a recognized processing state."""
         if v not in VALID_PROCESSING_STATUSES:
-            raise ValueError(f"status must be one of {sorted(VALID_PROCESSING_STATUSES)}")
+            raise ValueError(
+                f"status must be one of {sorted(VALID_PROCESSING_STATUSES)}"
+            )
         return v
 
     @field_validator("caption_source")
@@ -63,7 +67,9 @@ class ProcessingStatus(BaseModel):
     def caption_source_must_be_valid(cls, v: str | None) -> str | None:
         """Validate that caption_source is a recognized source type."""
         if v is not None and v not in VALID_CAPTION_SOURCES:
-            raise ValueError(f"caption_source must be one of {sorted(VALID_CAPTION_SOURCES)}")
+            raise ValueError(
+                f"caption_source must be one of {sorted(VALID_CAPTION_SOURCES)}"
+            )
         return v
 
 
@@ -145,7 +151,9 @@ class ComparisonResult(BaseModel):
     def review_status_must_be_valid(cls, v: str) -> str:
         """Validate that review_status is a recognized status."""
         if v not in VALID_REVIEW_STATUSES:
-            raise ValueError(f"review_status must be one of {sorted(VALID_REVIEW_STATUSES)}")
+            raise ValueError(
+                f"review_status must be one of {sorted(VALID_REVIEW_STATUSES)}"
+            )
         return v
 
 

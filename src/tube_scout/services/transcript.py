@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import requests
 from youtube_transcript_api import (
@@ -39,7 +40,8 @@ class TranscriptService:
         Args:
             languages: Preferred language codes in order (default: ['ko', 'en']).
             rate_limiter: Optional rate limiter for inter-request delays.
-            captions_api_client: Optional Captions API client for private video fallback.
+            captions_api_client: Optional Captions API client for
+                private video fallback.
             on_status_change: Optional callback for processing status updates.
         """
         self.languages = languages or ["ko", "en"]

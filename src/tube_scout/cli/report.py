@@ -873,7 +873,10 @@ def report_content_command(
     db_path = mgr.project_dir / "tube_scout.db"
 
     if not db_path.exists():
-        console.print("[yellow]No analysis data found. Run 'tube-scout content scan' first.[/yellow]")
+        console.print(
+            "[yellow]No analysis data found. "
+            "Run 'tube-scout content scan' first.[/yellow]"
+        )
         raise typer.Exit(code=2)
 
     db = ContentDB(db_path)

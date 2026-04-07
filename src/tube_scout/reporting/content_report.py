@@ -117,18 +117,29 @@ class ContentReportGenerator:
 
         # Build comparison rows
         rows_html = ""
-        for c in sorted(comparisons, key=lambda x: x.get("suspicion_score", 0), reverse=True):
+        sorted_comps = sorted(
+            comparisons,
+            key=lambda x: x.get("suspicion_score", 0),
+            reverse=True,
+        )
+        for c in sorted_comps:
             grade = c.get("grade", "")
             color = grade_colors.get(grade, "#6c757d")
+            prof = c.get("professor", "")
+            course = c.get("course", "")
+            ws = f"W{c.get('week', '?')}/S{c.get('session', '?')}"
+            yrs = f"{c.get('year_from', '')}->{c.get('year_to', '')}"
+            score = c.get("suspicion_score", 0)
+            status = c.get("review_status", "")
             rows_html += f"""
             <tr>
-                <td>{c.get('professor', '')}</td>
-                <td>{c.get('course', '')}</td>
-                <td>W{c.get('week', '?')}/S{c.get('session', '?')}</td>
-                <td>{c.get('year_from', '')}->{c.get('year_to', '')}</td>
-                <td style="color: {color}; font-weight: bold;">{c.get('suspicion_score', 0):.1f}</td>
+                <td>{prof}</td>
+                <td>{course}</td>
+                <td>{ws}</td>
+                <td>{yrs}</td>
+                <td style="color: {color}; font-weight: bold;">{score:.1f}</td>
                 <td style="color: {color};">{grade}</td>
-                <td>{c.get('review_status', '')}</td>
+                <td>{status}</td>
             </tr>"""
 
         # Build quality rows
@@ -145,21 +156,46 @@ class ContentReportGenerator:
                 <td>{q.get('pass_count', 0)}/5</td>
             </tr>"""
 
+        gc = summary["grade_counts"]
+        cnt_crit = gc["critical"]
+        cnt_high = gc["high"]
+        cnt_mod = gc["moderate"]
+        cnt_norm = gc["normal"]
+
         html = f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="utf-8">
     <title>Content Quality Report</title>
     <style>
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 20px; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont,
+                'Segoe UI', sans-serif;
+            margin: 20px;
+        }}
         h1 {{ color: #333; }}
         h2 {{ color: #555; margin-top: 30px; }}
-        table {{ border-collapse: collapse; width: 100%; margin-top: 10px; }}
-        th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }}
+        th, td {{
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }}
         th {{ background-color: #f8f9fa; font-weight: bold; }}
         tr:nth-child(even) {{ background-color: #f2f2f2; }}
-        .summary {{ display: flex; gap: 20px; margin: 20px 0; }}
-        .summary-card {{ padding: 15px; border-radius: 8px; min-width: 120px; text-align: center; }}
+        .summary {{
+            display: flex; gap: 20px; margin: 20px 0;
+        }}
+        .summary-card {{
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 120px;
+            text-align: center;
+        }}
         .critical {{ background-color: #f8d7da; color: #721c24; }}
         .high {{ background-color: #fff3cd; color: #856404; }}
         .moderate {{ background-color: #d1ecf1; color: #0c5460; }}
@@ -172,19 +208,19 @@ class ContentReportGenerator:
     <h2>Summary</h2>
     <div class="summary">
         <div class="summary-card critical">
-            <div style="font-size: 24px; font-weight: bold;">{summary['grade_counts']['critical']}</div>
+            <div style="font-size: 24px; font-weight: bold;">{cnt_crit}</div>
             <div>Critical</div>
         </div>
         <div class="summary-card high">
-            <div style="font-size: 24px; font-weight: bold;">{summary['grade_counts']['high']}</div>
+            <div style="font-size: 24px; font-weight: bold;">{cnt_high}</div>
             <div>High</div>
         </div>
         <div class="summary-card moderate">
-            <div style="font-size: 24px; font-weight: bold;">{summary['grade_counts']['moderate']}</div>
+            <div style="font-size: 24px; font-weight: bold;">{cnt_mod}</div>
             <div>Moderate</div>
         </div>
         <div class="summary-card normal">
-            <div style="font-size: 24px; font-weight: bold;">{summary['grade_counts']['normal']}</div>
+            <div style="font-size: 24px; font-weight: bold;">{cnt_norm}</div>
             <div>Normal</div>
         </div>
     </div>
@@ -258,16 +294,30 @@ class ContentReportGenerator:
             cell.font = header_font
 
         grade_fills = {
-            "critical": PatternFill(start_color="DC3545", end_color="DC3545", fill_type="solid"),
-            "high": PatternFill(start_color="FD7E14", end_color="FD7E14", fill_type="solid"),
-            "moderate": PatternFill(start_color="FFC107", end_color="FFC107", fill_type="solid"),
-            "normal": PatternFill(start_color="28A745", end_color="28A745", fill_type="solid"),
+            "critical": PatternFill(
+                start_color="DC3545", end_color="DC3545",
+                fill_type="solid",
+            ),
+            "high": PatternFill(
+                start_color="FD7E14", end_color="FD7E14",
+                fill_type="solid",
+            ),
+            "moderate": PatternFill(
+                start_color="FFC107", end_color="FFC107",
+                fill_type="solid",
+            ),
+            "normal": PatternFill(
+                start_color="28A745", end_color="28A745",
+                fill_type="solid",
+            ),
         }
 
-        for row_idx, c in enumerate(
-            sorted(comparisons, key=lambda x: x.get("suspicion_score", 0), reverse=True),
-            start=2,
-        ):
+        sorted_comps = sorted(
+            comparisons,
+            key=lambda x: x.get("suspicion_score", 0),
+            reverse=True,
+        )
+        for row_idx, c in enumerate(sorted_comps, start=2):
             values = [
                 c.get("id"),
                 _sanitize_cell(c.get("professor", "")),

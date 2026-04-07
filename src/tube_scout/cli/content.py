@@ -4,7 +4,6 @@ Provides fingerprint, compare, quality, review, and scan subcommands
 under the 'tube-scout content' command group.
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import Any
@@ -14,7 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from tube_scout.cli.project import resolve_project
-from tube_scout.services.auth import authenticate_channel, load_registry
+from tube_scout.services.auth import load_registry
 from tube_scout.storage.content_db import ContentDB
 from tube_scout.storage.json_store import read_json
 
@@ -186,10 +185,16 @@ def content_fingerprint_command(
 
     transcripts = _load_transcripts(mgr.collect_dir, channel_id)
     if not transcripts:
-        console.print("[yellow]No transcripts found. Run 'tube-scout collect transcripts' first.[/yellow]")
+        console.print(
+            "[yellow]No transcripts found. "
+            "Run 'tube-scout collect transcripts' first.[/yellow]"
+        )
         raise typer.Exit(code=2)
 
-    console.print(f"[bold]Generating fingerprints for {len(transcripts)} videos...[/bold]")
+    count = len(transcripts)
+    console.print(
+        f"[bold]Generating fingerprints for {count} videos...[/bold]"
+    )
 
     processed = 0
     skipped = 0
@@ -278,7 +283,10 @@ def content_compare_command(
     # Load parsed titles for pair matching
     parsed_titles = _load_parsed_titles(mgr.analyze_dir, channel_id)
     if not parsed_titles:
-        console.print("[yellow]No parsed titles found. Run title parsing first.[/yellow]")
+        console.print(
+            "[yellow]No parsed titles found. "
+            "Run title parsing first.[/yellow]"
+        )
         raise typer.Exit(code=2)
 
     # Optional filters
@@ -292,10 +300,16 @@ def content_compare_command(
 
     pairs = match_comparison_pairs(parsed_titles, year_from=year_from, year_to=year_to)
     if not pairs:
-        console.print("[yellow]No comparison pairs found for the specified years.[/yellow]")
+        console.print(
+            "[yellow]No comparison pairs found "
+            "for the specified years.[/yellow]"
+        )
         raise typer.Exit(code=2)
 
-    console.print(f"[bold]Comparing {len(pairs)} pairs ({year_from} vs {year_to})...[/bold]")
+    console.print(
+        f"[bold]Comparing {len(pairs)} pairs "
+        f"({year_from} vs {year_to})...[/bold]"
+    )
 
     # Load transcripts for text comparison
     transcripts = _load_transcripts(mgr.collect_dir, channel_id)
@@ -345,7 +359,12 @@ def content_compare_command(
         g = r.get("grade", "unknown")
         grade_counts[g] = grade_counts.get(g, 0) + 1
 
-    grade_styles = {"critical": "red", "high": "yellow", "moderate": "cyan", "normal": "green"}
+    grade_styles = {
+        "critical": "red",
+        "high": "yellow",
+        "moderate": "cyan",
+        "normal": "green",
+    }
     for grade_name in ("critical", "high", "moderate", "normal"):
         count = grade_counts.get(grade_name, 0)
         table.add_row(grade_name, str(count), style=grade_styles.get(grade_name))
@@ -413,7 +432,10 @@ def content_quality_command(
     processed = 0
 
     all_video_ids = set(list(transcripts.keys()) + [v["video_id"] for v in videos])
-    console.print(f"[bold]Running quality checks on {len(all_video_ids)} videos...[/bold]")
+    count = len(all_video_ids)
+    console.print(
+        f"[bold]Running quality checks on {count} videos...[/bold]"
+    )
 
     for video_id in all_video_ids:
         segments = transcripts.get(video_id)
@@ -460,7 +482,10 @@ def content_review_command(
     status: str | None = typer.Option(
         None,
         "--status",
-        help="Filter by review status (UNREVIEWED, CONFIRMED_DUPLICATE, FALSE_POSITIVE).",
+        help=(
+            "Filter by review status "
+            "(UNREVIEWED, CONFIRMED_DUPLICATE, FALSE_POSITIVE)."
+        ),
     ),
     grade: str | None = typer.Option(
         None,
@@ -490,7 +515,10 @@ def content_review_command(
     if mark:
         parts = mark.split(maxsplit=1)
         if len(parts) != 2:
-            console.print("[red]--mark format: '<comparison_id> <CONFIRMED_DUPLICATE|FALSE_POSITIVE>'[/red]")
+            console.print(
+                "[red]--mark format: '<comparison_id> "
+                "<CONFIRMED_DUPLICATE|FALSE_POSITIVE>'[/red]"
+            )
             raise typer.Exit(code=1)
 
         try:
@@ -501,12 +529,18 @@ def content_review_command(
 
         new_status = parts[1].upper()
         if new_status not in ("CONFIRMED_DUPLICATE", "FALSE_POSITIVE"):
-            console.print(f"[red]Invalid status: {new_status}. Use CONFIRMED_DUPLICATE or FALSE_POSITIVE.[/red]")
+            console.print(
+                f"[red]Invalid status: {new_status}. "
+                "Use CONFIRMED_DUPLICATE or FALSE_POSITIVE.[/red]"
+            )
             raise typer.Exit(code=1)
 
         try:
             db.update_review_status(comp_id, new_status, reviewed_by="cli")
-            console.print(f"[green]Comparison {comp_id} marked as {new_status}.[/green]")
+            console.print(
+                f"[green]Comparison {comp_id} "
+                f"marked as {new_status}.[/green]"
+            )
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(code=1)
@@ -533,7 +567,12 @@ def content_review_command(
     table.add_column("Grade")
     table.add_column("Status")
 
-    grade_styles = {"critical": "red", "high": "yellow", "moderate": "cyan", "normal": "green"}
+    grade_styles = {
+        "critical": "red",
+        "high": "yellow",
+        "moderate": "cyan",
+        "normal": "green",
+    }
 
     for r in results:
         g = r.get("grade", "")
@@ -550,7 +589,10 @@ def content_review_command(
         )
 
     console.print(table)
-    console.print(f"[dim]Total: {len(results)} results. Use --mark '<id> <status>' to update.[/dim]")
+    console.print(
+        f"[dim]Total: {len(results)} results. "
+        "Use --mark '<id> <status>' to update.[/dim]"
+    )
 
 
 @content_app.command(name="scan")

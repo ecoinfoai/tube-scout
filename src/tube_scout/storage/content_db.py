@@ -131,10 +131,19 @@ class ContentDB:
             ON CONFLICT(video_id) DO UPDATE SET
                 channel_id = excluded.channel_id,
                 status = excluded.status,
-                caption_source = COALESCE(excluded.caption_source, processing_status.caption_source),
+                caption_source = COALESCE(
+                    excluded.caption_source,
+                    processing_status.caption_source
+                ),
                 error_message = excluded.error_message,
-                collected_at = COALESCE(excluded.collected_at, processing_status.collected_at),
-                fingerprinted_at = COALESCE(excluded.fingerprinted_at, processing_status.fingerprinted_at),
+                collected_at = COALESCE(
+                    excluded.collected_at,
+                    processing_status.collected_at
+                ),
+                fingerprinted_at = COALESCE(
+                    excluded.fingerprinted_at,
+                    processing_status.fingerprinted_at
+                ),
                 updated_at = excluded.updated_at
             """,
             (video_id, channel_id, status, caption_source, error_message,
@@ -204,12 +213,16 @@ class ContentDB:
         self._conn.execute(
             """
             INSERT INTO fingerprint_hashes
-                (video_id, sha256_hash, full_text_length, embedding_row_index, created_at)
+                (video_id, sha256_hash, full_text_length,
+                 embedding_row_index, created_at)
             VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(video_id) DO UPDATE SET
                 sha256_hash = excluded.sha256_hash,
                 full_text_length = excluded.full_text_length,
-                embedding_row_index = COALESCE(excluded.embedding_row_index, fingerprint_hashes.embedding_row_index),
+                embedding_row_index = COALESCE(
+                    excluded.embedding_row_index,
+                    fingerprint_hashes.embedding_row_index
+                ),
                 created_at = excluded.created_at
             """,
             (video_id, sha256_hash, full_text_length, embedding_row_index, self._now()),

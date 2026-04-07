@@ -212,7 +212,12 @@ def match_comparison_pairs(
         year = title.get("year")
 
         # Skip if any required field is missing
-        if not all([professor, course, week is not None, session is not None, year is not None]):
+        required = [
+            professor, course,
+            week is not None, session is not None,
+            year is not None,
+        ]
+        if not all(required):
             continue
 
         key = (professor, course, week, session)

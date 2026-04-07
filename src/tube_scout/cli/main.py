@@ -15,7 +15,6 @@ from tube_scout.cli.analyze import (
     analyze_transcript_command,
 )
 from tube_scout.cli.auth_cli import auth_command
-from tube_scout.cli.content import content_app
 from tube_scout.cli.collect import (
     collect_all_command,
     collect_analytics_command,
@@ -25,6 +24,7 @@ from tube_scout.cli.collect import (
     collect_transcripts_command,
     collect_videos_command,
 )
+from tube_scout.cli.content import content_app
 from tube_scout.cli.report import (
     report_bundle_command,
     report_channel_command,

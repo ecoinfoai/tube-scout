@@ -5,7 +5,7 @@ educational content quality from caption data and video metadata.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
