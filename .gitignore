@@ -1,6 +1,6 @@
 # Project directories (local only)
-idea/
-specs/
+# idea/
+# specs/
 projects/
 project/
 data/

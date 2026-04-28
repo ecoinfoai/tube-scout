@@ -1,6 +1,6 @@
 # tube-scout Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-07
+Auto-generated from all feature plans. Last updated: 2026-04-28
 
 ## Active Technologies
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, pydantic v2, nbformat, anthropic (new), openai (new), statsmodels (new — ARIMA), prophet (new), transformers + torch (new — KoBERT/KoELECTRA) (002-v2-analytics-expansion)
@@ -13,6 +13,7 @@ Auto-generated from all feature plans. Last updated: 2026-04-07
 - JSON (atomic write) + Parquet (polars), checkpoint JSON (005-oauth-ratelimit-gpu)
 - Python 3.11 + typer, rich, jinja2, weasyprint (optional), pydantic v2, plotly (006-report-filter-pdf-bundle)
 - JSON (videos_meta.json, parsed_titles.json, channel_meta.json) — 기존 수집 데이터 사용 (006-report-filter-pdf-bundle)
+- Python 3.11 (`pyproject.toml` `requires-python = ">=3.11"`) (008-admin-web-ui)
 
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, statsmodels/prophet (001-lecture-video-analytics)
 
@@ -32,9 +33,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 008-admin-web-ui: Added Python 3.11 (`pyproject.toml` `requires-python = ">=3.11"`)
 - 006-report-filter-pdf-bundle: Added Python 3.11 + typer, rich, jinja2, weasyprint (optional), pydantic v2, plotly
 - 005-oauth-ratelimit-gpu: Added Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pydantic v2, transformers, torch
-- 004-report-filter-pdf-bundle: Added Python 3.11 + typer, rich, jinja2, weasyprint, pydantic v2, plotly (static image export)
 
 
 <!-- MANUAL ADDITIONS START -->
