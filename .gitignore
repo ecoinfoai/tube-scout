@@ -62,6 +62,16 @@ Thumbs.db
 .mypy_cache/
 .pytest_cache/
 
+# Coverage
+coverage.xml
+htmlcov/
+.coverage
+
+# Admin web UI runtime (008)
+admin.db
+*.db-wal
+*.db-shm
+
 # Reports (generated)
 *.html
 !**/templates/*.html
