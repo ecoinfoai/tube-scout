@@ -33,6 +33,7 @@ REQUIRED_CODES = [
     "pipeline.quota_exceeded",
     "pipeline.no_videos",
     "pipeline.internal",
+    "pipeline.not_integrated",
     "files.missing",
     "files.unknown_kind",
     "files.traversal",
