@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}분석 시작 — Tube Scout 운영 콘솔{% endblock %}
+{% block content %}
+<section class="form-card">
+  <h2>분석 시작</h2>
+  {% if error_message_kr %}
+  <p class="form-error" role="alert">{{ error_message_kr }}</p>
+  {% endif %}
+  <form method="post" action="/jobs" class="job-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>
+      <span>학과</span>
+      <select name="department_alias" required>
+        {% for dept in departments %}
+        <option value="{{ dept.alias }}"
+          {% if form.department_alias == dept.alias %}selected{% endif %}>
+          {{ dept.display_name }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>교수명</span>
+      <input type="text" name="professor_name" required minlength="1" maxlength="32"
+        value="{{ form.professor_name or '' }}">
+    </label>
+    <label>
+      <span>과목명</span>
+      <input type="text" name="course_name" required minlength="1" maxlength="64"
+        value="{{ form.course_name or '' }}">
+    </label>
+    <label>
+      <span>기간 시작</span>
+      <input type="date" name="period_start" required value="{{ form.period_start or '' }}">
+    </label>
+    <label>
+      <span>기간 종료</span>
+      <input type="date" name="period_end" required value="{{ form.period_end or '' }}">
+    </label>
+    <button type="submit">분석 시작</button>
+  </form>
+</section>
+{% endblock %}

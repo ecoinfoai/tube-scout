@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}분석 진행 중 — Tube Scout 운영 콘솔{% endblock %}
+{% block content %}
+<section class="progress-card" data-job-id="{{ job_id }}">
+  <h2>분석 진행 중</h2>
+  <p>학과: {{ job.department_alias }} · 교수: {{ job.professor_name }} · 과목: {{ job.course_name }}</p>
+  <p>기간: {{ job.period_start }} ~ {{ job.period_end }}</p>
+  <p>현재 단계: <span id="stage-label">{{ stage_label_kr or '대기 중' }}</span></p>
+  <div class="progress-bar"><div class="progress-bar-fill" id="progress-fill" style="width: {{ percent }}%"></div></div>
+  <p><span id="processed-count">{{ job.processed_count }}</span> / <span id="total-count">{{ job.total_count }}</span></p>
+  <p class="alert-info" id="status-message" hidden></p>
+  <noscript>
+    <p class="alert-warn">자바스크립트가 비활성화되어 자동 갱신이 동작하지 않습니다. 페이지를 새로고침하세요.</p>
+  </noscript>
+</section>
+<script src="/static/js/progress.js" defer></script>
+{% endblock %}

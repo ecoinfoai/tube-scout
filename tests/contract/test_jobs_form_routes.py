@@ -59,9 +59,8 @@ def jobs_env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
 def _build_client(app) -> AsyncClient:
     return AsyncClient(
         transport=ASGITransport(app=app),
-        base_url="http://test",
+        base_url="https://test",
         follow_redirects=False,
-        headers={"X-Forwarded-Proto": "https"},
     )
 
 
