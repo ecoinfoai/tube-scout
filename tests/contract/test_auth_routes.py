@@ -41,12 +41,18 @@ def auth_env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> str:
 
 
 def _build_client(app) -> AsyncClient:
+    """Use ``https://test`` so the cookie jar respects ``Secure`` cookies.
+
+    Production terminates TLS at the reverse proxy, so the session cookie is
+    always set with ``Secure``. httpx's RFC 6265 jar refuses to attach a
+    ``Secure`` cookie to an ``http://`` URL — using https here mirrors the
+    real browser flow without needing an X-Forwarded-Proto wedge.
+    """
     transport = ASGITransport(app=app)
     return AsyncClient(
         transport=transport,
-        base_url="http://test",
+        base_url="https://test",
         follow_redirects=False,
-        headers={"X-Forwarded-Proto": "https"},
     )
 
 

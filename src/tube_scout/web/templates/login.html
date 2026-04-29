@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}로그인 — Tube Scout 운영 콘솔{% endblock %}
+{% block content %}
+<section class="login-card">
+  <h2>운영자 로그인</h2>
+  {% if error_message_kr %}
+  <p class="form-error" role="alert">{{ error_message_kr }}</p>
+  {% endif %}
+  <form method="post" action="/login" class="login-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+    <label>
+      <span>아이디</span>
+      <input type="text" name="username" required minlength="1" maxlength="128" autocomplete="username">
+    </label>
+    <label>
+      <span>비밀번호</span>
+      <input type="password" name="password" required minlength="1" maxlength="128" autocomplete="current-password">
+    </label>
+    <button type="submit">로그인</button>
+  </form>
+</section>
+{% endblock %}
