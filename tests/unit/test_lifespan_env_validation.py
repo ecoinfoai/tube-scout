@@ -16,7 +16,6 @@ from __future__ import annotations
 import bcrypt
 import pytest
 
-
 REQUIRED_ENVS = [
     "TUBE_SCOUT_ADMIN_USERNAME",
     "TUBE_SCOUT_ADMIN_PASSWORD_BCRYPT",

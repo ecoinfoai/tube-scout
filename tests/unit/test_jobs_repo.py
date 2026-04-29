@@ -116,7 +116,9 @@ def test_monotonic_stage_transitions_no_backwards(state_dir: Path) -> None:
     repo.transition_to("20260428-153022", status="running", current_stage="transcripts")
 
     with pytest.raises(jobs_repo.StageRegressionError):
-        repo.transition_to("20260428-153022", status="running", current_stage="metadata")
+        repo.transition_to(
+            "20260428-153022", status="running", current_stage="metadata"
+        )
 
 
 def test_processed_le_total_constraint(state_dir: Path) -> None:
@@ -162,7 +164,9 @@ def test_list_history_filters_by_status(state_dir: Path) -> None:
     repo.insert_pending(_job_payload(job_id="20260428-100000"))
     repo.transition_to("20260428-100000", status="completed", current_stage="done")
     repo.insert_pending(_job_payload(job_id="20260428-110000"))
-    only_completed = repo.list_history(filters={"status": ["completed"]}, limit=10, offset=0)
+    only_completed = repo.list_history(
+        filters={"status": ["completed"]}, limit=10, offset=0
+    )
     assert [j.job_id for j in only_completed] == ["20260428-100000"]
 
 
