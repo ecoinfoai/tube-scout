@@ -166,6 +166,7 @@ def _load_parsed_titles(
     Returns:
         List of ParsedTitle objects.
     """
+    from tube_scout.cli.errors import UserFacingError
     from tube_scout.models.parsed_title import ParsedTitle
     from tube_scout.output.manager import OutputManager
 
@@ -173,12 +174,32 @@ def _load_parsed_titles(
     mgr = OutputManager(base_dir=base)
     latest = mgr.get_latest()
     if latest is None:
-        return []
+        # idea6 ADR-IDEA6-008 / FR-IDEA6-010 / SILENT-5 fix:
+        # Returning [] silently was the D-1 + D-2 dead-end the operator
+        # hit during the 2026-04-29 quickstart. Surface an actionable hint.
+        alias_hint = channel if channel else "<alias>"
+        raise UserFacingError(
+            message=(
+                "No `latest` output directory found. The collect step has "
+                "not produced any artifacts yet."
+            ),
+            next_command=f"tube-scout collect videos --channel {alias_hint}",
+        )
 
     # Look for parsed titles in the latest output
     parsed_dir = latest / "parsed"
     if not parsed_dir.exists():
-        return []
+        # idea6 ADR-IDEA6-008 / FR-IDEA6-010 / SILENT-6 fix.
+        alias_hint = channel if channel else "<alias>"
+        raise UserFacingError(
+            message=(
+                f"parsed_titles.json directory missing: {parsed_dir}. "
+                "Title parsing has not run for this collection yet."
+            ),
+            next_command=(
+                f"tube-scout analyze parse-titles --channel {alias_hint}"
+            ),
+        )
 
     results = []
     for json_file in parsed_dir.rglob("parsed_titles.json"):
