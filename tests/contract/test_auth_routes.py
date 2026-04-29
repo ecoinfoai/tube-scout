@@ -314,6 +314,36 @@ async def test_post_login_next_backslash_open_redirect_blocked(
         )
 
 
+def test_post_login_username_compare_uses_constant_time(
+    auth_env: str,
+) -> None:
+    """ADV-US1-79 grep guard: username equality must use hmac.compare_digest.
+
+    Timing-attack regression lock-in (QA-recommended). The actual timing
+    measurement is non-deterministic, but a static grep on the source
+    guarantees a refactor that drops constant-time compare cannot land
+    silently.
+    """
+    from pathlib import Path
+
+    auth_src = Path(
+        "src/tube_scout/web/routes/auth.py"
+    ).read_text(encoding="utf-8")
+    # post_login MUST compare username with hmac.compare_digest.
+    assert "hmac.compare_digest" in auth_src, (
+        "post_login lost hmac.compare_digest — username comparison is no "
+        "longer constant-time"
+    )
+    # Both sides MUST be encoded bytes (consistent across implementations).
+    assert "username.encode" in auth_src and "expected_username.encode" in auth_src, (
+        "post_login no longer encodes both operands before compare_digest"
+    )
+    # Bare equality MUST NOT have crept back in.
+    assert "username == expected_username" not in auth_src, (
+        "post_login regressed to '==' username comparison (timing leak)"
+    )
+
+
 def test_login_template_does_not_use_safe_filter_on_next_url(
     auth_env: str,
 ) -> None:
