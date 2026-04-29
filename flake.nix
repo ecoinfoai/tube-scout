@@ -1,13 +1,29 @@
 {
-  description = "tube-scout – YouTube lecture video analytics CLI";
+  description = "tube-scout – YouTube lecture video analytics CLI + admin web UI";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    agenix = {
+      url = "github:ryantm/agenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs = { self, nixpkgs, flake-utils, agenix, ... }:
+    let
+      # NixOS module: services.tube-scout-admin-web.{enable,package,...}.
+      # Consumers must `imports = [ inputs.tube-scout.nixosModules.default
+      # inputs.agenix.nixosModules.default ];` and supply their own
+      # `services.tube-scout-admin-web.package` derivation (uv2nix etc.).
+      adminWebModule = import ./nix/module.nix;
+    in
+    {
+      nixosModules = {
+        default = adminWebModule;
+        tube-scout-admin-web = adminWebModule;
+      };
+    } // flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
       in
@@ -28,6 +44,9 @@
 
             # Build tools
             pkg-config
+
+            # agenix CLI for editing department/shared *.age files
+            agenix.packages.${system}.default
           ];
 
           shellHook = ''
