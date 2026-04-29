@@ -223,7 +223,17 @@ async def post_jobs(request: Request) -> Response:
             job_id, department_alias=normalized["department_alias"]
         )
     except RuntimeError as exc:
+        # ADV-US2-21: spawn failure must transition the inserted job to
+        # ``failed`` so the operator sees the Korean error and the row
+        # does not stick around as a stuck pending forever.
         LOGGER.exception("runner.spawn failed for job %s: %s", job_id, exc)
+        repo.transition_to(
+            job_id,
+            status="failed",
+            error_code="pipeline.runner_unavailable",
+            error_detail=str(exc),
+            completed_at=datetime.now(timezone.utc).isoformat(),
+        )
 
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
 
@@ -372,7 +382,16 @@ async def post_retry(request: Request) -> Response:
             resume_from=original_id,
         )
     except RuntimeError as exc:
+        # ADV-US2-21: spawn failure on retry must also flip the new job
+        # to ``failed`` (mirror of post_jobs).
         LOGGER.exception("runner.spawn failed for retry %s: %s", new_id, exc)
+        repo.transition_to(
+            new_id,
+            status="failed",
+            error_code="pipeline.runner_unavailable",
+            error_detail=str(exc),
+            completed_at=datetime.now(timezone.utc).isoformat(),
+        )
 
     return RedirectResponse(url=f"/jobs/{new_id}", status_code=303)
 

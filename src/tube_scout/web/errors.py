@@ -36,6 +36,9 @@ USER_MESSAGES: dict[str, str] = {
     ),
     "pipeline.no_videos": "조건에 맞는 영상이 없습니다.",
     "pipeline.internal": "분석 중 내부 오류가 발생했습니다 — 운영자에게 문의하세요.",
+    "pipeline.runner_unavailable": (
+        "백그라운드 실행기를 사용할 수 없습니다 — 운영자에게 문의하세요."
+    ),
     # files.* (GET /jobs/{id}/files/{kind})
     "files.missing": "파일을 찾을 수 없습니다 — 재실행이 필요합니다.",
     "files.unknown_kind": "요청한 파일 형식을 처리할 수 없습니다.",
