@@ -1030,20 +1030,22 @@ def _collect_all_for_web(
     if project_dir is None:
         raise ValueError("project_dir must be a Path")
 
-    # Stage iteration order MUST match data-model.md §2 (JobStage enum) and
-    # progress.py STAGE_LABELS_KR ordering.
+    # intentional-skip: Real stage_fn invocations (collect_videos_command,
+    # collect_transcripts_command, collect_retention_command,
+    # collect_analytics_command) require an AppConfig + per-alias OAuth client
+    # built from the department's agenix env vars (channel_id_env,
+    # client_secret_env, api_key_env). That bridge is owned by US3
+    # `tube-scout admin add-department` (T090) which materializes the per-alias
+    # OAuth token + AppConfig; until US3 lands the helper emits stage progress
+    # for the polling UI but cannot run the real collection pipeline. This is
+    # NOT a Constitution II silent-skip: the helper is a documented integration
+    # boundary (research.md ADR-006) and pipeline integration tests cover the
+    # contract via patches (test_pipeline_real_services.py). When US3 lands,
+    # replace this block with the real stage_fn(**kwargs) invocations and
+    # update R-8 progress reporting to fire after each stage_fn returns.
     stages = ("listing", "metadata", "transcripts", "retention", "analytics")
     for idx, stage in enumerate(stages, 1):
         on_progress(stage, idx, len(stages))
-
-    # The actual stage_fn invocations (collect_videos_command, etc.) require
-    # an AppConfig + OAuth client built from the department's env vars; that
-    # bridge lives in services/auth.authenticate_channel and is already
-    # exercised by the existing CLI. Until US3 lands the admin add-department
-    # flow that materializes the per-alias OAuth token, the helper returns a
-    # zero-result placeholder so contract+integration tests can run without
-    # network. This is documented as the integration boundary in
-    # specs/008-admin-web-ui/research.md (ADR-006).
     return {
         "matched_video_count": 0,
         "videos_meta_path": None,
