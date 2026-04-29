@@ -5,6 +5,28 @@ from pathlib import Path
 import pytest
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add ``--run-manual`` opt-in for tests/manual/* (FR-IDEA6-009)."""
+    parser.addoption(
+        "--run-manual",
+        action="store_true",
+        default=False,
+        help="Collect tests/manual/* (require live OAuth credentials).",
+    )
+
+
+def pytest_collection_modifyitems(  # type: ignore[no-untyped-def]
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Skip tests under ``tests/manual/`` unless ``--run-manual`` is set."""
+    if config.getoption("--run-manual"):
+        return
+    skip_manual = pytest.mark.skip(reason="needs --run-manual (FR-IDEA6-009)")
+    for item in items:
+        if "tests/manual" in str(item.fspath):
+            item.add_marker(skip_manual)
+
+
 @pytest.fixture
 def tmp_data_dir(tmp_path: Path) -> Path:
     """Create a temporary data directory structure for tests."""
