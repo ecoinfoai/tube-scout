@@ -868,11 +868,32 @@ def analyze_all_command(
         ),
     ]
 
+    from tube_scout.cli.errors import UserFacingError, render_error
+
     for i, (name, fn) in enumerate(steps, 1):
         console.print(f"\n[bold cyan]Step {i}/{len(steps)}: {name}...[/bold cyan]")
         try:
             fn()
-        except SystemExit:
-            pass
+        except SystemExit as exc:
+            # idea6 ADR-IDEA6-008 / FR-IDEA6-010 / SILENT-4 fix:
+            # SystemExit code != 0 means a downstream stage signalled
+            # failure. Surface it through ActionableError + non-zero exit
+            # rather than absorbing and reporting "Analysis pipeline complete".
+            code = getattr(exc, "code", 0)
+            if code:
+                err = UserFacingError(
+                    message=(
+                        f"Analysis stage {i}/{len(steps)} '{name}' failed "
+                        f"(exit_code={code}). Pipeline aborted; subsequent "
+                        "stages were not run."
+                    ),
+                    next_command=(
+                        "Inspect the error above and re-run the failing stage "
+                        "individually, e.g. `tube-scout analyze "
+                        f"{name.lower().split()[0]}`"
+                    ),
+                )
+                render_error(err)
+                raise err
 
     console.print("\n[bold green]Analysis pipeline complete.[/bold green]")
