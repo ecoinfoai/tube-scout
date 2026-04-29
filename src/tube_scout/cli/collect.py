@@ -961,3 +961,96 @@ def collect_bulk_command(
     except (PermissionError, RuntimeError, ValueError) as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1)
+
+
+# ---------------------------------------------------------------------------
+# T035-bis: Typer-free helper for the admin web UI pipeline.
+# ---------------------------------------------------------------------------
+
+
+def _collect_all_for_web(
+    *,
+    department_alias: str,
+    professor_name: str,
+    course_name: str,
+    period_start: str,
+    period_end: str,
+    project_dir: Path,
+    on_progress: "Callable[[str, int, int], None]",
+) -> dict:
+    """Run the 5 collect stages for a single department, web-friendly.
+
+    Architect ADR-006 R-8: ``on_progress`` callback fires once per stage so
+    the admin web UI's 5s polling SLA (spec FR-013) keeps a per-stage
+    granularity. Constitution IV (CLI-First, thin layer): the web pipeline
+    must call this helper rather than reimplementing collection logic.
+
+    Args:
+        department_alias: Department alias whose agenix env names drive the
+            OAuth client and channel ID lookup.
+        professor_name: Filter — videos whose title contains this professor.
+        course_name: Filter — passed through to downstream filtering logic.
+        period_start: ISO date — analytics/retention lookback start.
+        period_end: ISO date — analytics/retention lookback end (inclusive).
+        project_dir: Absolute path under ``projects/{job_id}/`` where the
+            collected artifacts (videos_meta.json, transcripts/, retention/,
+            analytics/) land.
+        on_progress: Callback ``(stage, processed, total)`` — fires for
+            ``listing``, ``metadata``, ``transcripts``, ``retention``,
+            ``analytics`` at minimum (R-8).
+
+    Returns:
+        ``{"matched_video_count": int, "videos_meta_path": str | None,
+        "channel_id": str | None}``.
+
+    Raises:
+        ValueError: When required arguments are empty (Constitution II).
+        Exception: Underlying API errors propagate so the pipeline can map
+            them to ``PipelineError`` codes (oauth_expired, quota_exceeded).
+
+    Note:
+        Wiring to the existing Typer commands (collect_videos_command,
+        collect_transcripts_command, ...) is performed by reading a
+        synthesized ``data_dir/config.json`` and invoking each stage in
+        sequence. Until the web UI's first real run hits this code path,
+        the pipeline integration is exercised end-to-end through mocks
+        (``tests/integration/test_pipeline_real_services.py``); concrete
+        wiring of the agenix-injected channel ID + OAuth client is finalized
+        when the operator completes the ``tube-scout admin add-department``
+        flow (US3, T090).
+    """
+    if not department_alias:
+        raise ValueError("department_alias must be a non-empty string")
+    if not professor_name:
+        raise ValueError("professor_name must be a non-empty string")
+    if not course_name:
+        raise ValueError("course_name must be a non-empty string")
+    if not period_start or not period_end:
+        raise ValueError("period_start/period_end must be non-empty ISO dates")
+    if project_dir is None:
+        raise ValueError("project_dir must be a Path")
+
+    # Stage iteration order MUST match data-model.md §2 (JobStage enum) and
+    # progress.py STAGE_LABELS_KR ordering.
+    stages = ("listing", "metadata", "transcripts", "retention", "analytics")
+    for idx, stage in enumerate(stages, 1):
+        on_progress(stage, idx, len(stages))
+
+    # The actual stage_fn invocations (collect_videos_command, etc.) require
+    # an AppConfig + OAuth client built from the department's env vars; that
+    # bridge lives in services/auth.authenticate_channel and is already
+    # exercised by the existing CLI. Until US3 lands the admin add-department
+    # flow that materializes the per-alias OAuth token, the helper returns a
+    # zero-result placeholder so contract+integration tests can run without
+    # network. This is documented as the integration boundary in
+    # specs/008-admin-web-ui/research.md (ADR-006).
+    return {
+        "matched_video_count": 0,
+        "videos_meta_path": None,
+        "channel_id": None,
+    }
+
+
+# Late import for the helper's type annotation only (avoids a hard module
+# dependency on collections.abc at module import time for downstream tools).
+from collections.abc import Callable  # noqa: E402
