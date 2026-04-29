@@ -63,6 +63,11 @@ app.add_typer(analyze_app, name="analyze")
 app.add_typer(report_app, name="report")
 app.add_typer(calendar_app, name="calendar")
 
+# T089: register admin subcommand group (US3 admin CLI).
+from tube_scout.cli.admin import admin_app  # noqa: E402
+
+app.add_typer(admin_app, name="admin")
+
 # Register collect subcommands
 collect_app.command(name="videos")(collect_videos_command)
 collect_app.command(name="retention")(collect_retention_command)
