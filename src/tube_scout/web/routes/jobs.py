@@ -22,17 +22,17 @@ from __future__ import annotations
 
 import hmac
 import logging
-from datetime import date, datetime, timezone
-from typing import Iterable
+from collections.abc import Iterable
+from datetime import UTC, date, datetime
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from tube_scout.web.errors import to_user_message
 from tube_scout.web.jobs.progress import serialize, stage_label_kr
-from tube_scout.web.jobs.runner import DepartmentBusyError, JobRunner
+from tube_scout.web.jobs.runner import JobRunner
 from tube_scout.web.models import (
     CourseNameStr,
     JobIdStr,
@@ -41,7 +41,6 @@ from tube_scout.web.models import (
 from tube_scout.web.repo import jobs_repo
 from tube_scout.web.repo.departments_repo import DepartmentsRepo
 from tube_scout.web.routes._templating import render_template
-from pydantic import TypeAdapter, ValidationError
 
 LOGGER = logging.getLogger("tube_scout.web.routes.jobs")
 
@@ -67,7 +66,7 @@ def _csrf_token(request: Request) -> str:
 
 def _next_job_id(repo: jobs_repo.JobsRepo, *, base: datetime | None = None) -> str:
     """Mint a ``YYYYMMDD-HHMMSS[-N]`` job_id, suffixing N on collision."""
-    base_dt = base or datetime.now(timezone.utc)
+    base_dt = base or datetime.now(UTC)
     base_id = base_dt.strftime("%Y%m%d-%H%M%S")
     if repo.find_by_id(base_id) is None:
         return base_id
@@ -200,7 +199,7 @@ async def post_jobs(request: Request) -> Response:
         )
 
     runner: JobRunner = request.app.state.runner
-    started_at = datetime.now(timezone.utc).isoformat()
+    started_at = datetime.now(UTC).isoformat()
     job_id = _next_job_id(repo)
     session = getattr(request.state, "session", None)
     actor = session.username if session is not None else "anonymous"
@@ -219,9 +218,7 @@ async def post_jobs(request: Request) -> Response:
     )
 
     try:
-        runner.spawn(
-            job_id, department_alias=normalized["department_alias"]
-        )
+        runner.spawn(job_id, department_alias=normalized["department_alias"])
     except RuntimeError as exc:
         # ADV-US2-21: spawn failure must transition the inserted job to
         # ``failed`` so the operator sees the Korean error and the row
@@ -232,7 +229,7 @@ async def post_jobs(request: Request) -> Response:
             status="failed",
             error_code="pipeline.runner_unavailable",
             error_detail=str(exc),
-            completed_at=datetime.now(timezone.utc).isoformat(),
+            completed_at=datetime.now(UTC).isoformat(),
         )
 
     return RedirectResponse(url=f"/jobs/{job_id}", status_code=303)
@@ -261,9 +258,7 @@ async def get_job_router(request: Request) -> Response:
         )
 
     if row.status == "completed":
-        return RedirectResponse(
-            url=f"/jobs/{job_id}/results", status_code=303
-        )
+        return RedirectResponse(url=f"/jobs/{job_id}/results", status_code=303)
 
     if row.status in {"failed", "interrupted"}:
         return render_template(
@@ -271,7 +266,9 @@ async def get_job_router(request: Request) -> Response:
             "error.html",
             {
                 "error_message_kr": to_user_message(
-                    f"pipeline.{row.error_code}" if row.error_code and "." not in row.error_code else (row.error_code or "pipeline.internal")
+                    f"pipeline.{row.error_code}"
+                    if row.error_code and "." not in row.error_code
+                    else (row.error_code or "pipeline.internal")
                 ),
                 "job_id": job_id,
             },
@@ -300,7 +297,10 @@ async def get_progress(request: Request) -> Response:
         snapshot = runner.render_progress(job_id)
     except KeyError:
         return JSONResponse(
-            {"error_code": "job.not_found", "error_message_kr": "요청한 작업을 찾을 수 없습니다."},
+            {
+                "error_code": "job.not_found",
+                "error_message_kr": "요청한 작업을 찾을 수 없습니다.",
+            },
             status_code=404,
         )
     return JSONResponse(serialize(snapshot), status_code=200)
@@ -357,7 +357,7 @@ async def post_retry(request: Request) -> Response:
         )
 
     runner: JobRunner = request.app.state.runner
-    started_at = datetime.now(timezone.utc).isoformat()
+    started_at = datetime.now(UTC).isoformat()
     new_id = _next_job_id(repo)
     session = getattr(request.state, "session", None)
     actor = session.username if session is not None else "anonymous"
@@ -390,7 +390,7 @@ async def post_retry(request: Request) -> Response:
             status="failed",
             error_code="pipeline.runner_unavailable",
             error_detail=str(exc),
-            completed_at=datetime.now(timezone.utc).isoformat(),
+            completed_at=datetime.now(UTC).isoformat(),
         )
 
     return RedirectResponse(url=f"/jobs/{new_id}", status_code=303)

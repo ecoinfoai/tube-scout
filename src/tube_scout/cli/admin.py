@@ -27,8 +27,7 @@ import json
 import logging
 import os
 import re
-import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -76,16 +75,12 @@ def _run_oauth_consent(alias: str) -> None:
 
 def _refresh_token(alias: str) -> None:
     """Refresh the OAuth token for ``alias``."""
-    raise NotImplementedError(
-        "token refresh integration pending — patched in tests"
-    )
+    raise NotImplementedError("token refresh integration pending — patched in tests")
 
 
 def _youtube_api_probe(alias: str, channel_id: str) -> dict:
     """Probe ``channels.list`` once to confirm the alias is healthy."""
-    raise NotImplementedError(
-        "YouTube API probe pending — patched in tests"
-    )
+    raise NotImplementedError("YouTube API probe pending — patched in tests")
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +106,9 @@ def _real_uid_actor() -> str:
         return f"uid-{os.geteuid()}"
 
 
-def _record(action: str, *, target_alias: str | None, result: str, detail: str | None = None) -> None:
+def _record(
+    action: str, *, target_alias: str | None, result: str, detail: str | None = None
+) -> None:
     from tube_scout.web.repo import operator_actions_repo
 
     repo = operator_actions_repo.OperatorActionsRepo()
@@ -197,8 +194,8 @@ def _expiry_status(token: dict | None) -> tuple[str, int | None]:
     except ValueError:
         return ("missing", None)
     if expiry.tzinfo is None:
-        expiry = expiry.replace(tzinfo=timezone.utc)
-    delta = expiry - datetime.now(timezone.utc)
+        expiry = expiry.replace(tzinfo=UTC)
+    delta = expiry - datetime.now(UTC)
     days = int(delta.total_seconds() // 86400)
     if delta.total_seconds() < 0:
         return ("expired", days)
@@ -220,8 +217,12 @@ def _check_envs_present(*names: str) -> list[str]:
 def add_department(
     alias: str = typer.Option(..., "--alias", help="학과 alias (영문 + 숫자 + 하이픈)"),
     display: str = typer.Option(..., "--display", help="한국어 표시명 (1~32자)"),
-    channel_id_env: str = typer.Option(..., "--channel-id-env", help="agenix 환경변수명"),
-    client_secret_env: str = typer.Option(..., "--client-secret-env", help="agenix 환경변수명"),
+    channel_id_env: str = typer.Option(
+        ..., "--channel-id-env", help="agenix 환경변수명"
+    ),
+    client_secret_env: str = typer.Option(
+        ..., "--client-secret-env", help="agenix 환경변수명"
+    ),
     api_key_env: str = typer.Option(..., "--api-key-env", help="agenix 환경변수명"),
     no_oauth_consent: bool = typer.Option(
         False, "--no-oauth-consent", help="OAuth 동의 흐름 건너뛰기"
@@ -281,19 +282,26 @@ def add_department(
                 "channel_id_env": channel_id_env,
                 "client_secret_env": client_secret_env,
                 "api_key_env": api_key_env,
-                "registered_at": datetime.now(timezone.utc).isoformat(),
+                "registered_at": datetime.now(UTC).isoformat(),
             }
         )
     except DuplicateAliasError:
         err_console.print(f"[red]이미 등록된 학과 alias입니다: {alias}[/red]")
-        _record("add_department", target_alias=alias, result="failure", detail="duplicate alias")
+        _record(
+            "add_department",
+            target_alias=alias,
+            result="failure",
+            detail="duplicate alias",
+        )
         raise typer.Exit(code=1)
     except ValidationError as exc:
         err_console.print(
-            f"[red]학과 입력값이 올바르지 않습니다 (alias 또는 display 형식 확인).[/red]"
+            "[red]학과 입력값이 올바르지 않습니다 (alias 또는 display 형식 확인).[/red]"
         )
         LOGGER.exception("validation failure: %s", exc)
-        _record("add_department", target_alias=alias, result="failure", detail="validation")
+        _record(
+            "add_department", target_alias=alias, result="failure", detail="validation"
+        )
         raise typer.Exit(code=1)
 
     if not no_oauth_consent:
@@ -302,7 +310,9 @@ def add_department(
             _record("oauth_consent", target_alias=alias, result="success")
         except Exception as exc:
             err_console.print(f"[red]OAuth 동의 실패: {exc}[/red]")
-            _record("oauth_consent", target_alias=alias, result="failure", detail=str(exc))
+            _record(
+                "oauth_consent", target_alias=alias, result="failure", detail=str(exc)
+            )
             raise typer.Exit(code=1)
 
     _record("add_department", target_alias=alias, result="success")
@@ -346,7 +356,9 @@ def list_departments(
     table.add_column("display_name")
     table.add_column("last_used_at")
     for d in rows:
-        last = d.last_used_at.isoformat() if d.last_used_at is not None else "(이력 없음)"
+        last = (
+            d.last_used_at.isoformat() if d.last_used_at is not None else "(이력 없음)"
+        )
         table.add_row(d.alias, d.display_name, last)
     console.print(table)
 
@@ -393,7 +405,7 @@ def _write_status_log_line(rows: list[dict[str, Any]]) -> None:
                 fh.write(
                     json.dumps(
                         {
-                            "ts": datetime.now(timezone.utc).isoformat(),
+                            "ts": datetime.now(UTC).isoformat(),
                             "alias": row["alias"],
                             "token_status": row["token_status"],
                             "days_remaining": row["days_remaining"],
@@ -468,7 +480,12 @@ def refresh(
     dept = DepartmentsRepo().find_by_alias(alias)
     if dept is None:
         err_console.print(f"[red]등록되지 않은 학과 alias입니다: {alias}[/red]")
-        _record("token_refresh", target_alias=alias, result="failure", detail="unknown alias")
+        _record(
+            "token_refresh",
+            target_alias=alias,
+            result="failure",
+            detail="unknown alias",
+        )
         raise typer.Exit(code=1)
 
     token = _read_token(alias)
@@ -520,7 +537,12 @@ def verify(alias: str = typer.Argument(..., help="학과 alias")) -> None:
         err_console.print(
             f"[red][✗] 환경변수 {missing[0]}가 정의되어 있지 않습니다.[/red]"
         )
-        _record("verify", target_alias=alias, result="failure", detail=f"missing env: {missing[0]}")
+        _record(
+            "verify",
+            target_alias=alias,
+            result="failure",
+            detail=f"missing env: {missing[0]}",
+        )
         raise typer.Exit(code=1)
     console.print("  [green][✓] 환경변수 채널 ID[/green]")
     console.print("  [green][✓] 환경변수 클라이언트 시크릿[/green]")
@@ -536,7 +558,12 @@ def verify(alias: str = typer.Argument(..., help="학과 alias")) -> None:
     token_status, _ = _expiry_status(token)
     if token_status != "valid" and token_status != "near_expiry":
         err_console.print(f"[red][✗] access token 무효 ({token_status})[/red]")
-        _record("verify", target_alias=alias, result="failure", detail=f"token={token_status}")
+        _record(
+            "verify",
+            target_alias=alias,
+            result="failure",
+            detail=f"token={token_status}",
+        )
         raise typer.Exit(code=1)
     console.print("  [green][✓] access token 유효[/green]")
 
@@ -554,8 +581,9 @@ def verify(alias: str = typer.Argument(..., help="학과 alias")) -> None:
         _record("verify", target_alias=alias, result="failure", detail=err_msg)
         raise typer.Exit(code=1)
 
+    channel_name = info.get("channel_name", "unknown")
     console.print(
-        f"  [green][✓] YouTube API 호출 성공 (채널: {info.get('channel_name', 'unknown')})[/green]"
+        f"  [green][✓] YouTube API 호출 성공 (채널: {channel_name})[/green]"
     )
     console.print("[green]완료. 이 학과는 분석에 사용할 준비가 되었습니다.[/green]")
     _record("verify", target_alias=alias, result="success")

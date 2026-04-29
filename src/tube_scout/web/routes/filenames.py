@@ -25,9 +25,7 @@ KIND_EXTENSIONS: Final[dict[str, tuple[str, str]]] = {
 KIND_CONTENT_TYPES: Final[dict[str, str]] = {
     "v1v3-html": "text/html; charset=utf-8",
     "v1v3-pdf": "application/pdf",
-    "v1v3-excel": (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    ),
+    "v1v3-excel": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     "reuse-html": "text/html; charset=utf-8",
     "reuse-excel": (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -100,10 +98,7 @@ def content_disposition(*, slug: str, kind: str) -> str:
     name = f"{slug}_{suffix}.{ext}"
     encoded = urllib.parse.quote(name, safe="")
     ascii_fallback = _ascii_fallback(name).replace('"', "")
-    return (
-        f'{disposition}; filename="{ascii_fallback}"; '
-        f"filename*=UTF-8''{encoded}"
-    )
+    return f"{disposition}; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
 
 
 def content_type_for(kind: str) -> str:

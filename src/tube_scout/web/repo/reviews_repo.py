@@ -28,7 +28,7 @@ class ReviewRow:
     note: str | None
 
     @classmethod
-    def from_sqlite(cls, row: sqlite3.Row) -> "ReviewRow":
+    def from_sqlite(cls, row: sqlite3.Row) -> ReviewRow:
         return cls(
             pair_id=row["pair_id"],
             job_id=row["job_id"],
@@ -123,8 +123,7 @@ class ReviewsRepo:
         conn = self._connect()
         try:
             rows = conn.execute(
-                "SELECT * FROM reuse_review_status WHERE job_id = ? "
-                "ORDER BY pair_id",
+                "SELECT * FROM reuse_review_status WHERE job_id = ? ORDER BY pair_id",
                 (job_id,),
             ).fetchall()
             return [ReviewRow.from_sqlite(r) for r in rows]

@@ -11,9 +11,8 @@ from __future__ import annotations
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import RedirectResponse, Response
+from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp
-
 
 HEALTH_PATH = "/healthz"
 

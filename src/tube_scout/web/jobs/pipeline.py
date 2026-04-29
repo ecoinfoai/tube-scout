@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -156,9 +156,7 @@ async def run(
 
     job_row = jobs_repo.JobsRepo().find_by_id(job_id)
     if job_row is None:
-        raise PipelineError(
-            code="pipeline.internal", detail=f"unknown job_id={job_id}"
-        )
+        raise PipelineError(code="pipeline.internal", detail=f"unknown job_id={job_id}")
 
     if project_dir is None:
         from tube_scout.web.paths import get_state_dir
@@ -247,8 +245,10 @@ async def run(
             "suspicious_pair_count": int(
                 report_payload.get("suspicious_pair_count", suspicious_pair_count)
             ),
-            "priority_summary": report_payload.get("priority_summary", priority_summary),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "priority_summary": report_payload.get(
+                "priority_summary", priority_summary
+            ),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
     )
 

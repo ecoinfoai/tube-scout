@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -64,7 +64,7 @@ def _seed_department() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -125,9 +125,12 @@ async def test_happy_path_7_stages_transition_then_complete(
                 "matched_video_count": 12,
                 "suspicious_pair_count": 2,
                 "priority_summary": {
-                    "critical": 0, "high": 1, "moderate": 1, "normal": 0
+                    "critical": 0,
+                    "high": 1,
+                    "moderate": 1,
+                    "normal": 0,
                 },
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
             }
         )
         return str(result_dir)

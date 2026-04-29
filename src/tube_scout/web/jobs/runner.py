@@ -134,16 +134,10 @@ class JobRunner:
                 "JobRunner.pipeline_fn not set; T035 pipeline must be wired"
             )
         with self.acquire_lock(department_alias):
-            self._repo.transition_to(
-                job_id, status="running", current_stage="listing"
-            )
+            self._repo.transition_to(job_id, status="running", current_stage="listing")
 
-            def _on_progress(
-                stage: str, processed: int, total: int
-            ) -> None:
-                self._repo.transition_to(
-                    job_id, status="running", current_stage=stage
-                )
+            def _on_progress(stage: str, processed: int, total: int) -> None:
+                self._repo.transition_to(job_id, status="running", current_stage=stage)
                 self._repo.update_progress(
                     job_id,
                     processed_count=processed,
@@ -151,7 +145,9 @@ class JobRunner:
                 )
 
             try:
-                result_dir = await self._pipeline_fn(
+                # The pipeline returns the result_dir path; the runner only
+                # owns the state machine, so we discard the return value here.
+                _ = await self._pipeline_fn(
                     job_id,
                     on_progress=_on_progress,
                     resume_from=resume_from,
@@ -231,9 +227,7 @@ class JobRunner:
         if row is None:
             raise KeyError(job_id)
         kr_message = (
-            to_user_message(_progress_code(row.error_code))
-            if row.error_code
-            else None
+            to_user_message(_progress_code(row.error_code)) if row.error_code else None
         )
         return JobProgress(
             job_id=row.job_id,

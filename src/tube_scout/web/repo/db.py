@@ -188,9 +188,7 @@ def bootstrap(path: Path | None = None) -> None:
         with conn:
             for statement in _SCHEMA_STATEMENTS:
                 conn.execute(statement)
-            cursor = conn.execute(
-                "SELECT MAX(version) FROM schema_migrations"
-            )
+            cursor = conn.execute("SELECT MAX(version) FROM schema_migrations")
             current = cursor.fetchone()[0]
             if current is None or current < CURRENT_SCHEMA_VERSION:
                 conn.execute(

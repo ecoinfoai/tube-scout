@@ -35,7 +35,7 @@ class ResultRow:
     generated_at: str
 
     @classmethod
-    def from_sqlite(cls, row: sqlite3.Row) -> "ResultRow":
+    def from_sqlite(cls, row: sqlite3.Row) -> ResultRow:
         return cls(
             job_id=row["job_id"],
             report_v1v3_html=row["report_v1v3_html"],

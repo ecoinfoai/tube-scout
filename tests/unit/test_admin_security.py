@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -70,7 +70,7 @@ def test_read_token_rejects_symlink(env: Path) -> None:
     real.write_text(
         json.dumps(
             {
-                "expires_at": datetime.now(timezone.utc).isoformat(),
+                "expires_at": datetime.now(UTC).isoformat(),
                 "refresh_token": "x",
             }
         ),
@@ -107,7 +107,7 @@ def test_record_uses_real_uid_actor(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     # Defence-in-depth: bare os.environ['USER'] regression banned in
     # the record path itself.
-    assert "os.environ.get(\"USER\"" not in inspect.getsource(admin._record)
+    assert 'os.environ.get("USER"' not in inspect.getsource(admin._record)
 
 
 def test_env_name_pattern_validated(env: Path) -> None:

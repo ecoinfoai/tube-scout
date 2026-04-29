@@ -13,7 +13,7 @@ covered by the per-endpoint contract tests.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -45,7 +45,7 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
     return tmp_path

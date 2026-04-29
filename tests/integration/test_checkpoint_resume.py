@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -36,7 +36,7 @@ def _seed_department() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -54,7 +54,7 @@ def _seed_failed_job(job_id: str = "20260429-090000") -> str:
             "course_name": "해부생리학",
             "period_start": "2026-04-01",
             "period_end": "2026-04-28",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": USERNAME,
         }
     )
@@ -67,7 +67,7 @@ def _seed_failed_job(job_id: str = "20260429-090000") -> str:
         job_id,
         status="failed",
         error_code="oauth_expired",
-        completed_at=datetime.now(timezone.utc).isoformat(),
+        completed_at=datetime.now(UTC).isoformat(),
     )
     return job_id
 
@@ -121,19 +121,27 @@ async def test_retry_passes_resume_from_to_pipeline(resume_env: Path) -> None:
 
     captured: dict[str, str | None] = {"resume_from": "<unset>"}
 
-    async def mock_pipeline(job_id: str, *, on_progress, resume_from=None,
-                              project_dir=None) -> str:
+    async def mock_pipeline(
+        job_id: str, *, on_progress, resume_from=None, project_dir=None
+    ) -> str:
         captured["resume_from"] = resume_from
         # Skip stages 1-4 when resume_from is set (FR-022a).
         if resume_from is None:
-            stages = ["listing", "metadata", "transcripts", "retention",
-                       "analytics", "reuse_detection", "reporting"]
+            stages = [
+                "listing",
+                "metadata",
+                "transcripts",
+                "retention",
+                "analytics",
+                "reuse_detection",
+                "reporting",
+            ]
         else:
             stages = ["analytics", "reuse_detection", "reporting"]
         for idx, stage in enumerate(stages, 1):
             on_progress(stage, idx, len(stages))
             await asyncio.sleep(0)
-        result_dir = (resume_env / "state" / "projects" / job_id)
+        result_dir = resume_env / "state" / "projects" / job_id
         result_dir.mkdir(parents=True, exist_ok=True)
         results_repo.ResultsRepo().insert_result(
             {
@@ -145,8 +153,13 @@ async def test_retry_passes_resume_from_to_pipeline(resume_env: Path) -> None:
                 "report_reuse_excel": str(result_dir / "reuse.xlsx"),
                 "matched_video_count": 1,
                 "suspicious_pair_count": 0,
-                "priority_summary": {"critical": 0, "high": 0, "moderate": 0, "normal": 0},
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "priority_summary": {
+                    "critical": 0,
+                    "high": 0,
+                    "moderate": 0,
+                    "normal": 0,
+                },
+                "generated_at": datetime.now(UTC).isoformat(),
             }
         )
         return str(result_dir)
@@ -195,11 +208,19 @@ async def test_retry_resumed_run_is_faster(resume_env: Path) -> None:
     fresh_stages: list[str] = []
     resumed_stages: list[str] = []
 
-    async def mock_pipeline(job_id: str, *, on_progress, resume_from=None,
-                              project_dir=None) -> str:
+    async def mock_pipeline(
+        job_id: str, *, on_progress, resume_from=None, project_dir=None
+    ) -> str:
         if resume_from is None:
-            stages = ["listing", "metadata", "transcripts", "retention",
-                       "analytics", "reuse_detection", "reporting"]
+            stages = [
+                "listing",
+                "metadata",
+                "transcripts",
+                "retention",
+                "analytics",
+                "reuse_detection",
+                "reporting",
+            ]
             for s in stages:
                 on_progress(s, 1, 1)
                 fresh_stages.append(s)
@@ -232,9 +253,7 @@ async def test_retry_resumed_run_is_faster(resume_env: Path) -> None:
             await asyncio.sleep(0.2)
 
             # Trigger the resumed run via /retry.
-            await client.post(
-                f"/jobs/{original_id}/retry", data={"csrf_token": csrf}
-            )
+            await client.post(f"/jobs/{original_id}/retry", data={"csrf_token": csrf})
             await asyncio.sleep(0.2)
 
     assert len(resumed_stages) < len(fresh_stages), (

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -49,7 +49,7 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
     return tmp_path
@@ -58,9 +58,7 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 EXPECTED_MIME = {
     "v1v3-html": "text/html",
     "v1v3-pdf": "application/pdf",
-    "v1v3-excel": (
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    ),
+    "v1v3-excel": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     "reuse-html": "text/html",
     "reuse-excel": (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -74,10 +72,18 @@ async def test_quickstart_scenario_a_end_to_end(env: Path) -> None:
 
     state_dir = env / "state"
 
-    async def mock_pipeline(job_id: str, *, on_progress, resume_from=None,
-                              project_dir=None) -> str:
-        for stage in ["listing", "metadata", "transcripts", "retention",
-                       "analytics", "reuse_detection", "reporting"]:
+    async def mock_pipeline(
+        job_id: str, *, on_progress, resume_from=None, project_dir=None
+    ) -> str:
+        for stage in [
+            "listing",
+            "metadata",
+            "transcripts",
+            "retention",
+            "analytics",
+            "reuse_detection",
+            "reporting",
+        ]:
             on_progress(stage, 1, 1)
             await asyncio.sleep(0)
         result_dir = state_dir / "projects" / job_id
@@ -98,9 +104,12 @@ async def test_quickstart_scenario_a_end_to_end(env: Path) -> None:
                 "matched_video_count": 7,
                 "suspicious_pair_count": 1,
                 "priority_summary": {
-                    "critical": 0, "high": 1, "moderate": 0, "normal": 0
+                    "critical": 0,
+                    "high": 1,
+                    "moderate": 0,
+                    "normal": 0,
                 },
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
             }
         )
         return str(result_dir)

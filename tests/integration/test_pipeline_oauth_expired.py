@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -47,7 +47,7 @@ def _seed() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -87,7 +87,10 @@ async def test_oauth_expired_at_transcripts_stage(env: Path) -> None:
         # Internal env-name + path that MUST NOT leak to user response
         raise PipelineError(
             code="pipeline.oauth_expired",
-            detail="env=TUBE_SCOUT_CLIENT_SECRET_PHYS expired at /home/secrets/token.json",
+            detail=(
+                "env=TUBE_SCOUT_CLIENT_SECRET_PHYS "
+                "expired at /home/secrets/token.json"
+            ),
         )
 
     app = create_app()
@@ -117,7 +120,10 @@ async def test_oauth_expired_at_transcripts_stage(env: Path) -> None:
             else:
                 pytest.fail("job did not transition to failed")
 
-    assert payload["error_code"] == "oauth_expired" or payload["error_code"] == "pipeline.oauth_expired"
+    assert (
+        payload["error_code"] == "oauth_expired"
+        or payload["error_code"] == "pipeline.oauth_expired"
+    )
     assert "인증이 만료" in payload["error_message_kr"]
     body = progress.text
     assert "TUBE_SCOUT_" not in body

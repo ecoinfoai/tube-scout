@@ -77,10 +77,7 @@ class DepartmentsRepo:
             self._cached_rows = []
             return []
         current_mtime = self._path.stat().st_mtime_ns
-        if (
-            self._cached_rows is not None
-            and self._cached_mtime_ns == current_mtime
-        ):
+        if self._cached_rows is not None and self._cached_mtime_ns == current_mtime:
             return list(self._cached_rows)
         rows = self._load_from_disk()
         self._cached_mtime_ns = current_mtime
@@ -144,11 +141,7 @@ class DepartmentsRepo:
 
     def _write_atomic(self, rows: list[Department]) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "departments": [
-                json.loads(d.model_dump_json()) for d in rows
-            ]
-        }
+        payload = {"departments": [json.loads(d.model_dump_json()) for d in rows]}
         # tempfile.NamedTemporaryFile in the same directory so os.replace
         # is a POSIX same-filesystem atomic rename.
         fd, tmp_name = tempfile.mkstemp(

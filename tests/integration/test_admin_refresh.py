@@ -6,7 +6,7 @@ Spec admin-cli.md §4. 4 cases.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -35,7 +35,7 @@ def _seed_dept(alias: str = "physiology") -> None:
             "channel_id_env": f"TUBE_SCOUT_CHANNEL_ID_{alias.upper()}",
             "client_secret_env": f"TUBE_SCOUT_CLIENT_SECRET_{alias.upper()}",
             "api_key_env": f"TUBE_SCOUT_API_KEY_{alias.upper()}",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -43,7 +43,7 @@ def _seed_dept(alias: str = "physiology") -> None:
 def _seed_token(alias: str, days: int, cli_env: Path) -> None:
     tokens_dir = cli_env / "cfg" / "tokens"
     tokens_dir.mkdir(parents=True, exist_ok=True)
-    expiry = datetime.now(timezone.utc) + timedelta(days=days)
+    expiry = datetime.now(UTC) + timedelta(days=days)
     (tokens_dir / f"{alias}_token.json").write_text(
         json.dumps(
             {"expires_at": expiry.isoformat(), "refresh_token": "fake-refresh"},
@@ -116,13 +116,13 @@ def test_refresh_records_failure_on_invalid_grant(
     def boom(*args, **kwargs):
         raise RuntimeError("invalid_grant")
 
-    monkeypatch.setattr(
-        "tube_scout.cli.admin._refresh_token", boom, raising=False
-    )
+    monkeypatch.setattr("tube_scout.cli.admin._refresh_token", boom, raising=False)
 
     result = _invoke(["admin", "refresh", "physiology"])
     assert result.exit_code == 1
 
     actions = operator_actions_repo.OperatorActionsRepo().list_recent(limit=10)
-    fails = [a for a in actions if a.action == "token_refresh" and a.result == "failure"]
+    fails = [
+        a for a in actions if a.action == "token_refresh" and a.result == "failure"
+    ]
     assert fails

@@ -6,7 +6,7 @@ Spec admin-cli.md §2. 3 cases.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -35,7 +35,7 @@ def _seed(alias: str = "physiology") -> None:
             "channel_id_env": f"TUBE_SCOUT_CHANNEL_ID_{alias.upper()}",
             "client_secret_env": f"TUBE_SCOUT_CLIENT_SECRET_{alias.upper()}",
             "api_key_env": f"TUBE_SCOUT_API_KEY_{alias.upper()}",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 

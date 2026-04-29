@@ -53,9 +53,7 @@ async def test_security_headers_present_on_healthz(boot_env: None) -> None:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         async with app.router.lifespan_context(app):
-            resp = await client.get(
-                "/healthz", headers={"X-Forwarded-Proto": "https"}
-            )
+            resp = await client.get("/healthz", headers={"X-Forwarded-Proto": "https"})
     assert resp.headers.get("x-content-type-options") == "nosniff"
     assert resp.headers.get("referrer-policy") == "same-origin"
     assert "max-age" in resp.headers.get("strict-transport-security", "")
@@ -70,9 +68,7 @@ async def test_unauthenticated_request_redirects_to_login(boot_env: None) -> Non
         transport=transport, base_url="http://test", follow_redirects=False
     ) as client:
         async with app.router.lifespan_context(app):
-            resp = await client.get(
-                "/jobs/new", headers={"X-Forwarded-Proto": "https"}
-            )
+            resp = await client.get("/jobs/new", headers={"X-Forwarded-Proto": "https"})
     assert resp.status_code in {302, 303}
     assert "/login" in resp.headers["location"]
 
