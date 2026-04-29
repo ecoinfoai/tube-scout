@@ -87,8 +87,13 @@ async def test_full_login_round_trip_with_bcrypt(login_env: None) -> None:
             authed = await client.get("/jobs/new")
             assert authed.status_code == 200
 
-            # POST /logout → 302 + cleared cookie
-            logout = await client.post("/logout", data={"csrf_token": csrf})
+            # POST /logout requires session-bound CSRF (spec L28).
+            session_csrf = re.search(
+                r'name="csrf_token"\s+value="([0-9a-f]{32})"', authed.text
+            ).group(1)
+            logout = await client.post(
+                "/logout", data={"csrf_token": session_csrf}
+            )
             assert logout.status_code in {302, 303}
             assert "/login" in logout.headers["location"]
             cleared = logout.headers["set-cookie"]

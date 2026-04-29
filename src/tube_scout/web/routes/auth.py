@@ -237,9 +237,32 @@ async def post_login(request: Request) -> Response:
 async def post_logout(request: Request) -> Response:
     """POST /logout — clear the session cookie and redirect to /login.
 
+    Spec ``contracts/http-routes.md`` L28 requires CSRF on POST /logout. The
+    token is verified against the session-bound ``csrf_token`` carried in
+    the signed session cookie (set on ``request.state.session`` by
+    :class:`AuthRequiredMiddleware`). Verification failure returns 400 +
+    Korean message — never a silent success that would leave the operator's
+    session intact.
+
     Writes the Set-Cookie header by hand so ``SameSite=Lax`` casing matches
     ``contracts/http-routes.md`` (see :func:`_build_session_cookie`).
     """
+    import hmac as _hmac
+
+    form = await request.form()
+    submitted = form.get("csrf_token") or ""
+    session = getattr(request.state, "session", None)
+    expected = session.csrf_token if session is not None else ""
+    if not submitted or not expected or not _hmac.compare_digest(
+        submitted, expected
+    ):
+        return _render_login_form(
+            request=request,
+            csrf_token=generate_csrf_token(),
+            next_url=None,
+            error_message_kr=to_user_message("auth.csrf"),
+            status_code=400,
+        )
     response = RedirectResponse(url="/login", status_code=303)
     response.headers.append(
         "set-cookie",
