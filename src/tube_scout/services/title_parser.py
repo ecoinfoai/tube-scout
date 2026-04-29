@@ -437,3 +437,43 @@ class TitleParser:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return output_path
+
+
+def parse_and_save_titles(
+    *,
+    videos: list[dict],
+    project_mgr,  # type: ignore[no-untyped-def]
+    alias: str,
+) -> "Path":
+    """Parse a batch of videos and persist to the canonical project path.
+
+    idea6 ADR-IDEA6-003: a single helper that owns the
+    ``parse_batch + save_results`` pair so every caller (CLI collect,
+    CLI analyze parse-titles, web/jobs/runner) writes to the same
+    location: ``projects/{ts}/02_analyze/{alias}/parsed_titles.json``.
+
+    Args:
+        videos: List of dicts with ``video_id`` and ``title`` keys.
+        project_mgr: A ``ProjectManager`` with an active project
+            (``create_project`` or ``open_project`` already called).
+        alias: User-facing channel alias (Constitution III alias-canonical).
+
+    Returns:
+        Path to the persisted ``parsed_titles.json`` file.
+
+    Raises:
+        ValueError: If ``alias`` is empty.
+    """
+    if not alias:
+        raise ValueError(
+            "parse_and_save_titles requires a non-empty alias "
+            "(Constitution II Fail-Fast; ADR-IDEA6-002 alias-canonical)."
+        )
+    parser = TitleParser()
+    results, _stats = parser.parse_batch(videos)
+    out_path = project_mgr.parsed_titles(alias)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    data = [r.model_dump() for r in results]
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return out_path
