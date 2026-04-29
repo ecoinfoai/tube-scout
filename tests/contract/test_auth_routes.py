@@ -221,7 +221,14 @@ async def test_post_login_missing_csrf_returns_400(auth_env: str) -> None:
 
 
 async def test_post_logout_clears_cookie(auth_env: str) -> None:
-    """POST /logout MUST clear the session cookie and 302 to /login."""
+    """POST /logout MUST clear the session cookie and 302 to /login.
+
+    Spec http-routes.md L28 requires CSRF on POST /logout — the token is
+    bound to the session, so the test fetches the post-login session CSRF
+    from a protected page (``/jobs/new`` form) before posting logout.
+    """
+    import re as _re
+
     from tube_scout.web.app import create_app
 
     app = create_app()
@@ -237,13 +244,39 @@ async def test_post_logout_clears_cookie(auth_env: str) -> None:
                 },
             )
             assert login_resp.status_code in {302, 303}
-            # logout — server must accept either CSRF in form or rely on cookie
+            new_form = await client.get("/jobs/new")
+            assert new_form.status_code == 200
+            session_csrf = _re.search(
+                r'name="csrf_token"\s+value="([0-9a-f]{32})"', new_form.text
+            ).group(1)
             resp = await client.post(
-                "/logout", data={"csrf_token": csrf}
+                "/logout", data={"csrf_token": session_csrf}
             )
     assert resp.status_code in {302, 303}
     assert "/login" in resp.headers["location"]
     cookie_header = resp.headers.get("set-cookie", "")
-    # Cookie cleared via Max-Age=0 or empty value
     assert "session=" in cookie_header
     assert "Max-Age=0" in cookie_header or 'session=""' in cookie_header or "session=;" in cookie_header
+
+
+async def test_post_logout_rejects_missing_csrf(auth_env: str) -> None:
+    """QA-escalated: POST /logout without CSRF MUST reject (400) — spec L28."""
+    from tube_scout.web.app import create_app
+
+    app = create_app()
+    async with _build_client(app) as client:
+        async with app.router.lifespan_context(app):
+            csrf = await _fetch_csrf_token(client)
+            login_resp = await client.post(
+                "/login",
+                data={
+                    "username": USERNAME,
+                    "password": PASSWORD,
+                    "csrf_token": csrf,
+                },
+            )
+            assert login_resp.status_code in {302, 303}
+            # No csrf_token in body
+            resp = await client.post("/logout", data={})
+    assert resp.status_code == 400
+    assert "보안 토큰" in resp.text
