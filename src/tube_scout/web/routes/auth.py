@@ -197,6 +197,17 @@ async def post_login(request: Request) -> Response:
 
     if username and rate_limiter.is_locked(username):
         seconds = rate_limiter.remaining_lock_seconds(username)
+        # ADV-US1-82: a 0-second remaining window means the lock has just
+        # expired in a race — fall back to the generic credentials message
+        # instead of rendering the absurd "0초 후 다시 시도하세요".
+        if seconds <= 0:
+            return _render_login_form(
+                request=request,
+                csrf_token=submitted_csrf or fallback_csrf,
+                next_url=next_url,
+                error_message_kr=to_user_message("auth.bad_credentials"),
+                status_code=200,
+            )
         return _render_login_form(
             request=request,
             csrf_token=submitted_csrf or fallback_csrf,

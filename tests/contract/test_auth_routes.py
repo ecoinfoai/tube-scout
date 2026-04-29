@@ -330,3 +330,64 @@ def test_login_template_does_not_use_safe_filter_on_next_url(
     assert "next_url | safe" not in template
     # Sanity: the value attribute is still present so the form actually carries it.
     assert "{{ next_url }}" in template
+
+
+async def test_post_login_rejects_username_over_128_chars(auth_env: str) -> None:
+    """ADV-US1-85 (P3 hardening): spec L52 ``username 1-128자``.
+
+    A username that exceeds the documented length cap MUST be rejected
+    with the generic bad-credentials message — no internal echo, no
+    differential timing branch.
+    """
+    from tube_scout.web.app import create_app
+
+    app = create_app()
+    async with _build_client(app) as client:
+        async with app.router.lifespan_context(app):
+            csrf = await _fetch_csrf_token(client)
+            resp = await client.post(
+                "/login",
+                data={
+                    "username": "a" * 129,
+                    "password": PASSWORD,
+                    "csrf_token": csrf,
+                },
+            )
+    assert resp.status_code == 200
+    assert "아이디 또는 비밀번호가 올바르지 않습니다." in resp.text
+
+
+async def test_post_login_lock_zero_seconds_falls_back_to_bad_credentials(
+    auth_env: str,
+) -> None:
+    """ADV-US1-82 (P3 UX): never render ``로그인이 잠겼습니다. 0초 후 ...``.
+
+    A race where ``is_locked`` is True but ``remaining_lock_seconds`` is 0
+    must surface the generic credentials message instead of an absurd
+    "0초 후 다시 시도하세요" string.
+    """
+    import time as _time
+
+    from tube_scout.web.app import create_app
+
+    app = create_app()
+    async with _build_client(app) as client:
+        async with app.router.lifespan_context(app):
+            # Forge a lock state with 0 remaining seconds at request time.
+            limiter = app.state.rate_limiter
+            from tube_scout.web.middleware.rate_limit import _Attempt
+
+            limiter._state[USERNAME] = _Attempt(
+                fail_count=5, locked_until=int(_time.time())
+            )
+
+            csrf = await _fetch_csrf_token(client)
+            resp = await client.post(
+                "/login",
+                data={
+                    "username": USERNAME,
+                    "password": "WRONG",
+                    "csrf_token": csrf,
+                },
+            )
+    assert "0초 후" not in resp.text
