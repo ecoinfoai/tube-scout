@@ -87,6 +87,17 @@ async def post_review(request: Request) -> Response:
     existing = repo.find_by_pair(pair_id)
     if existing is None:
         return _kr_error(request, "files.missing", status_code=404)
+    # ADV-US2-22 (IDOR): the pair MUST belong to the job in the URL.
+    # Otherwise the request is an attempt to mutate another job's pair
+    # via this job's session.
+    if existing.job_id != job_id:
+        LOGGER.warning(
+            "rejected pair-job IDOR: pair=%s belongs to job=%s, requested via job=%s",
+            pair_id,
+            existing.job_id,
+            job_id,
+        )
+        return _kr_error(request, "files.missing", status_code=404)
 
     session = getattr(request.state, "session", None)
     actor = session.username if session is not None else None
