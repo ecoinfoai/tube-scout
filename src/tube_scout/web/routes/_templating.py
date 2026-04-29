@@ -53,7 +53,9 @@ def render_template(
     Returns:
         :class:`HTMLResponse` with charset=utf-8 (Korean rendering).
     """
-    env: Environment = getattr(request.app.state, "templates", None) or build_environment()
+    env: Environment = (
+        getattr(request.app.state, "templates", None) or build_environment()
+    )
     template = env.get_template(name)
     body = template.render(**(context or {}))
     return HTMLResponse(content=body, status_code=status_code)

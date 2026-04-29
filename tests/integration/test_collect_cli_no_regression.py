@@ -152,9 +152,7 @@ def test_main_app_registers_collect_subcommands() -> None:
     from tube_scout.cli import main as cli_main
 
     # collect_app is a Typer instance with registered_commands list
-    registered_names = {
-        cmd.name for cmd in cli_main.collect_app.registered_commands
-    }
+    registered_names = {cmd.name for cmd in cli_main.collect_app.registered_commands}
     assert {
         "videos",
         "retention",

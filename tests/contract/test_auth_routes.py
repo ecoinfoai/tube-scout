@@ -69,9 +69,9 @@ async def _fetch_csrf_token(client: AsyncClient) -> str:
     # accept either pattern; the implementation may use either
     import re
 
-    match = re.search(
-        r'name="csrf_token"\s+value="([0-9a-f]{32})"', body
-    ) or re.search(r'name="csrf-token"\s+content="([0-9a-f]{32})"', body)
+    match = re.search(r'name="csrf_token"\s+value="([0-9a-f]{32})"', body) or re.search(
+        r'name="csrf-token"\s+content="([0-9a-f]{32})"', body
+    )
     assert match, "csrf token not found in login form"
     return match.group(1)
 
@@ -137,7 +137,9 @@ async def test_post_login_invalid_credentials_shows_kr_message(auth_env: str) ->
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
     assert "아이디 또는 비밀번호가 올바르지 않습니다." in resp.text
-    assert "set-cookie" not in resp.headers or "session=" not in resp.headers["set-cookie"]
+    assert (
+        "set-cookie" not in resp.headers or "session=" not in resp.headers["set-cookie"]
+    )
 
 
 async def test_post_login_locks_after_5_failures(auth_env: str) -> None:
@@ -249,14 +251,16 @@ async def test_post_logout_clears_cookie(auth_env: str) -> None:
             session_csrf = _re.search(
                 r'name="csrf_token"\s+value="([0-9a-f]{32})"', new_form.text
             ).group(1)
-            resp = await client.post(
-                "/logout", data={"csrf_token": session_csrf}
-            )
+            resp = await client.post("/logout", data={"csrf_token": session_csrf})
     assert resp.status_code in {302, 303}
     assert "/login" in resp.headers["location"]
     cookie_header = resp.headers.get("set-cookie", "")
     assert "session=" in cookie_header
-    assert "Max-Age=0" in cookie_header or 'session=""' in cookie_header or "session=;" in cookie_header
+    assert (
+        "Max-Age=0" in cookie_header
+        or 'session=""' in cookie_header
+        or "session=;" in cookie_header
+    )
 
 
 async def test_post_logout_rejects_missing_csrf(auth_env: str) -> None:
@@ -326,9 +330,7 @@ def test_post_login_username_compare_uses_constant_time(
     """
     from pathlib import Path
 
-    auth_src = Path(
-        "src/tube_scout/web/routes/auth.py"
-    ).read_text(encoding="utf-8")
+    auth_src = Path("src/tube_scout/web/routes/auth.py").read_text(encoding="utf-8")
     # post_login MUST compare username with hmac.compare_digest.
     assert "hmac.compare_digest" in auth_src, (
         "post_login lost hmac.compare_digest — username comparison is no "
@@ -352,9 +354,9 @@ def test_login_template_does_not_use_safe_filter_on_next_url(
     """
     from pathlib import Path
 
-    template = Path(
-        "src/tube_scout/web/templates/login.html"
-    ).read_text(encoding="utf-8")
+    template = Path("src/tube_scout/web/templates/login.html").read_text(
+        encoding="utf-8"
+    )
     # ``next_url`` MUST NOT carry the |safe filter (which would disable autoescape).
     assert "next_url|safe" not in template
     assert "next_url | safe" not in template

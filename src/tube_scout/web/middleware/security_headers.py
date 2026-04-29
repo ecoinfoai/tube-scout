@@ -15,7 +15,6 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-
 HSTS_MAX_AGE_SECONDS = 31_536_000  # 365 days
 
 

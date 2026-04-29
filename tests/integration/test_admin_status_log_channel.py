@@ -8,7 +8,7 @@ log shipper can index it.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -37,7 +37,7 @@ def _seed_dept(alias: str = "physiology") -> None:
             "channel_id_env": f"TUBE_SCOUT_CHANNEL_ID_{alias.upper()}",
             "client_secret_env": f"TUBE_SCOUT_CLIENT_SECRET_{alias.upper()}",
             "api_key_env": f"TUBE_SCOUT_API_KEY_{alias.upper()}",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -45,7 +45,7 @@ def _seed_dept(alias: str = "physiology") -> None:
 def _seed_expired_token(alias: str, cli_env: Path) -> None:
     tokens_dir = cli_env / "cfg" / "tokens"
     tokens_dir.mkdir(parents=True, exist_ok=True)
-    expiry = datetime.now(timezone.utc) - timedelta(days=1)
+    expiry = datetime.now(UTC) - timedelta(days=1)
     (tokens_dir / f"{alias}_token.json").write_text(
         json.dumps(
             {"expires_at": expiry.isoformat(), "refresh_token": "rf"},
@@ -73,7 +73,9 @@ def test_status_writes_structured_log_on_token_expiry(cli_env: Path) -> None:
     log_path = get_log_dir() / "admin-status.log"
     assert log_path.is_file(), f"expected log at {log_path}"
     lines = [
-        line for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()
+        line
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
     ]
     assert lines, "no log lines written"
     last = json.loads(lines[-1])

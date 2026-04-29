@@ -7,7 +7,7 @@ count, alias filter, JSON output, operator action recording.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -36,7 +36,7 @@ def _seed_dept(alias: str) -> None:
             "channel_id_env": f"TUBE_SCOUT_CHANNEL_ID_{alias.upper()}",
             "client_secret_env": f"TUBE_SCOUT_CLIENT_SECRET_{alias.upper()}",
             "api_key_env": f"TUBE_SCOUT_API_KEY_{alias.upper()}",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -45,7 +45,7 @@ def _seed_token(alias: str, expires_in_days: int, cli_env: Path) -> None:
     """Write a fake OAuth token file with an expiry day offset."""
     tokens_dir = cli_env / "cfg" / "tokens"
     tokens_dir.mkdir(parents=True, exist_ok=True)
-    expiry = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+    expiry = datetime.now(UTC) + timedelta(days=expires_in_days)
     (tokens_dir / f"{alias}_token.json").write_text(
         json.dumps(
             {
@@ -94,16 +94,16 @@ def test_status_shows_running_jobs_count(cli_env: Path) -> None:
             "course_name": "해부생리학",
             "period_start": "2026-04-01",
             "period_end": "2026-04-28",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": "ops",
         }
     )
-    repo.transition_to(
-        "20260429-100000", status="running", current_stage="listing"
-    )
+    repo.transition_to("20260429-100000", status="running", current_stage="listing")
     result = _invoke(["admin", "status"])
     assert result.exit_code == 0
-    assert "1" in result.output and ("진행" in result.output or "running" in result.output)
+    assert "1" in result.output and (
+        "진행" in result.output or "running" in result.output
+    )
 
 
 def test_status_alias_filter_returns_single(cli_env: Path) -> None:

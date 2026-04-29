@@ -25,13 +25,12 @@ spec FR-013's 5s polling SLA.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Callable
 from unittest.mock import patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Helpers + fixtures
@@ -69,7 +68,7 @@ def _seed_pending_job(*, job_id: str = "20260429-100000") -> str:
             "course_name": "해부생리학",
             "period_start": "2026-04-01",
             "period_end": "2026-04-28",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": "ops",
         }
     )
@@ -132,13 +131,12 @@ async def test_happy_path_emits_5_collect_stages_and_completes(
             **{k: str(v) for k, v in artifacts.items()},
             "matched_video_count": 5,
             "suspicious_pair_count": 0,
-            "priority_summary": {
-                "critical": 0, "high": 0, "moderate": 0, "normal": 0
-            },
+            "priority_summary": {"critical": 0, "high": 0, "moderate": 0, "normal": 0},
         }
 
-    with patch.object(pipeline, "_collect_all_for_web", fake_helper), patch.object(
-        pipeline, "_run_reporting_stage", fake_bundle_generate
+    with (
+        patch.object(pipeline, "_collect_all_for_web", fake_helper),
+        patch.object(pipeline, "_run_reporting_stage", fake_bundle_generate),
     ):
         result_dir = await pipeline.run(
             job_id, on_progress=on_progress, project_dir=project_dir
@@ -193,24 +191,27 @@ async def test_reuse_detection_module_absent_logs_warn(
             "report_reuse_excel": str(project_dir / "reuse.xlsx"),
             "matched_video_count": 1,
             "suspicious_pair_count": 0,
-            "priority_summary": {
-                "critical": 0, "high": 0, "moderate": 0, "normal": 0
-            },
+            "priority_summary": {"critical": 0, "high": 0, "moderate": 0, "normal": 0},
         }
 
     caplog.set_level(logging.WARNING, logger="tube_scout.web.jobs.pipeline")
 
-    with patch.object(pipeline, "_collect_all_for_web", fake_helper), patch.object(
-        pipeline, "_run_reporting_stage", fake_bundle_generate
-    ), patch.object(pipeline, "_run_reuse_detection_stage", side_effect=ImportError("services.reuse_detection")):
-        await pipeline.run(
-            job_id, on_progress=lambda *a: None, project_dir=project_dir
-        )
+    with (
+        patch.object(pipeline, "_collect_all_for_web", fake_helper),
+        patch.object(pipeline, "_run_reporting_stage", fake_bundle_generate),
+        patch.object(
+            pipeline,
+            "_run_reuse_detection_stage",
+            side_effect=ImportError("services.reuse_detection"),
+        ),
+    ):
+        await pipeline.run(job_id, on_progress=lambda *a: None, project_dir=project_dir)
 
     # WARN log MUST be present — not silent skip
     warn_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
     assert any(
-        "reuse_detection" in m and ("skip" in m.lower() or "absent" in m.lower() or "missing" in m.lower())
+        "reuse_detection" in m
+        and ("skip" in m.lower() or "absent" in m.lower() or "missing" in m.lower())
         for m in warn_messages
     ), f"expected reuse_detection WARN log, got: {warn_messages}"
 
@@ -269,7 +270,9 @@ async def test_quota_exceeded_during_analytics_raises_pipeline_error(
     project_dir.mkdir(parents=True, exist_ok=True)
 
     def failing_helper(*, on_progress, **_kwargs) -> dict:
-        for idx, stage in enumerate(["listing", "metadata", "transcripts", "retention"], 1):
+        for idx, stage in enumerate(
+            ["listing", "metadata", "transcripts", "retention"], 1
+        ):
             on_progress(stage, idx, 5)
         on_progress("analytics", 0, 5)
         raise PipelineError(
@@ -323,13 +326,12 @@ async def test_empty_video_list_completes_with_zero_matches(
             "report_reuse_excel": None,
             "matched_video_count": 0,
             "suspicious_pair_count": 0,
-            "priority_summary": {
-                "critical": 0, "high": 0, "moderate": 0, "normal": 0
-            },
+            "priority_summary": {"critical": 0, "high": 0, "moderate": 0, "normal": 0},
         }
 
-    with patch.object(pipeline, "_collect_all_for_web", empty_helper), patch.object(
-        pipeline, "_run_reporting_stage", empty_reporting
+    with (
+        patch.object(pipeline, "_collect_all_for_web", empty_helper),
+        patch.object(pipeline, "_run_reporting_stage", empty_reporting),
     ):
         result_dir = await pipeline.run(
             job_id, on_progress=lambda *a: None, project_dir=project_dir

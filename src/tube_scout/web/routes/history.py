@@ -7,7 +7,7 @@ filters per spec FR-021/FR-022 + contracts/http-routes.md.
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 from starlette.requests import Request
 from starlette.responses import Response

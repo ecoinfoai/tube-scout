@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-
 _STAGE_LABELS_KR: dict[str, str] = {
     "listing": "영상 목록 수집 중",
     "metadata": "메타데이터 수집 중",

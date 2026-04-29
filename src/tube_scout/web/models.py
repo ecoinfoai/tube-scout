@@ -26,7 +26,6 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints
 
-
 # ---------------------------------------------------------------------------
 # 1. Department
 # ---------------------------------------------------------------------------

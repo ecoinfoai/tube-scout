@@ -8,7 +8,7 @@ Targets ``POST /jobs/{job_id}/reviews/{pair_id}`` per
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -34,7 +34,7 @@ def _seed_department() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -50,7 +50,7 @@ def _seed_job_and_pair() -> None:
             "course_name": "해부생리학",
             "period_start": "2026-04-01",
             "period_end": "2026-04-28",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": USERNAME,
         }
     )
@@ -212,7 +212,7 @@ async def test_review_pair_belonging_to_other_job_rejected(
             "course_name": "다른과목",
             "period_start": "2026-04-01",
             "period_end": "2026-04-28",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": USERNAME,
         }
     )

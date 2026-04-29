@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -45,7 +45,7 @@ def _seed(alias: str, env_prefix: str) -> None:
             "channel_id_env": f"TUBE_SCOUT_CHANNEL_ID_{env_prefix}",
             "client_secret_env": f"TUBE_SCOUT_CLIENT_SECRET_{env_prefix}",
             "api_key_env": f"TUBE_SCOUT_API_KEY_{env_prefix}",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -96,8 +96,14 @@ async def test_two_departments_run_concurrently(env: Path) -> None:
             overlap_event.set()
         # Wait for both to be in-flight at the same time → proves no global lock
         await asyncio.wait_for(overlap_event.wait(), timeout=2.0)
-        for stage in ["metadata", "transcripts", "retention", "analytics",
-                      "reuse_detection", "reporting"]:
+        for stage in [
+            "metadata",
+            "transcripts",
+            "retention",
+            "analytics",
+            "reuse_detection",
+            "reporting",
+        ]:
             on_progress(stage, 1, 1)
             await asyncio.sleep(0)
         result_dir = state_dir / "projects" / job_id
@@ -114,8 +120,13 @@ async def test_two_departments_run_concurrently(env: Path) -> None:
                 "report_reuse_excel": str(result_dir / "reuse.xlsx"),
                 "matched_video_count": 1,
                 "suspicious_pair_count": 0,
-                "priority_summary": {"critical": 0, "high": 0, "moderate": 0, "normal": 0},
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "priority_summary": {
+                    "critical": 0,
+                    "high": 0,
+                    "moderate": 0,
+                    "normal": 0,
+                },
+                "generated_at": datetime.now(UTC).isoformat(),
             }
         )
         barriers[alias].set()

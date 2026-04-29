@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Iterable
+from collections.abc import Iterable
 from urllib.parse import urlsplit
 
 from starlette.requests import Request
@@ -136,9 +136,7 @@ async def get_login(request: Request) -> Response:
     """
     csrf = generate_csrf_token()
     next_url = request.query_params.get("next")
-    response = _render_login_form(
-        request=request, csrf_token=csrf, next_url=next_url
-    )
+    response = _render_login_form(request=request, csrf_token=csrf, next_url=next_url)
     # CSRF cookie: short-lived double-submit guard. We *don't* set Secure on
     # this cookie because (a) the value is also embedded in the form HTML so
     # there is no secrecy to protect, and (b) the production reverse proxy
@@ -249,9 +247,7 @@ async def post_login(request: Request) -> Response:
                     request=request,
                     csrf_token=submitted_csrf or fallback_csrf,
                     next_url=next_url,
-                    error_message_kr=to_user_message(
-                        "auth.locked", seconds=seconds
-                    ),
+                    error_message_kr=to_user_message("auth.locked", seconds=seconds),
                     status_code=403,
                 )
         return _render_login_form(
@@ -290,9 +286,7 @@ async def post_logout(request: Request) -> Response:
     submitted = form.get("csrf_token") or ""
     session = getattr(request.state, "session", None)
     expected = session.csrf_token if session is not None else ""
-    if not submitted or not expected or not _hmac.compare_digest(
-        submitted, expected
-    ):
+    if not submitted or not expected or not _hmac.compare_digest(submitted, expected):
         return _render_login_form(
             request=request,
             csrf_token=generate_csrf_token(),
@@ -303,14 +297,7 @@ async def post_logout(request: Request) -> Response:
     response = RedirectResponse(url="/login", status_code=303)
     response.headers.append(
         "set-cookie",
-        (
-            f"{SESSION_COOKIE_NAME}=; "
-            "Max-Age=0; "
-            "Path=/; "
-            "HttpOnly; "
-            "Secure; "
-            "SameSite=Lax"
-        ),
+        (f"{SESSION_COOKIE_NAME}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax"),
     )
     response.delete_cookie("csrf", path="/")
     return response

@@ -7,7 +7,7 @@ until T072 (history.py) lands and is wired in T080. Spec FR-021 + FR-022.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -31,7 +31,7 @@ def _seed_department(alias: str = DEPT_ALIAS, prefix: str = "PHYS") -> None:
             "channel_id_env": f"TUBE_SCOUT_CHANNEL_ID_{prefix}",
             "client_secret_env": f"TUBE_SCOUT_CLIENT_SECRET_{prefix}",
             "api_key_env": f"TUBE_SCOUT_API_KEY_{prefix}",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -58,7 +58,7 @@ def _seed_jobs() -> list[str]:
                 "course_name": "해부생리학",
                 "period_start": "2026-04-01",
                 "period_end": "2026-04-28",
-                "started_at": datetime.now(timezone.utc).isoformat(),
+                "started_at": datetime.now(UTC).isoformat(),
                 "created_by": USERNAME,
             }
         )

@@ -10,7 +10,7 @@ Spec FR-013 + FR-015 (no internal-path leakage in progress payloads).
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import bcrypt
 import pytest
@@ -33,13 +33,20 @@ def _seed_department() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
 
-def _seed_job(*, status: str, current_stage: str | None, error_code: str | None = None,
-              processed: int = 0, total: int = 0, job_id: str = "20260428-153022") -> str:
+def _seed_job(
+    *,
+    status: str,
+    current_stage: str | None,
+    error_code: str | None = None,
+    processed: int = 0,
+    total: int = 0,
+    job_id: str = "20260428-153022",
+) -> str:
     from tube_scout.web.repo import jobs_repo
 
     repo = jobs_repo.JobsRepo()
@@ -51,7 +58,7 @@ def _seed_job(*, status: str, current_stage: str | None, error_code: str | None 
             "course_name": "해부생리학",
             "period_start": "2026-04-01",
             "period_end": "2026-04-28",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": USERNAME,
         }
     )

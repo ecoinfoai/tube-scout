@@ -11,7 +11,7 @@ Korean filename slug via RFC 5987, traversal protection.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -41,7 +41,7 @@ def _seed_department() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -59,7 +59,7 @@ def _seed_completed_job(state_dir: Path, *, files_present: bool = True) -> Path:
             "course_name": COURSE,
             "period_start": PERIOD_START,
             "period_end": PERIOD_END,
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": USERNAME,
         }
     )
@@ -86,7 +86,7 @@ def _seed_completed_job(state_dir: Path, *, files_present: bool = True) -> Path:
             "matched_video_count": 5,
             "suspicious_pair_count": 1,
             "priority_summary": {"critical": 0, "high": 1, "moderate": 0, "normal": 0},
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
     )
     return result_dir
@@ -233,4 +233,6 @@ async def test_files_all_5_kinds_resolve_for_completed_job(files_env: Path) -> N
             await _login(client)
             for kind in kinds:
                 resp = await client.get(f"/jobs/{JOB_ID}/files/{kind}")
-                assert resp.status_code == 200, f"{kind}: {resp.status_code} {resp.text[:120]}"
+                assert resp.status_code == 200, (
+                    f"{kind}: {resp.status_code} {resp.text[:120]}"
+                )

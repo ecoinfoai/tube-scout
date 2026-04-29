@@ -6,7 +6,7 @@ Spec admin-cli.md §5. 4 cases.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -38,7 +38,7 @@ def _seed_dept() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYSIOLOGY",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYSIOLOGY",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYSIOLOGY",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -46,7 +46,7 @@ def _seed_dept() -> None:
 def _seed_token(days: int, cli_env: Path) -> None:
     tokens_dir = cli_env / "cfg" / "tokens"
     tokens_dir.mkdir(parents=True, exist_ok=True)
-    expiry = datetime.now(timezone.utc) + timedelta(days=days)
+    expiry = datetime.now(UTC) + timedelta(days=days)
     (tokens_dir / "physiology_token.json").write_text(
         json.dumps(
             {"expires_at": expiry.isoformat(), "refresh_token": "rf"},
@@ -106,9 +106,7 @@ def test_verify_api_quota_exceeded_reports_kr_message(
     def boom(alias, channel_id):
         raise RuntimeError("quotaExceeded")
 
-    monkeypatch.setattr(
-        "tube_scout.cli.admin._youtube_api_probe", boom, raising=False
-    )
+    monkeypatch.setattr("tube_scout.cli.admin._youtube_api_probe", boom, raising=False)
     result = _invoke(["admin", "verify", "physiology"])
     assert result.exit_code == 1
     assert "할당량" in result.output or "quota" in result.output.lower()

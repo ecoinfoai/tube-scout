@@ -31,11 +31,11 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from pathlib import Path
 
 import bcrypt
-from pathlib import Path
 from starlette.applications import Starlette
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
@@ -86,9 +86,7 @@ def validate_required_env() -> None:
     for name in REQUIRED_ENV_VARS:
         value = os.environ.get(name, "")
         if not value:
-            raise MissingEnvError(
-                f"required env var missing or empty: {name}"
-            )
+            raise MissingEnvError(f"required env var missing or empty: {name}")
     pw_hash = os.environ["TUBE_SCOUT_ADMIN_PASSWORD_BCRYPT"]
     try:
         # checkpw with a known-bad password validates the *hash format* without

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -47,7 +47,7 @@ def _seed() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -81,8 +81,15 @@ async def test_no_videos_matched_completes_with_message(env: Path) -> None:
     state_dir = env / "state"
 
     async def empty_pipeline(job_id: str, *, on_progress, resume_from=None) -> str:
-        for stage in ["listing", "metadata", "transcripts", "retention",
-                      "analytics", "reuse_detection", "reporting"]:
+        for stage in [
+            "listing",
+            "metadata",
+            "transcripts",
+            "retention",
+            "analytics",
+            "reuse_detection",
+            "reporting",
+        ]:
             on_progress(stage, 0, 0)
         result_dir = state_dir / "projects" / job_id
         result_dir.mkdir(parents=True, exist_ok=True)
@@ -97,9 +104,12 @@ async def test_no_videos_matched_completes_with_message(env: Path) -> None:
                 "matched_video_count": 0,
                 "suspicious_pair_count": 0,
                 "priority_summary": {
-                    "critical": 0, "high": 0, "moderate": 0, "normal": 0
+                    "critical": 0,
+                    "high": 0,
+                    "moderate": 0,
+                    "normal": 0,
                 },
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
             }
         )
         return str(result_dir)

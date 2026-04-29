@@ -12,7 +12,7 @@ in the cookie payload is read back from the rendered ``GET /jobs/new`` form.
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import bcrypt
 import pytest
@@ -38,7 +38,7 @@ def _seed_department(state_dir, alias: str = DEPT_ALIAS) -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -78,9 +78,7 @@ async def _login_and_csrf(client: AsyncClient) -> str:
     assert resp.status_code in {302, 303}, resp.text
     new_form = await client.get("/jobs/new")
     assert new_form.status_code == 200
-    new_csrf = re.search(
-        r'name="csrf_token"\s+value="([0-9a-f]{32})"', new_form.text
-    )
+    new_csrf = re.search(r'name="csrf_token"\s+value="([0-9a-f]{32})"', new_form.text)
     assert new_csrf, "csrf token not found on /jobs/new form"
     return new_csrf.group(1)
 
@@ -206,13 +204,11 @@ async def test_post_jobs_rejects_when_same_department_running(
             "course_name": "기존",
             "period_start": "2026-01-01",
             "period_end": "2026-01-31",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": USERNAME,
         }
     )
-    repo.transition_to(
-        "20260101-120000", status="running", current_stage="listing"
-    )
+    repo.transition_to("20260101-120000", status="running", current_stage="listing")
 
     app = create_app()
     async with _build_client(app) as client:

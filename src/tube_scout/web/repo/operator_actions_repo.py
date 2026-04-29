@@ -28,7 +28,7 @@ class OperatorActionRow:
     detail: str | None
 
     @classmethod
-    def from_sqlite(cls, row: sqlite3.Row) -> "OperatorActionRow":
+    def from_sqlite(cls, row: sqlite3.Row) -> OperatorActionRow:
         return cls(
             id=row["id"],
             action=row["action"],

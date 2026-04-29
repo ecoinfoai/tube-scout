@@ -9,7 +9,7 @@ output, never in the HTTP body.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -41,7 +41,7 @@ def env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
     return tmp_path
@@ -56,9 +56,7 @@ def _assert_korean(text: str, label: str) -> None:
 
 def _assert_no_traceback(text: str, label: str) -> None:
     assert "Traceback" not in text, f"{label}: leaks Python traceback"
-    assert ".py:" not in text or "static" in text, (
-        f"{label}: leaks .py:line marker"
-    )
+    assert ".py:" not in text or "static" in text, f"{label}: leaks .py:line marker"
 
 
 async def _login(client: AsyncClient) -> str:

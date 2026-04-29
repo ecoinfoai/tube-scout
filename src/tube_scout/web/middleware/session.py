@@ -19,8 +19,9 @@ from __future__ import annotations
 
 import hmac
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from itsdangerous import BadSignature, URLSafeSerializer
 
@@ -40,17 +41,22 @@ class VerifiedSession:
     last_active: int
     csrf_token: str
 
+
 SESSION_MAX_AGE_SECONDS: int = 8 * 3600
 """Max session lifetime in seconds (spec FR-004a)."""
 
 _CSRF_TOKEN_BYTES = 16
 
 
-class SessionExpired(Exception):
-    """Raised when a verified cookie is older than ``SESSION_MAX_AGE_SECONDS``."""
+class SessionExpired(Exception):  # noqa: N818
+    """Raised when a verified cookie is older than ``SESSION_MAX_AGE_SECONDS``.
+
+    Domain name kept without ``Error`` suffix — pair with ``SessionTampered``
+    forms a cohesive vocabulary in the auth route handler.
+    """
 
 
-class SessionTampered(Exception):
+class SessionTampered(Exception):  # noqa: N818
     """Raised when itsdangerous fails signature verification."""
 
 

@@ -14,9 +14,8 @@ user messages — internal absolute paths never leak.
 from __future__ import annotations
 
 import logging
-import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
@@ -41,9 +40,7 @@ def _csrf_token(request: Request) -> str:
     return session.csrf_token if session is not None else ""
 
 
-def _resolve_artifact_path(
-    *, result_row, kind: str, project_dir: Path
-) -> Path | None:
+def _resolve_artifact_path(*, result_row, kind: str, project_dir: Path) -> Path | None:
     """Map ``kind`` → result_row column → absolute path under ``project_dir``.
 
     Returns ``None`` if no path is recorded for that kind. The caller treats
@@ -153,9 +150,7 @@ async def get_file(request: Request) -> Response:
 
     project_root = _project_dir(job_id)
     if not _is_within(path, project_root):
-        LOGGER.warning(
-            "rejected file traversal attempt: job=%s kind=%s", job_id, kind
-        )
+        LOGGER.warning("rejected file traversal attempt: job=%s kind=%s", job_id, kind)
         return _kr_404(request, "files.traversal")
 
     if not path.exists() or not path.is_file():

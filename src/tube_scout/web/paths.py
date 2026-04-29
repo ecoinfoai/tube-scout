@@ -61,9 +61,7 @@ def _resolve_with_priority(
 
 
 def _resolve_config_dir() -> Path:
-    return _resolve_with_priority(
-        "TUBE_SCOUT_CONFIG_DIR", "XDG_CONFIG_HOME", ".config"
-    )
+    return _resolve_with_priority("TUBE_SCOUT_CONFIG_DIR", "XDG_CONFIG_HOME", ".config")
 
 
 def _resolve_state_dir() -> Path:
@@ -118,7 +116,8 @@ def ensure_runtime_dirs() -> None:
         try:
             directory.chmod(0o700)
         except PermissionError:
-            # intentional-skip: chmod can fail on tmpfs/CI bind-mounts; dir already exists.
+            # intentional-skip: chmod can fail on tmpfs / CI bind-mounts;
+            # the directory already exists with whatever perms upstream set.
             pass
 
 

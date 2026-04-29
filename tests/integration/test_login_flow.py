@@ -91,13 +91,15 @@ async def test_full_login_round_trip_with_bcrypt(login_env: None) -> None:
             session_csrf = re.search(
                 r'name="csrf_token"\s+value="([0-9a-f]{32})"', authed.text
             ).group(1)
-            logout = await client.post(
-                "/logout", data={"csrf_token": session_csrf}
-            )
+            logout = await client.post("/logout", data={"csrf_token": session_csrf})
             assert logout.status_code in {302, 303}
             assert "/login" in logout.headers["location"]
             cleared = logout.headers["set-cookie"]
-            assert "Max-Age=0" in cleared or 'session=""' in cleared or "session=;" in cleared
+            assert (
+                "Max-Age=0" in cleared
+                or 'session=""' in cleared
+                or "session=;" in cleared
+            )
 
             # Re-access protected route → 302 to /login (session invalidated)
             re_access = await client.get("/jobs/new")

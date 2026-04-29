@@ -17,11 +17,12 @@ and only this repo writes to ``analysis_jobs``.
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Iterable
+from typing import Any
 
-from tube_scout.web.models import STAGE_ORDER, JobStage, JobStatus
+from tube_scout.web.models import STAGE_ORDER
 from tube_scout.web.repo import db
 
 
@@ -51,7 +52,7 @@ class JobRow:
     created_by: str
 
     @classmethod
-    def from_sqlite(cls, row: sqlite3.Row) -> "JobRow":
+    def from_sqlite(cls, row: sqlite3.Row) -> JobRow:
         return cls(
             job_id=row["job_id"],
             department_alias=row["department_alias"],

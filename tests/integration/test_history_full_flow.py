@@ -8,7 +8,7 @@ pagination boundary behavior. Spec FR-021 + FR-022.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -31,7 +31,7 @@ def _seed_dept(alias: str, prefix: str) -> None:
             "channel_id_env": f"TUBE_SCOUT_CHANNEL_ID_{prefix}",
             "client_secret_env": f"TUBE_SCOUT_CLIENT_SECRET_{prefix}",
             "api_key_env": f"TUBE_SCOUT_API_KEY_{prefix}",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
@@ -57,7 +57,7 @@ def _seed_jobs() -> list[tuple[str, str, str]]:
                 "course_name": "해부생리학",
                 "period_start": "2026-04-01",
                 "period_end": "2026-04-28",
-                "started_at": datetime.now(timezone.utc).isoformat(),
+                "started_at": datetime.now(UTC).isoformat(),
                 "created_by": USERNAME,
             }
         )
@@ -149,9 +149,7 @@ async def test_history_combined_dept_status_filter(
     async with _build_client(app) as client:
         async with app.router.lifespan_context(app):
             await _login(client)
-            resp = await client.get(
-                "/history?department=physiology&status=running"
-            )
+            resp = await client.get("/history?department=physiology&status=running")
     assert resp.status_code == 200
     body = resp.text
     assert "20260429-100000" in body

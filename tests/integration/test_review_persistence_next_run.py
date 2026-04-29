@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import bcrypt
@@ -38,14 +38,12 @@ def _seed_department() -> None:
             "channel_id_env": "TUBE_SCOUT_CHANNEL_ID_PHYS",
             "client_secret_env": "TUBE_SCOUT_CLIENT_SECRET_PHYS",
             "api_key_env": "TUBE_SCOUT_API_KEY_PHYS",
-            "registered_at": datetime.now(timezone.utc).isoformat(),
+            "registered_at": datetime.now(UTC).isoformat(),
         }
     )
 
 
-def _seed_completed_job_with_pair(
-    *, job_id: str, pair_id: str
-) -> None:
+def _seed_completed_job_with_pair(*, job_id: str, pair_id: str) -> None:
     from tube_scout.web.repo import jobs_repo, results_repo, reviews_repo
 
     jr = jobs_repo.JobsRepo()
@@ -57,7 +55,7 @@ def _seed_completed_job_with_pair(
             "course_name": "해부생리학",
             "period_start": "2026-04-01",
             "period_end": "2026-04-28",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": datetime.now(UTC).isoformat(),
             "created_by": USERNAME,
         }
     )
@@ -73,7 +71,7 @@ def _seed_completed_job_with_pair(
             "matched_video_count": 1,
             "suspicious_pair_count": 1,
             "priority_summary": {"critical": 0, "high": 1, "moderate": 0, "normal": 0},
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
         }
     )
     reviews_repo.ReviewsRepo().upsert_review(
@@ -131,8 +129,9 @@ async def test_false_positive_pair_excluded_from_next_run(
 
     captured_excluded: list[list[str]] = []
 
-    async def mock_pipeline(job_id: str, *, on_progress, resume_from=None,
-                              project_dir=None) -> str:
+    async def mock_pipeline(
+        job_id: str, *, on_progress, resume_from=None, project_dir=None
+    ) -> str:
         # The pipeline reads list_resolved_pair_ids before reuse_detection
         # — capture what it sees on each invocation.
         from tube_scout.web.repo import reviews_repo
@@ -140,8 +139,15 @@ async def test_false_positive_pair_excluded_from_next_run(
         captured_excluded.append(
             list(reviews_repo.ReviewsRepo().list_resolved_pair_ids())
         )
-        for stage in ["listing", "metadata", "transcripts", "retention",
-                       "analytics", "reuse_detection", "reporting"]:
+        for stage in [
+            "listing",
+            "metadata",
+            "transcripts",
+            "retention",
+            "analytics",
+            "reuse_detection",
+            "reporting",
+        ]:
             on_progress(stage, 1, 1)
             await asyncio.sleep(0)
         return f"/tmp/{job_id}"
@@ -172,7 +178,6 @@ async def test_false_positive_pair_excluded_from_next_run(
                 },
             )
             assert run2_resp.status_code in {302, 303}, run2_resp.text
-            run2_id = run2_resp.headers["location"].rsplit("/", 1)[-1]
 
             # Wait for the new run to invoke the pipeline.
             for _ in range(50):
