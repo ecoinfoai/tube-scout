@@ -46,29 +46,26 @@ def _secure_write(path: Path, content: str) -> None:
 
 
 def _default_client_secret_path() -> Path:
-    """Return path to client secret JSON from TUBE_SCOUT_CLIENT_SECRET env var.
+    """Return path to client secret JSON.
+
+    idea6 ADR-IDEA6-004 (D-4 fix): delegates to
+    ``services.secret_loader.resolve_client_secret_path`` which now
+    accepts both ``TUBE_SCOUT_CLIENT_SECRET`` (path) and
+    ``TUBE_SCOUT_CLIENT_SECRET_B64`` (base64-encoded JSON, decoded to a
+    0o600 tmpfile). The thin wrapper preserves the historical
+    public name so existing callers keep working.
 
     Returns:
-        Path to the client secret JSON file.
+        Path to the client secret JSON file (real or tmpfs).
 
     Raises:
-        ValueError: If TUBE_SCOUT_CLIENT_SECRET env var is not set.
-        FileNotFoundError: If the file at the env var path does not exist.
+        SecretConfigError: A :class:`UserFacingError` sub-class — kept
+            distinct from :class:`ValueError` to enable centralised
+            actionable rendering at the CLI boundary.
     """
-    env_path = os.environ.get("TUBE_SCOUT_CLIENT_SECRET")
-    if not env_path:
-        raise ValueError(
-            "TUBE_SCOUT_CLIENT_SECRET environment variable is required. "
-            "Set it to the path of your OAuth client secret JSON file."
-        )
+    from tube_scout.services.secret_loader import resolve_client_secret_path
 
-    path = Path(env_path)
-    if not path.exists():
-        raise FileNotFoundError(
-            f"OAuth client secret not found at {env_path}. "
-            "Verify TUBE_SCOUT_CLIENT_SECRET points to an existing file."
-        )
-    return path
+    return resolve_client_secret_path()
 
 
 def _token_path() -> Path:
