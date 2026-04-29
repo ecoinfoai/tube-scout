@@ -2,7 +2,21 @@
 
 import os
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
+
+
+class Stage(StrEnum):
+    """Canonical pipeline stages used by ``ProjectManager`` (ADR-IDEA6-001).
+
+    Values are the literal sub-directory names beneath
+    ``projects/{ts}/`` that the alias-aware API resolves to.
+    """
+
+    COLLECT = "01_collect"
+    ANALYZE = "02_analyze"
+    REPORT = "03_report"
+    CHECKPOINTS = "checkpoints"
 
 
 class ProjectManager:
@@ -121,6 +135,43 @@ class ProjectManager:
         if latest.is_symlink() or latest.exists():
             latest.unlink()
         latest.symlink_to(self.project_dir.resolve())
+
+    # ------------------------------------------------------------------
+    # Alias-aware API (idea6 ADR-IDEA6-001)
+    # ------------------------------------------------------------------
+
+    def stage_dir(self, stage: Stage, alias: str) -> Path:
+        """Return the alias-partitioned sub-directory for a pipeline stage.
+
+        Args:
+            stage: One of ``Stage.{COLLECT, ANALYZE, REPORT, CHECKPOINTS}``.
+            alias: User-facing channel alias (per ADR-IDEA6-002).
+
+        Returns:
+            Path to ``project_dir/{stage}/{alias}/`` (created if missing).
+
+        Raises:
+            RuntimeError: If no project has been created or opened.
+        """
+        path = self.project_dir / stage.value / alias
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def videos_meta(self, alias: str) -> Path:
+        """Path to ``01_collect/{alias}/videos_meta.json`` (FR-IDEA6-001)."""
+        return self.stage_dir(Stage.COLLECT, alias) / "videos_meta.json"
+
+    def parsed_titles(self, alias: str) -> Path:
+        """Path to ``02_analyze/{alias}/parsed_titles.json`` (FR-IDEA6-003)."""
+        return self.stage_dir(Stage.ANALYZE, alias) / "parsed_titles.json"
+
+    def fingerprints(self, alias: str) -> Path:
+        """Path to ``02_analyze/{alias}/fingerprints.parquet`` (FR-IDEA6-001)."""
+        return self.stage_dir(Stage.ANALYZE, alias) / "fingerprints.parquet"
+
+    def report_html(self, alias: str) -> Path:
+        """Path to ``03_report/{alias}/report.html`` (FR-IDEA6-001)."""
+        return self.stage_dir(Stage.REPORT, alias) / "report.html"
 
 
 class OutputManager:
