@@ -111,7 +111,15 @@ async def post_review(request: Request) -> Response:
     )
 
     referer = request.headers.get("referer")
-    target = referer if referer and referer.startswith("/") else f"/jobs/{job_id}/results"
+    # ADV-US2-23: reuse the same open-redirect filter as login.next so a
+    # backslash / control-char / scheme-bearing referer cannot drive an
+    # external redirect.
+    from tube_scout.web.routes.auth import _safe_next_url
+
+    if referer and _safe_next_url(referer) == referer:
+        target = referer
+    else:
+        target = f"/jobs/{job_id}/results"
     return RedirectResponse(url=target, status_code=303)
 
 
