@@ -296,11 +296,93 @@ async def get_progress(request: Request) -> Response:
     return JSONResponse(serialize(snapshot), status_code=200)
 
 
+async def post_retry(request: Request) -> Response:
+    """POST /jobs/{job_id}/retry — checkpoint resume (FR-022a, T073).
+
+    Validation:
+    - CSRF must match the session-bound csrf_token.
+    - Original status MUST be ``failed`` or ``interrupted`` (else 409).
+
+    On success: insert a new ``pending`` job with the same form fields,
+    spawn the runner with ``resume_from=original_id`` so the pipeline can
+    skip already-completed stages, and 302 → ``/jobs/{new_id}``.
+    """
+    original_id = request.path_params["job_id"]
+    form = await request.form()
+    submitted_csrf = form.get("csrf_token")
+    if not _verify_csrf(request, submitted_csrf):
+        return render_template(
+            request,
+            "error.html",
+            {
+                "error_message_kr": to_user_message("auth.csrf"),
+                "csrf_token": _csrf_token(request),
+            },
+            status_code=400,
+        )
+
+    repo = jobs_repo.JobsRepo()
+    original = repo.find_by_id(original_id)
+    if original is None:
+        return render_template(
+            request,
+            "error.html",
+            {
+                "error_message_kr": "요청한 작업을 찾을 수 없습니다.",
+                "csrf_token": _csrf_token(request),
+            },
+            status_code=404,
+        )
+
+    if original.status not in {"failed", "interrupted"}:
+        return render_template(
+            request,
+            "error.html",
+            {
+                "error_message_kr": to_user_message("retry.invalid_state"),
+                "job_id": original_id,
+                "csrf_token": _csrf_token(request),
+            },
+            status_code=409,
+        )
+
+    runner: JobRunner = request.app.state.runner
+    started_at = datetime.now(timezone.utc).isoformat()
+    new_id = _next_job_id(repo)
+    session = getattr(request.state, "session", None)
+    actor = session.username if session is not None else "anonymous"
+
+    repo.insert_pending(
+        {
+            "job_id": new_id,
+            "department_alias": original.department_alias,
+            "professor_name": original.professor_name,
+            "course_name": original.course_name,
+            "period_start": original.period_start,
+            "period_end": original.period_end,
+            "started_at": started_at,
+            "created_by": actor,
+        }
+    )
+
+    try:
+        runner.spawn(
+            new_id,
+            department_alias=original.department_alias,
+            resume_from=original_id,
+        )
+    except RuntimeError as exc:
+        LOGGER.exception("runner.spawn failed for retry %s: %s", new_id, exc)
+
+    return RedirectResponse(url=f"/jobs/{new_id}", status_code=303)
+
+
 def jobs_routes() -> Iterable[Route]:
     """Return the job-submission route definitions."""
     return [
         Route("/jobs/new", get_jobs_new, methods=["GET"]),
         Route("/jobs", post_jobs, methods=["POST"]),
+        Route("/jobs/{job_id}/retry", post_retry, methods=["POST"]),
         Route("/jobs/{job_id}", get_job_router, methods=["GET"]),
         Route("/jobs/{job_id}/progress", get_progress, methods=["GET"]),
     ]
