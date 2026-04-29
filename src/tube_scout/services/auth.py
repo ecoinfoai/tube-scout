@@ -23,7 +23,85 @@ SCOPES = [
     "https://www.googleapis.com/auth/youtube.force-ssl",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
 ]
+REQUIRED_SCOPES = frozenset(SCOPES)
 TOKEN_FILE = "token.json"
+
+
+class ScopeReauthRequired(Exception):
+    """Stored token lacks one or more required OAuth scopes (FR-IDEA6-005).
+
+    Raised when ``_verify_scopes`` finds the credentials missing any
+    member of :data:`REQUIRED_SCOPES`. Carries an actionable
+    ``next_command`` so the CLI can render it via ``cli.errors.render_error``.
+    """
+
+    def __init__(self, alias: str, missing: list[str]) -> None:
+        self.alias = alias
+        self.missing = missing
+        self.message = (
+            f"Stored token for '{alias}' is missing required scope(s): "
+            + ", ".join(missing)
+        )
+        self.next_command = (
+            f"tube-scout auth --revoke {alias} && "
+            f"tube-scout auth --channel {alias}"
+        )
+        super().__init__(self.message)
+
+
+class InteractiveAuthRequired(Exception):
+    """OAuth flow needs a TTY but stdin is not interactive (NFR-IDEA6-003 / B7).
+
+    Raised by :func:`authenticate` and :func:`register_channel` before
+    they would otherwise call ``flow.run_local_server`` and silently
+    block forever in a headless / systemd context.
+    """
+
+    def __init__(self, alias: str = "default") -> None:
+        self.alias = alias
+        self.message = (
+            f"OAuth flow requires a TTY for channel '{alias}'."
+        )
+        self.next_command = (
+            f"ssh to host and run tube-scout auth --channel {alias}"
+        )
+        super().__init__(self.message)
+
+
+def has_required_scopes(creds: Credentials) -> bool:
+    """Return True iff ``creds`` carries every scope in REQUIRED_SCOPES.
+
+    Treats both ``creds.scopes`` and the optional ``granted_scopes``
+    attribute as authoritative; the union must cover REQUIRED_SCOPES.
+    """
+    if creds is None:
+        return False
+    granted: set[str] = set()
+    for attr in ("scopes", "granted_scopes"):
+        value = getattr(creds, attr, None)
+        if value:
+            granted.update(value)
+    return REQUIRED_SCOPES.issubset(granted)
+
+
+def _verify_scopes(creds: Credentials, alias: str = "default") -> None:
+    """Raise :class:`ScopeReauthRequired` if any required scope is missing."""
+    if not has_required_scopes(creds):
+        granted: set[str] = set()
+        for attr in ("scopes", "granted_scopes"):
+            value = getattr(creds, attr, None)
+            if value:
+                granted.update(value)
+        missing = sorted(REQUIRED_SCOPES - granted)
+        raise ScopeReauthRequired(alias=alias, missing=missing)
+
+
+def _require_tty(alias: str = "default") -> None:
+    """Raise :class:`InteractiveAuthRequired` if stdin is not a TTY."""
+    import sys
+
+    if not sys.stdin.isatty():
+        raise InteractiveAuthRequired(alias=alias)
 
 
 def _secure_write(path: Path, content: str) -> None:
@@ -107,15 +185,22 @@ def authenticate() -> Credentials:
         creds = Credentials.from_authorized_user_file(str(token_path), SCOPES)
 
     if creds and creds.valid:
+        _verify_scopes(creds, alias="default")
         return creds
 
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
     else:
+        # idea6 NFR-IDEA6-003 §"Headless guard" (B7): refuse to call
+        # flow.run_local_server when stdin is not a TTY (e.g. systemd
+        # context) because it would silently block on a port no one is
+        # connecting to.
+        _require_tty(alias="default")
         client_secret = _default_client_secret_path()
         flow = InstalledAppFlow.from_client_secrets_file(str(client_secret), SCOPES)
         creds = flow.run_local_server(port=8080)
 
+    _verify_scopes(creds, alias="default")
     _secure_write(token_path, creds.to_json())
     return creds
 
@@ -271,11 +356,13 @@ def authenticate_channel(alias: str) -> Credentials:
     creds = Credentials.from_authorized_user_file(str(token_file), SCOPES)
 
     if creds.valid:
+        _verify_scopes(creds, alias=alias)
         update_last_used(tokens_path, alias)
         return creds
 
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
+        _verify_scopes(creds, alias=alias)
         _secure_write(token_file, creds.to_json())
         update_last_used(tokens_path, alias)
         return creds
@@ -306,10 +393,15 @@ def register_channel(alias: str) -> ChannelRegistration:
     tokens_path = _tokens_dir()
     tokens_path.mkdir(parents=True, exist_ok=True)
 
+    # idea6 NFR-IDEA6-003 §"Headless guard" (B7): refuse the
+    # interactive OAuth flow when stdin is not a TTY (systemd / CI).
+    _require_tty(alias=alias)
+
     # Run OAuth flow
     client_secret = _default_client_secret_path()
     flow = InstalledAppFlow.from_client_secrets_file(str(client_secret), SCOPES)
     creds = flow.run_local_server(port=8080)
+    _verify_scopes(creds, alias=alias)
 
     # Auto-detect channel ID
     yt_service = build("youtube", "v3", credentials=creds)
