@@ -1,5 +1,6 @@
 """Analyze subcommands for tube-scout."""
 
+import logging
 from pathlib import Path
 
 import typer
@@ -10,6 +11,8 @@ from tube_scout.cli.progress import create_progress
 from tube_scout.cli.project import resolve_project
 from tube_scout.storage.json_store import read_json, write_json
 from tube_scout.storage.parquet_store import read_parquet, write_parquet
+
+_logger = logging.getLogger(__name__)
 
 console = Console()
 
@@ -82,6 +85,12 @@ def analyze_retention_command(
 
             df = read_parquet(filepath)
             if df is None:
+                # idea6 FR-IDEA6-010 SILENT-13 fix (treatment b):
+                _logger.warning(
+                    "skip retention parquet (read_parquet returned None): %s",
+                    filepath,
+                )
+                # intentional-skip: corrupt parquet — logged + counted as skipped
                 progress.advance(task)
                 continue
 
