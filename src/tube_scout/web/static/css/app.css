@@ -1,0 +1,74 @@
+/* Tube Scout 운영 콘솔 — minimal styles (T062). */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Pretendard", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f4f6fa;
+  color: #1a2230;
+  line-height: 1.5;
+}
+.page-header {
+  padding: 1rem 1.5rem;
+  background: #1f2a44;
+  color: #fff;
+}
+.page-header h1 { margin: 0; font-size: 1.1rem; }
+.page-main { padding: 1.5rem; max-width: 960px; margin: 0 auto; }
+
+.login-card,
+.form-card,
+.progress-card,
+.result-card,
+.error-card {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  padding: 1.5rem;
+  max-width: 480px;
+  margin: 2rem auto;
+}
+.result-card,
+.history-card { max-width: 960px; }
+
+label { display: block; margin-bottom: 1rem; }
+label > span { display: block; font-size: 0.9rem; margin-bottom: 0.25rem; }
+input[type="text"],
+input[type="password"],
+input[type="date"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #c2cad6;
+  border-radius: 4px;
+  font: inherit;
+}
+button {
+  background: #2563eb;
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.55rem 1.25rem;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover { background: #1d4ed8; }
+
+.form-error,
+.alert-error { color: #b91c1c; background: #fee2e2; padding: 0.5rem 0.75rem; border-radius: 4px; }
+.alert-info { color: #1e40af; background: #dbeafe; padding: 0.5rem 0.75rem; border-radius: 4px; }
+.alert-warn { color: #92400e; background: #fef3c7; padding: 0.5rem 0.75rem; border-radius: 4px; }
+
+.progress-bar {
+  height: 12px; background: #e5e7eb; border-radius: 6px; overflow: hidden;
+}
+.progress-bar-fill { height: 100%; background: #2563eb; transition: width 0.3s ease; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #e5e7eb; }
+th { background: #f9fafb; }
+
+.download-list { list-style: none; padding: 0; }
+.download-list li { margin-bottom: 0.5rem; }
+.download-list a { color: #1d4ed8; text-decoration: none; }
+.download-list a:hover { text-decoration: underline; }

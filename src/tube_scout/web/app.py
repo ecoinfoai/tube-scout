@@ -35,8 +35,10 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import bcrypt
+from pathlib import Path
 from starlette.applications import Starlette
-from starlette.routing import Route
+from starlette.routing import Mount, Route
+from starlette.staticfiles import StaticFiles
 
 from tube_scout.web.middleware.auth_required import AuthRequiredMiddleware
 from tube_scout.web.middleware.https_redirect import HttpsRedirectMiddleware
@@ -45,7 +47,11 @@ from tube_scout.web.middleware.security_headers import SecurityHeadersMiddleware
 from tube_scout.web.middleware.session import SessionSigner
 from tube_scout.web.paths import ensure_runtime_dirs
 from tube_scout.web.repo import db
+from tube_scout.web.routes._templating import install_templates
+from tube_scout.web.routes.auth import auth_routes
 from tube_scout.web.routes.health import healthz
+
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 LOGGER = logging.getLogger("tube_scout.web.app")
 
@@ -136,8 +142,15 @@ def create_app() -> Starlette:
     """
     routes = [
         Route("/healthz", healthz, methods=["GET"]),
+        *auth_routes(),
+        Mount(
+            "/static",
+            app=StaticFiles(directory=str(_STATIC_DIR)),
+            name="static",
+        ),
     ]
     app = Starlette(routes=routes, lifespan=_lifespan)
+    install_templates(app)
     # Outermost first → innermost last when added in reverse logical order.
     # Starlette processes middleware in registration order (outer→inner).
     app.add_middleware(AuthRequiredMiddleware)
