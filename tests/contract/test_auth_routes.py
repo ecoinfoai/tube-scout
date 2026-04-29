@@ -280,3 +280,53 @@ async def test_post_logout_rejects_missing_csrf(auth_env: str) -> None:
             resp = await client.post("/logout", data={})
     assert resp.status_code == 400
     assert "보안 토큰" in resp.text
+
+
+async def test_post_login_next_backslash_open_redirect_blocked(
+    auth_env: str,
+) -> None:
+    """ADV-US1-74 (QA P1): backslash variants in ``next`` MUST fall back.
+
+    Mirrors the integration coverage at contract level so SYSTEM matrix
+    counts the case under tests/contract/. Spec FR-002 hardening.
+    """
+    from tube_scout.web.app import create_app
+
+    app = create_app()
+    payloads = ["/\\evil.com", "//evil.com", "/\\\\evil.com"]
+    for payload in payloads:
+        async with _build_client(app) as client:
+            async with app.router.lifespan_context(app):
+                csrf = await _fetch_csrf_token(client)
+                resp = await client.post(
+                    "/login",
+                    data={
+                        "username": USERNAME,
+                        "password": PASSWORD,
+                        "csrf_token": csrf,
+                        "next": payload,
+                    },
+                )
+        assert resp.status_code in {302, 303}, payload
+        assert resp.headers["location"] == "/jobs/new", (
+            f"payload {payload!r} bypassed safe-next filter "
+            f"→ {resp.headers['location']!r}"
+        )
+
+
+def test_login_template_does_not_use_safe_filter_on_next_url(
+    auth_env: str,
+) -> None:
+    """ADV-US1-86 (QA P1) static guard: no ``|safe`` on ``next_url`` in
+    the login template — Jinja autoescape must run on every reflection.
+    """
+    from pathlib import Path
+
+    template = Path(
+        "src/tube_scout/web/templates/login.html"
+    ).read_text(encoding="utf-8")
+    # ``next_url`` MUST NOT carry the |safe filter (which would disable autoescape).
+    assert "next_url|safe" not in template
+    assert "next_url | safe" not in template
+    # Sanity: the value attribute is still present so the form actually carries it.
+    assert "{{ next_url }}" in template

@@ -188,19 +188,37 @@ async def test_files_missing_disk_returns_kr_message(files_env: Path) -> None:
 
 
 async def test_files_traversal_rejected(files_env: Path) -> None:
+    """ADV-US1-51/52 (QA P1): expanded traversal payload coverage.
+
+    Covers:
+    - Bare ``..`` in path component (existing).
+    - Encoded ``%2e%2e%2f`` (lowercase + uppercase variants).
+    - Windows-style ``..\\path`` separators that some clients normalise.
+    - Mixed-case and double-encoded variants.
+    """
     from tube_scout.web.app import create_app
 
     _seed_completed_job(files_env)
+
+    payloads = [
+        "..%2Fetc%2Fpasswd",
+        "v1v3-html/../etc/passwd",
+        "%2e%2e%2fetc%2fpasswd",
+        "%2E%2E%2Fetc%2Fpasswd",
+        "..%5cetc%5cpasswd",  # backslash-encoded
+        "..\\etc\\passwd",  # raw Windows separator
+        "%252e%252e%252f",  # double-encoded ../
+    ]
 
     app = create_app()
     async with _build_client(app) as client:
         async with app.router.lifespan_context(app):
             await _login(client)
-            # Two attack vectors — both must be rejected
-            resp = await client.get(f"/jobs/{JOB_ID}/files/..%2Fetc%2Fpasswd")
-            assert resp.status_code in {400, 404}
-            resp = await client.get(f"/jobs/{JOB_ID}/files/v1v3-html/../etc/passwd")
-            assert resp.status_code in {400, 404}
+            for payload in payloads:
+                resp = await client.get(f"/jobs/{JOB_ID}/files/{payload}")
+                assert resp.status_code in {400, 404}, (
+                    f"payload {payload!r} returned {resp.status_code}"
+                )
 
 
 async def test_files_all_5_kinds_resolve_for_completed_job(files_env: Path) -> None:
