@@ -79,10 +79,19 @@ class LoginRateLimiter:
         return max(0, remaining)
 
     def register_failure(self, username: str) -> None:
-        """Increment the failure counter; lock when threshold is hit."""
+        """Increment the failure counter; lock when threshold is hit.
+
+        ADV-US1-81: if a prior lock window has already expired the counter
+        is reset so the next failure starts a fresh window. Without the
+        reset, a user who hits 5 failures, waits 5 minutes, then fails once
+        would be immediately re-locked (fail_count would already be ≥ 5).
+        """
         if not username:
             raise ValueError("username must be a non-empty string")
         entry = self._entry(username)
+        if entry.locked_until is not None and entry.locked_until <= self._now():
+            entry.fail_count = 0
+            entry.locked_until = None
         entry.fail_count += 1
         if entry.fail_count >= LOCK_THRESHOLD:
             entry.locked_until = self._now() + LOCK_WINDOW_SECONDS
