@@ -642,22 +642,55 @@ def content_scan_command(
 
     # Stage 1: Fingerprint
     console.print("[bold cyan]Stage 1/3: Fingerprint[/bold cyan]")
-    try:
-        content_fingerprint_command(
+    from tube_scout.cli.errors import UserFacingError, render_error
+
+    def _run_stage(stage_num: int, stage_name: str, fn) -> None:  # type: ignore[no-untyped-def]
+        """Run a content-scan sub-stage; raise actionable error on failure.
+
+        idea6 ADR-IDEA6-008 / FR-IDEA6-010 / SILENT-1..3 fix.
+        Sub-stages with SystemExit code != 0 propagate via
+        UserFacingError so the master content-scan pipeline aborts
+        rather than printing "Content scan pipeline complete" with a
+        broken intermediate artifact.
+        """
+        try:
+            fn()
+        except SystemExit as exc:
+            code = getattr(exc, "code", 0)
+            if code:
+                err = UserFacingError(
+                    message=(
+                        f"Content-scan stage {stage_num}/3 '{stage_name}' "
+                        f"failed (exit_code={code}). Subsequent stages "
+                        "were not run."
+                    ),
+                    next_command=(
+                        f"Run the failing sub-command in isolation: "
+                        f"tube-scout content {stage_name.lower()} --channel {channel}"
+                    ),
+                )
+                render_error(err)
+                raise err
+
+    _run_stage(
+        1,
+        "Fingerprint",
+        lambda: content_fingerprint_command(
             channel=channel,
             project=project,
             project_dir=project_dir,
             year=None,
             semester=None,
             force_refresh=force_refresh,
-        )
-    except SystemExit:
-        pass  # Non-fatal: may exit with code 2 (no captions)
+        ),
+    )
 
     # Stage 2: Compare
     console.print("\n[bold cyan]Stage 2/3: Compare[/bold cyan]")
-    try:
-        content_compare_command(
+    _run_stage(
+        2,
+        "Compare",
+        lambda: content_compare_command(
             channel=channel,
             year_from=year_from,
             year_to=year_to,
@@ -665,21 +698,21 @@ def content_scan_command(
             project_dir=project_dir,
             course=None,
             professor=None,
-        )
-    except SystemExit:
-        pass
+        ),
+    )
 
     # Stage 3: Quality
     console.print("\n[bold cyan]Stage 3/3: Quality[/bold cyan]")
-    try:
-        content_quality_command(
+    _run_stage(
+        3,
+        "Quality",
+        lambda: content_quality_command(
             channel=channel,
             project=project,
             project_dir=project_dir,
             year=None,
             semester=None,
-        )
-    except SystemExit:
-        pass
+        ),
+    )
 
     console.print("\n[bold green]Content scan pipeline complete.[/bold green]")
