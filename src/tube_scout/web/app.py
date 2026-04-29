@@ -51,6 +51,7 @@ from tube_scout.web.routes._templating import install_templates
 from tube_scout.web.routes.auth import auth_routes
 from tube_scout.web.routes.health import healthz
 from tube_scout.web.routes.jobs import jobs_routes
+from tube_scout.web.routes.results import results_routes
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -152,6 +153,7 @@ def create_app() -> Starlette:
         Route("/healthz", healthz, methods=["GET"]),
         *auth_routes(),
         *jobs_routes(),
+        *results_routes(),
         Mount(
             "/static",
             app=StaticFiles(directory=str(_STATIC_DIR)),

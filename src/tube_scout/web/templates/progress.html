@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}분석 진행 중 — Tube Scout 운영 콘솔{% endblock %}
 {% block content %}
-<section class="progress-card" data-job-id="{{ job_id }}">
+<section class="progress-card"
+         data-job-id="{{ job_id }}"
+         data-progress-url="/jobs/{{ job_id }}/progress"
+         data-results-url="/jobs/{{ job_id }}/results">
   <h2>분석 진행 중</h2>
   <p>학과: {{ job.department_alias }} · 교수: {{ job.professor_name }} · 과목: {{ job.course_name }}</p>
   <p>기간: {{ job.period_start }} ~ {{ job.period_end }}</p>

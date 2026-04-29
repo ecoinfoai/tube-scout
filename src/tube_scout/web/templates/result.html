@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}분석 결과 — Tube Scout 운영 콘솔{% endblock %}
+{% block content %}
+<section class="result-card">
+  <h2>분석 결과</h2>
+  <p>학과: {{ department.display_name if department else job.department_alias }}
+     · 교수: {{ job.professor_name }}
+     · 과목: {{ job.course_name }}</p>
+  <p>기간: {{ job.period_start }} ~ {{ job.period_end }}</p>
+
+  {% if has_artifacts %}
+  <h3>다운로드</h3>
+  <ul class="download-list">
+    {% for kind in kinds %}
+    <li><a href="/jobs/{{ job_id }}/files/{{ kind }}">{{ kind }}</a></li>
+    {% endfor %}
+  </ul>
+
+  <h3>매칭 영상 수: {{ result.matched_video_count }}</h3>
+  {% if result.suspicious_pair_count > 0 %}
+  <h3>우선순위 요약</h3>
+  <table>
+    <thead><tr><th>우선순위</th><th>건수</th></tr></thead>
+    <tbody>
+      <tr><td>critical</td><td>{{ result.priority_summary.critical }}</td></tr>
+      <tr><td>high</td><td>{{ result.priority_summary.high }}</td></tr>
+      <tr><td>moderate</td><td>{{ result.priority_summary.moderate }}</td></tr>
+      <tr><td>normal</td><td>{{ result.priority_summary.normal }}</td></tr>
+    </tbody>
+  </table>
+  {% endif %}
+  {% else %}
+  <p class="alert-info">조건에 맞는 영상이 없습니다.</p>
+  {% endif %}
+
+  <p><a href="/jobs/new">[홈으로]</a></p>
+</section>
+{% endblock %}
