@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +44,21 @@ console = Console()
 err_console = Console(stderr=True)
 
 NEAR_EXPIRY_DAYS = 7
+
+# ADV-US3-12: alias regex mirrors models.AliasStr (Pydantic) so the path
+# construction in _token_path cannot be coerced into a traversal even if
+# departments_repo validation is skipped.
+_ALIAS_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
+
+# ADV-US3-14: env-var names MUST follow the agenix prefix pattern. A
+# misconfigured operator could otherwise map a department's secrets onto
+# arbitrary env names (including TUBE_SCOUT_ADMIN_PASSWORD_BCRYPT) and
+# silently break auth.
+_ENV_NAME_PATTERNS: dict[str, re.Pattern[str]] = {
+    "channel_id_env": re.compile(r"^TUBE_SCOUT_CHANNEL_ID_[A-Z0-9_]+$"),
+    "client_secret_env": re.compile(r"^TUBE_SCOUT_CLIENT_SECRET_[A-Z0-9_]+$"),
+    "api_key_env": re.compile(r"^TUBE_SCOUT_API_KEY_[A-Z0-9_]+$"),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +93,24 @@ def _youtube_api_probe(alias: str, channel_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _real_uid_actor() -> str:
+    """ADV-US3-16: derive actor name from real UID, never $USER.
+
+    ``os.environ['USER']`` is attacker-controllable (``USER=spoof
+    tube-scout admin ...``). ``pwd.getpwuid(os.geteuid()).pw_name``
+    reflects the OS-level identity of the calling process and cannot be
+    forged via env injection.
+    """
+    try:
+        import pwd
+
+        return pwd.getpwuid(os.geteuid()).pw_name
+    except (ImportError, KeyError, OSError):
+        # Non-POSIX or NSS lookup failure — fall back to a stable token
+        # rather than the env-var, so audit log forgery remains impossible.
+        return f"uid-{os.geteuid()}"
+
+
 def _record(action: str, *, target_alias: str | None, result: str, detail: str | None = None) -> None:
     from tube_scout.web.repo import operator_actions_repo
 
@@ -84,25 +118,67 @@ def _record(action: str, *, target_alias: str | None, result: str, detail: str |
     repo.record_action(
         action=action,
         target_alias=target_alias,
-        actor=os.environ.get("USER", "operator"),
+        actor=_real_uid_actor(),
         result=result,
         detail=detail,
     )
 
 
 def _token_path(alias: str) -> Path:
+    """Return the absolute path to the per-alias token file.
+
+    ADV-US3-12: alias MUST match the strict regex; otherwise an attacker
+    could pass ``../../../etc/passwd`` and read arbitrary files via
+    ``_read_token``. The departments_repo Pydantic guard is the primary
+    defence — this function is the secondary one in case operators
+    bypass the repo (e.g. directly editing departments.json by hand).
+    """
+    if not _ALIAS_RE.fullmatch(alias):
+        raise ValueError(f"alias 형식 오류 (path traversal 방지): {alias!r}")
     from tube_scout.web.paths import get_config_dir
 
     return get_config_dir() / "tokens" / f"{alias}_token.json"
 
 
 def _read_token(alias: str) -> dict | None:
-    path = _token_path(alias)
+    """Return the parsed token blob for ``alias`` or ``None`` when absent.
+
+    ADV-US3-13: corrupt JSON is logged at WARN level so the operator
+    sees a hint that the file is unreadable (Constitution II silent-skip
+    avoidance). Permission/IO errors (OSError other than FileNotFound)
+    propagate so the operator cannot mistake a permission denied for
+    ``missing``.
+
+    ADV-US3-15: if the path is a symlink we refuse to follow it — token
+    files MUST be operator-owned regular files. A symlink could redirect
+    the read into ``/etc/shadow`` etc.
+    """
+    try:
+        path = _token_path(alias)
+    except ValueError:
+        # ADV-US3-12 guard tripped — surface as missing without log spam.
+        return None
+    if path.is_symlink():
+        LOGGER.warning(
+            "rejected symlink token file: alias=%s path=%s",
+            alias,
+            path,
+        )
+        return None
     if not path.is_file():
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except json.JSONDecodeError as exc:
+        # intentional-skip: corruption is reported via WARN log + caller
+        # treats this as "missing"; a hard fail would block the entire
+        # status command for one bad token.
+        LOGGER.warning(
+            "token file is corrupt JSON for alias=%s path=%s: %s",
+            alias,
+            path,
+            exc,
+        )
         return None
 
 
@@ -156,6 +232,31 @@ def add_department(
         DepartmentsRepo,
         DuplicateAliasError,
     )
+
+    # ADV-US3-14: env names MUST match agenix prefix patterns. Without
+    # this, an operator could map their channel secret onto
+    # TUBE_SCOUT_ADMIN_PASSWORD_BCRYPT or any unrelated env var.
+    env_pattern_violations = []
+    for field, value in (
+        ("channel_id_env", channel_id_env),
+        ("client_secret_env", client_secret_env),
+        ("api_key_env", api_key_env),
+    ):
+        if not _ENV_NAME_PATTERNS[field].fullmatch(value):
+            env_pattern_violations.append((field, value))
+    if env_pattern_violations:
+        first_field, first_value = env_pattern_violations[0]
+        err_console.print(
+            f"[red]환경변수명 형식이 올바르지 않습니다 ({first_field}={first_value}). "
+            f"agenix 시크릿 매핑 패턴(TUBE_SCOUT_*)을 확인하세요.[/red]"
+        )
+        _record(
+            "add_department",
+            target_alias=alias,
+            result="failure",
+            detail=f"env-pattern: {first_field}={first_value}",
+        )
+        raise typer.Exit(code=1)
 
     missing = _check_envs_present(channel_id_env, client_secret_env, api_key_env)
     if missing:
