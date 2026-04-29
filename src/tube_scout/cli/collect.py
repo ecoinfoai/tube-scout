@@ -440,6 +440,11 @@ def collect_transcripts_command(
         "--video-id",
         help="Specific video ID.",
     ),
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias (uses multi-channel token).",
+    ),
 ) -> None:
     """Collect transcripts for videos using youtube-transcript-api.
 
@@ -448,6 +453,7 @@ def collect_transcripts_command(
         project_dir: Projects root directory path.
         project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
+        channel: Optional channel alias for multi-channel auth.
     """
     from tube_scout.services.rate_limiter import RateLimiter
     from tube_scout.services.transcript import TranscriptService
@@ -459,17 +465,77 @@ def collect_transcripts_command(
     rate_limiter = RateLimiter(
         config.settings.rate_limit_transcript,
         on_backoff=lambda attempt, delay: console.print(
-            f"  [yellow]Backoff: attempt {attempt + 1}, waiting {delay:.1f}s[/yellow]"
+            f"  [yellow]Backoff: attempt {attempt + 1},"
+            f" waiting {delay:.1f}s[/yellow]"
         ),
     )
-    service = TranscriptService(rate_limiter=rate_limiter)
+
+    # Build Captions API client for private video fallback
+    captions_client = None
+    if channel:
+        try:
+            from googleapiclient.discovery import build as api_build
+
+            from tube_scout.services.auth import (
+                _authorized_http,
+                authenticate_channel,
+            )
+            from tube_scout.services.captions_api import (
+                CaptionsAPIClient,
+            )
+            creds = authenticate_channel(channel)
+            yt_client = api_build(
+                "youtube", "v3",
+                http=_authorized_http(creds),
+            )
+            captions_client = CaptionsAPIClient(
+                youtube_service=yt_client,
+            )
+            console.print(
+                "[dim]Captions API fallback enabled"
+                " for private videos[/dim]"
+            )
+        except Exception as e:
+            console.print(
+                f"[yellow]Captions API fallback"
+                f" unavailable: {e}[/yellow]"
+            )
+
+    service = TranscriptService(
+        rate_limiter=rate_limiter,
+        captions_api_client=captions_client,
+    )
 
     video_ids_to_collect: list[str] = []
+
+    # Resolve channel filter
+    channels_to_scan = config.channels
+    if channel:
+        from tube_scout.services.auth import load_registry
+        registry = load_registry()
+        if channel in registry:
+            ch_id = registry[channel].channel_id
+            channels_to_scan = [
+                c for c in config.channels
+                if c.channel_id == ch_id
+            ]
+            if not channels_to_scan:
+                from tube_scout.models.config import ChannelConfig
+                channels_to_scan = [
+                    ChannelConfig(channel_id=ch_id)
+                ]
+        else:
+            console.print(
+                f"[red]Channel '{channel}' not found."
+                " Run 'tube-scout auth register'"
+                " first.[/red]"
+            )
+            raise typer.Exit(code=1)
 
     if video_id:
         video_ids_to_collect = [video_id]
     else:
-        for channel_config in config.channels:
+        for channel_config in channels_to_scan:
             videos_path = (
                 mgr.collect_dir
                 / "channels"
@@ -483,7 +549,9 @@ def collect_transcripts_command(
                     if isinstance(videos_data, list)
                     else videos_data.get("videos", [])
                 )
-                video_ids_to_collect.extend(v["video_id"] for v in videos)
+                video_ids_to_collect.extend(
+                    v["video_id"] for v in videos
+                )
 
     if not video_ids_to_collect:
         console.print(
