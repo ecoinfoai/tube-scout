@@ -25,10 +25,12 @@ from tube_scout.cli.collect import (
     collect_transcripts_command,
     collect_videos_command,
 )
+from tube_scout.cli.content import content_app
 from tube_scout.cli.report import (
     report_bundle_command,
     report_channel_command,
     report_comment_insight_command,
+    report_content_command,
     report_department_command,
     report_video_command,
 )
@@ -63,6 +65,7 @@ app.add_typer(collect_app, name="collect")
 app.add_typer(analyze_app, name="analyze")
 app.add_typer(report_app, name="report")
 app.add_typer(calendar_app, name="calendar")
+app.add_typer(content_app, name="content")
 
 # T089: register admin subcommand group (US3 admin CLI).
 from tube_scout.cli.admin import admin_app  # noqa: E402
@@ -93,6 +96,7 @@ report_app.command(name="channel")(report_channel_command)
 report_app.command(name="comment-insight")(report_comment_insight_command)
 report_app.command(name="department")(report_department_command)
 report_app.command(name="bundle")(report_bundle_command)
+report_app.command(name="content")(report_content_command)
 
 
 def _version_callback(value: bool) -> None:

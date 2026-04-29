@@ -20,7 +20,7 @@ from googleapiclient.discovery import build
 from tube_scout.models.config import DEFAULT_API_TIMEOUT_SECONDS, ChannelRegistration
 
 SCOPES = [
-    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/youtube.force-ssl",
     "https://www.googleapis.com/auth/yt-analytics.readonly",
 ]
 TOKEN_FILE = "token.json"

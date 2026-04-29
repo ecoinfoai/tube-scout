@@ -807,3 +807,119 @@ def report_channel_command(
             )
             progress.console.print(f"[green]Channel report generated: {path}[/green]")
             progress.advance(task)
+
+
+def report_content_command(
+    channel: str = typer.Option(
+        ...,
+        "--channel",
+        help="Channel alias.",
+    ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory.",
+    ),
+    project: str | None = typer.Option(
+        None,
+        "--project",
+        help="Existing project path or 'latest'.",
+    ),
+    format: str = typer.Option(
+        "html",
+        "--format",
+        help="Output format: html, xlsx, or json.",
+    ),
+    year: int | None = typer.Option(
+        None,
+        "--year",
+        help="Filter by academic year.",
+    ),
+    semester: int | None = typer.Option(
+        None,
+        "--semester",
+        help="Filter by semester (1 or 2).",
+    ),
+    output_dir: str | None = typer.Option(
+        None,
+        "--output-dir",
+        help="Output directory.",
+    ),
+) -> None:
+    """Generate content quality report with suspicion and quality data.
+
+    Args:
+        channel: Channel alias.
+        project_dir: Projects root directory.
+        project: Existing project path or 'latest'.
+        format: Output format.
+        year: Academic year filter.
+        semester: Semester filter.
+        output_dir: Custom output directory.
+    """
+    from tube_scout.reporting.content_report import ContentReportGenerator
+    from tube_scout.services.auth import load_registry
+    from tube_scout.storage.content_db import ContentDB
+
+    registry = load_registry()
+    if channel not in registry:
+        console.print(
+            f"[red]Channel '{channel}' not registered.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    channel_id = registry[channel].channel_id
+    mgr = resolve_project(project_dir, project)
+    db_path = mgr.project_dir / "tube_scout.db"
+
+    if not db_path.exists():
+        console.print(
+            "[yellow]No analysis data found. "
+            "Run 'tube-scout content scan' first.[/yellow]"
+        )
+        raise typer.Exit(code=2)
+
+    db = ContentDB(db_path)
+    comparisons = db.list_comparisons(order_by_suspicion=True)
+    quality_results = []
+    # Load all quality results manually
+    import sqlite3
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    cursor = conn.execute("SELECT * FROM quality_results")
+    quality_results = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    if not comparisons and not quality_results:
+        console.print("[yellow]No data to report.[/yellow]")
+        raise typer.Exit(code=2)
+
+    # Determine output path
+    if output_dir:
+        reports_dir = Path(output_dir)
+    else:
+        reports_dir = mgr.report_dir / "content_quality"
+
+    suffix = f"_{channel_id}"
+    if year:
+        suffix += f"_{year}"
+    if semester:
+        suffix += f"_s{semester}"
+
+    generator = ContentReportGenerator()
+
+    if format == "html":
+        report_path = reports_dir / f"content{suffix}.html"
+        generator.generate_html(comparisons, quality_results, report_path)
+        console.print(f"[green]Content HTML report generated: {report_path}[/green]")
+    elif format == "xlsx":
+        report_path = reports_dir / f"content{suffix}.xlsx"
+        generator.generate_xlsx(comparisons, quality_results, report_path)
+        console.print(f"[green]Content Excel report generated: {report_path}[/green]")
+    elif format == "json":
+        report_path = reports_dir / f"content{suffix}.json"
+        generator.generate_json(comparisons, quality_results, report_path)
+        console.print(f"[green]Content JSON report generated: {report_path}[/green]")
+    else:
+        console.print(f"[red]Unknown format: {format}. Use html, xlsx, or json.[/red]")
+        raise typer.Exit(code=1)
