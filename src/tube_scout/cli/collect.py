@@ -884,15 +884,33 @@ def collect_all_command(
                     duration_seconds=round(duration, 2),
                 )
             )
-        except SystemExit:
+        except SystemExit as exc:
             duration = _time.monotonic() - stage_start
-            results.append(
-                StageResult(
-                    stage_name=stage_name,
-                    status="completed",
-                    duration_seconds=round(duration, 2),
+            code = getattr(exc, "code", 0)
+            # idea6 ADR-IDEA6-008 / FR-IDEA6-010 / H-7 fix:
+            # Recording status="completed" inside `except SystemExit` was a
+            # structured-persistence false-success. Distinguish exit_code=0
+            # (genuine clean stage exit) from non-zero failure.
+            if code:
+                results.append(
+                    StageResult(
+                        stage_name=stage_name,
+                        status="failed",
+                        error_message=f"stage exited with code {code}",
+                        duration_seconds=round(duration, 2),
+                    )
                 )
-            )
+                console.print(
+                    f"  [red]Stage '{stage_name}' failed: exit_code={code}[/red]"
+                )
+            else:
+                results.append(
+                    StageResult(
+                        stage_name=stage_name,
+                        status="completed",
+                        duration_seconds=round(duration, 2),
+                    )
+                )
         except Exception as e:
             duration = _time.monotonic() - stage_start
             results.append(
