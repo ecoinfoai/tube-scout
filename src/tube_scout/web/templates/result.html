@@ -33,6 +33,36 @@
   <p class="alert-info">조건에 맞는 영상이 없습니다.</p>
   {% endif %}
 
+  {% if review_rows %}
+  <h3>재사용 탐지 영상 쌍 리뷰</h3>
+  <table>
+    <thead>
+      <tr><th>영상 쌍</th><th>현재 상태</th><th>리뷰</th></tr>
+    </thead>
+    <tbody>
+      {% for review in review_rows %}
+      <tr>
+        <td>{{ review.pair_id }}</td>
+        <td>
+          {% if review.status == "confirmed_duplicate" %}중복 확정
+          {% elif review.status == "false_positive" %}오탐
+          {% else %}미검토{% endif %}
+        </td>
+        <td>
+          <form method="post" action="/jobs/{{ job_id }}/reviews/{{ review.pair_id }}" class="review-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" name="status" value="confirmed_duplicate">중복 확정</button>
+            <button type="submit" name="status" value="false_positive">오탐</button>
+            <button type="submit" name="status" value="unreviewed">미검토 회복</button>
+            <input type="text" name="note" maxlength="512" placeholder="메모 (선택, 0~512자)">
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   <p><a href="/jobs/new">[홈으로]</a></p>
 </section>
 {% endblock %}

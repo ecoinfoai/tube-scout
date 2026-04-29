@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}이력 — Tube Scout 운영 콘솔{% endblock %}
+{% block content %}
+<section class="history-card">
+  <h2>분석 이력</h2>
+  <form method="get" action="/history" class="history-filter">
+    <label>
+      <span>학과</span>
+      <select name="department">
+        <option value="">전체</option>
+        {% for dept in departments %}
+        <option value="{{ dept.alias }}"
+          {% if dept.alias == selected_department %}selected{% endif %}>
+          {{ dept.display_name }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      <span>상태</span>
+      <select name="status">
+        <option value="">전체</option>
+        {% for st in status_options %}
+        <option value="{{ st }}"
+          {% if st in selected_statuses %}selected{% endif %}>
+          {{ status_labels_kr[st] }}
+        </option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">조회</button>
+  </form>
+
+  {% if rows %}
+  <table>
+    <thead>
+      <tr>
+        <th>학과</th>
+        <th>교수명</th>
+        <th>과목명</th>
+        <th>기간</th>
+        <th>생성일시</th>
+        <th>상태</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.department_alias }}</td>
+        <td>{{ row.professor_name }}</td>
+        <td>{{ row.course_name }}</td>
+        <td>{{ row.period_start }} ~ {{ row.period_end }}</td>
+        <td><a href="/jobs/{{ row.job_id }}">{{ row.job_id }}</a></td>
+        <td>{{ status_labels_kr[row.status] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="alert-info">조건에 맞는 이력이 없습니다.</p>
+  {% endif %}
+
+  <nav class="history-pagination">
+    {% if offset > 0 %}
+    {% set prev_offset = offset - limit if offset - limit > 0 else 0 %}
+    <a href="?limit={{ limit }}&offset={{ prev_offset }}{% if selected_statuses %}&status={{ selected_statuses | join(',') }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}">이전</a>
+    {% endif %}
+    {% if rows | length == limit %}
+    <a href="?limit={{ limit }}&offset={{ offset + limit }}{% if selected_statuses %}&status={{ selected_statuses | join(',') }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}">다음</a>
+    {% endif %}
+  </nav>
+</section>
+{% endblock %}

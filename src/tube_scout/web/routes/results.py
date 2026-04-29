@@ -23,7 +23,7 @@ from starlette.responses import FileResponse, Response
 from starlette.routing import Route
 
 from tube_scout.web.errors import to_user_message
-from tube_scout.web.repo import jobs_repo, results_repo
+from tube_scout.web.repo import jobs_repo, results_repo, reviews_repo
 from tube_scout.web.repo.departments_repo import DepartmentsRepo
 from tube_scout.web.routes._templating import render_template
 from tube_scout.web.routes.filenames import (
@@ -110,6 +110,7 @@ async def get_results(request: Request) -> Response:
         )
     )
 
+    review_rows = reviews_repo.ReviewsRepo().list_for_job(job_id)
     return render_template(
         request,
         "result.html",
@@ -120,6 +121,7 @@ async def get_results(request: Request) -> Response:
             "department": dept,
             "has_artifacts": has_artifacts,
             "kinds": list(KIND_EXTENSIONS.keys()) if has_artifacts else [],
+            "review_rows": review_rows,
             "csrf_token": _csrf_token(request),
         },
         status_code=200,
