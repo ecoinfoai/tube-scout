@@ -90,7 +90,9 @@ def test_read_token_rejects_symlink(env: Path) -> None:
 def test_record_uses_real_uid_actor(monkeypatch: pytest.MonkeyPatch) -> None:
     """ADV-US3-16: actor MUST come from getpwuid(geteuid()), not $USER.
 
-    Looks at the actor-resolving helper; ``_record`` itself just calls it.
+    QA V6 권고 적용: 직접 ``_real_uid_actor`` source를 grep해서 의도가
+    명확하도록 단순화. ``_record``는 helper를 호출만 하므로 grep
+    범위에 포함시키지 않는다.
     """
     monkeypatch.setenv("USER", "spoofed-attacker")
 
@@ -98,16 +100,13 @@ def test_record_uses_real_uid_actor(monkeypatch: pytest.MonkeyPatch) -> None:
 
     from tube_scout.cli import admin
 
-    # The actor MUST resolve from real UID. Either via a dedicated helper
-    # (admin._real_uid_actor) or inline in _record.
-    candidates = [admin._record]
-    if hasattr(admin, "_real_uid_actor"):
-        candidates.append(admin._real_uid_actor)
-    combined = "\n".join(inspect.getsource(fn) for fn in candidates)
-    assert "pw_name" in combined or "getpwuid" in combined, (
-        "actor resolver must derive identity from real uid, not env $USER"
+    # Primary guard: the dedicated helper resolves identity from real UID.
+    src = inspect.getsource(admin._real_uid_actor)
+    assert "pw_name" in src or "getpwuid" in src, (
+        "_real_uid_actor must derive identity from real uid, not env $USER"
     )
-    # Bare os.environ['USER'] regression banned in record path.
+    # Defence-in-depth: bare os.environ['USER'] regression banned in
+    # the record path itself.
     assert "os.environ.get(\"USER\"" not in inspect.getsource(admin._record)
 
 
