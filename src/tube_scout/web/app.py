@@ -50,6 +50,7 @@ from tube_scout.web.repo import db
 from tube_scout.web.routes._templating import install_templates
 from tube_scout.web.routes.auth import auth_routes
 from tube_scout.web.routes.health import healthz
+from tube_scout.web.routes.jobs import jobs_routes
 
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -106,6 +107,13 @@ async def _lifespan(app: Starlette) -> AsyncIterator[None]:
         secret=os.environ["TUBE_SCOUT_SESSION_SECRET"]
     )
     app.state.rate_limiter = LoginRateLimiter()
+    # T064: build a singleton JobRunner here so route handlers can spawn
+    # background tasks via ``request.app.state.runner.spawn(...)`` and tests
+    # can inject mock pipelines via ``app.state.runner._pipeline_fn = ...``.
+    from tube_scout.web.jobs import pipeline as pipeline_module
+    from tube_scout.web.jobs.runner import JobRunner
+
+    app.state.runner = JobRunner(pipeline_fn=pipeline_module.run)
     LOGGER.info("admin web UI lifespan startup complete")
     try:
         yield
@@ -143,6 +151,7 @@ def create_app() -> Starlette:
     routes = [
         Route("/healthz", healthz, methods=["GET"]),
         *auth_routes(),
+        *jobs_routes(),
         Mount(
             "/static",
             app=StaticFiles(directory=str(_STATIC_DIR)),

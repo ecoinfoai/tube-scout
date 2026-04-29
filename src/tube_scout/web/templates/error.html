@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}오류 — Tube Scout 운영 콘솔{% endblock %}
+{% block content %}
+<section class="error-card">
+  <h2>분석 오류</h2>
+  <p class="alert-error" role="alert">{{ error_message_kr }}</p>
+  {% if job_id %}
+  <p>작업 ID: {{ job_id }}</p>
+  <form method="post" action="/jobs/{{ job_id }}/retry">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
+    <button type="submit">재실행</button>
+  </form>
+  {% endif %}
+  <p><a href="/jobs/new">[홈으로]</a></p>
+</section>
+{% endblock %}
