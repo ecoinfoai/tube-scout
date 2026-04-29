@@ -1,5 +1,6 @@
 """Tube Scout CLI entry point."""
 
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import typer
@@ -97,7 +98,11 @@ report_app.command(name="bundle")(report_bundle_command)
 def _version_callback(value: bool) -> None:
     """Print version and exit."""
     if value:
-        console.print("tube-scout version 0.1.0")
+        try:
+            pkg_version = version("tube-scout")
+        except PackageNotFoundError:
+            pkg_version = "unknown"
+        console.print(f"tube-scout version {pkg_version}")
         raise typer.Exit()
 
 
