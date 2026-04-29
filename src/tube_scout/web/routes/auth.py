@@ -45,18 +45,23 @@ SESSION_COOKIE_NAME = "session"
 def _safe_next_url(value: str | None) -> str:
     """Return a safe relative redirect target.
 
-    Open-redirect protection (ADR + adversary ADV-US1-74):
+    Open-redirect protection (ADR + adversary ADV-US1-74/90~93):
 
     1. Must start with a single ``/`` (not ``//`` — protocol-relative).
     2. Must not contain backslashes (browsers normalise ``/\\`` → ``//``
        and treat the result as a protocol-relative URL).
-    3. Must not have a scheme or netloc per ``urlsplit``.
+    3. Must not contain ASCII control bytes (0x00-0x1F + 0x7F) — defends
+       against header splitting / smuggling and null-byte path tricks.
+    4. Must not have a scheme or netloc per ``urlsplit`` — rejects
+       ``javascript:`` / ``data:`` / external hosts.
 
     Suspicious / external URLs fall back to ``/jobs/new``.
     """
     if not value:
         return "/jobs/new"
     if "\\" in value:
+        return "/jobs/new"
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
         return "/jobs/new"
     if value.startswith("//"):
         return "/jobs/new"

@@ -332,6 +332,47 @@ def test_login_template_does_not_use_safe_filter_on_next_url(
     assert "{{ next_url }}" in template
 
 
+async def test_post_login_next_rejects_control_chars_and_alt_schemes(
+    auth_env: str,
+) -> None:
+    """ADV-US1-90~93 (회귀 가드): defense-in-depth open-redirect payloads.
+
+    Beyond the backslash + ``//`` already covered, ensure ``next`` rejects:
+    - alt schemes (``javascript:``, ``data:``) by virtue of not starting ``/``
+    - leading whitespace + tab forms that browsers may normalise
+    - null byte (CR/LF/TAB any control bytes) which never appear in legit paths
+    """
+    from tube_scout.web.app import create_app
+
+    payloads = [
+        "javascript:alert(1)",
+        "data:text/html,<script>",
+        "  /\t/evil",
+        "/\x00evil",
+        "/path\rwith\ncrlf",
+    ]
+
+    app = create_app()
+    for payload in payloads:
+        async with _build_client(app) as client:
+            async with app.router.lifespan_context(app):
+                csrf = await _fetch_csrf_token(client)
+                resp = await client.post(
+                    "/login",
+                    data={
+                        "username": USERNAME,
+                        "password": PASSWORD,
+                        "csrf_token": csrf,
+                        "next": payload,
+                    },
+                )
+        assert resp.status_code in {302, 303}, payload
+        assert resp.headers["location"] == "/jobs/new", (
+            f"payload {payload!r} bypassed safe-next filter "
+            f"→ {resp.headers['location']!r}"
+        )
+
+
 async def test_post_login_rejects_username_over_128_chars(auth_env: str) -> None:
     """ADV-US1-85 (P3 hardening): spec L52 ``username 1-128자``.
 
