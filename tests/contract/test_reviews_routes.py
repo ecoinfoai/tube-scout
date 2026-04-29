@@ -237,3 +237,30 @@ async def test_review_pair_belonging_to_other_job_rejected(
                 data={"status": "false_positive", "csrf_token": csrf},
             )
     assert resp.status_code == 404
+
+
+async def test_review_redirect_rejects_unsafe_referer(reviews_env: Path) -> None:
+    """ADV-US2-23: backslash / external referer MUST NOT drive redirect."""
+    from tube_scout.web.app import create_app
+
+    app = create_app()
+    async with _build_client(app) as client:
+        async with app.router.lifespan_context(app):
+            csrf = await _login_and_csrf(client)
+            for unsafe in [
+                "/\\evil.com",
+                "//evil.com",
+                "https://evil.example.com/path",
+                "javascript:alert(1)",
+                "/path\rwith\ncrlf",
+            ]:
+                resp = await client.post(
+                    f"/jobs/{JOB_ID}/reviews/{PAIR_ID}",
+                    data={"status": "false_positive", "csrf_token": csrf},
+                    headers={"referer": unsafe},
+                )
+                assert resp.status_code in {302, 303}, unsafe
+                location = resp.headers["location"]
+                assert location == f"/jobs/{JOB_ID}/results", (
+                    f"unsafe referer {unsafe!r} drove redirect → {location!r}"
+                )
