@@ -1,336 +1,375 @@
-# 교수/선생님을 위한 Tube Scout 활용 가이드
+# Tube Scout for Educators
 
-YouTube에 강의 영상을 올리고 계시나요? Tube Scout는 학생들이 여러분의 영상을 **어떻게** 시청하는지 데이터로 보여주고, **더 나은 강의 영상**을 만들기 위한 구체적인 개선 방향을 제시합니다.
+Posting lecture videos to YouTube? Tube Scout shows you, with data, **how**
+your students actually watch the videos and gives you concrete suggestions for
+making **better lectures next time**.
 
-이 문서에서는 실제 교수/선생님이 겪는 상황별로 Tube Scout를 활용하는 방법을 안내합니다.
+This document walks through Tube Scout in real teaching scenarios.
 
 ---
 
-## 시나리오 1: "내 강의 영상이 채널에 몇 개나 있고, 학생들이 얼마나 보는지 한눈에 파악하고 싶다"
+## Scenario 1: "I want to see, at a glance, how many of my videos are on the channel and how much they are being watched"
 
-### 상황
+### Situation
 
-학과 유튜브 채널에 여러 교수의 영상이 섞여 있습니다. 내 이름이 포함된 영상만 골라서 조회수, 좋아요 수 등을 한눈에 보고 싶습니다.
+Your department's YouTube channel hosts videos from many faculty members.
+You want to filter only the videos with your name and review view counts,
+likes, and other basic metrics in one place.
 
-### 해결
+### Solution
 
 ```bash
-# 1. 초기 설정 (최초 1회)
-tube-scout init --channel-id "UCxxxxxxxxxx" --professor "홍길동"
+# 1. One-time setup
+tube-scout init --channel-id "UCxxxxxxxxxx" --professor "Jane Smith"
 
-# 2. 영상 수집
+# 2. Collect the videos
 tube-scout collect videos
 
-# 3. 결과 확인 — 조회수 높은 순서로
+# 3. Top results, sorted by views
 tube-scout list --sort view_count --limit 30
 ```
 
-### 알 수 있는 것
+### What you learn
 
-- 내 이름이 포함된 영상이 총 몇 개인지
-- 어떤 영상이 가장 많이 조회되었는지
-- 영상별 좋아요/댓글 수 비교
-- 영상 길이 분포
+- How many videos contain your name
+- Which videos are watched the most
+- Likes and comments side by side
+- Distribution of video lengths
 
-### 활용 팁
+### Tip
 
-조회수가 유난히 높은 영상과 낮은 영상을 비교해 보세요. 제목, 길이, 주제에서 어떤 차이가 있는지 패턴을 찾을 수 있습니다.
+Compare your highest-viewed and lowest-viewed videos. Look for patterns in
+title, length, and topic — that is where your audience is telling you what
+works.
 
 ---
 
-## 시나리오 2: "학생들이 내 강의 어느 부분에서 어려워하는지 알고 싶다"
+## Scenario 2: "I want to know which parts of my lecture students struggle with"
 
-### 상황
+### Situation
 
-50분짜리 해부학 강의를 올렸는데, 학생들이 중간에 영상을 많이 이탈합니다. 어느 구간이 문제인지 정확히 알고 싶습니다.
+You posted a 50-minute anatomy lecture, but students often drop off in the
+middle. You want to pinpoint which segments are the problem.
 
-### 해결
+### Solution
 
 ```bash
-# 1. 시청 유지율 데이터 수집 (채널 관리자 권한 필요)
+# 1. Collect retention data (channel-owner OAuth required)
 tube-scout collect retention
 
-# 2. 유지율 분석
-tube-scout analyze retention --video-id "영상ID"
+# 2. Analyze retention
+tube-scout analyze retention --video-id "VIDEO_ID"
 
-# 3. 리포트로 시각화
-tube-scout report video --video-id "영상ID"
+# 3. Visualize as a report
+tube-scout report video --video-id "VIDEO_ID"
 ```
 
-### 알 수 있는 것
+### What you learn
 
-- **되감기 구간(Rewatch Hotspot)**: 학생들이 반복 시청하는 구간 → "이해하기 어려운 내용"
-- **건너뛰기 구간(Skip Zone)**: 학생들이 넘기는 구간 → "불필요하거나 지루한 내용"
-- 시청 유지율 곡선으로 전체 흐름 파악
+- **Rewatch hotspots**: segments students replay → "hard to understand"
+- **Skip zones**: segments students skip → "irrelevant or boring"
+- The full retention curve so you can read the overall flow
 
-### 활용 예시
+### How to act on it
 
-| 분석 결과 | 의미 | 조치 |
-|----------|------|------|
-| 15:00~18:00 Rewatch Hotspot | 근육 수축 메커니즘 설명이 어려움 | 보충 영상 또는 시각 자료 추가 |
-| 25:00~30:00 Skip Zone | 역사적 배경 설명이 지루함 | 핵심만 간추리거나 별도 영상으로 분리 |
-| 영상 시작 3분 이내 급락 | 인트로가 너무 김 | 핵심 내용으로 바로 시작 |
+| Finding | Meaning | Action |
+|---------|---------|--------|
+| Rewatch hotspot at 15:00–18:00 | Muscle-contraction explanation is hard | Add a supplementary clip or visuals |
+| Skip zone at 25:00–30:00 | Historical background is dragging | Trim or move to a separate video |
+| Steep drop in the first 3 minutes | Intro is too long | Get to the core content faster |
 
-### 참고
+### Note
 
-시청 유지율 데이터는 **채널 소유자/관리자 권한**이 필요합니다. 학과 채널 관리자에게 YouTube Analytics API 접근 권한을 요청하세요.
+Retention data requires **channel owner / manager** permissions. Ask your
+department channel admin for YouTube Analytics API access.
 
 ---
 
-## 시나리오 3: "학생들이 댓글로 무슨 질문을 하는지 자동으로 정리하고 싶다"
+## Scenario 3: "I want comments and questions summarized automatically"
 
-### 상황
+### Situation
 
-영상마다 댓글이 수십 개씩 달리는데, 하나하나 읽을 시간이 없습니다. 학생들의 질문만 자동으로 추출하고, 전반적인 반응을 파악하고 싶습니다.
+Each video collects dozens of comments. You do not have time to read every
+one. You want to extract just the questions and get a feel for the overall
+reaction.
 
-### 해결
+### Solution
 
 ```bash
-# 1. 댓글 수집
+# 1. Collect comments
 tube-scout collect comments
 
-# 2. 감성/토픽/질문 자동 분류
+# 2. Auto-classify sentiment, topics, and questions
 tube-scout analyze sentiment
 
-# 3. 특정 영상만 분석
-tube-scout analyze sentiment --video-id "영상ID"
+# 3. For a single video
+tube-scout analyze sentiment --video-id "VIDEO_ID"
 ```
 
-### 알 수 있는 것
+### What you learn
 
-- **감성 분석**: 긍정/부정/중립 반응 비율
-- **토픽 추출**: 댓글에서 논의되는 주제 (예: "시험 범위", "슬라이드 오류", "설명 감사")
-- **질문 자동 추출**: "이 부분 다시 설명해 주세요", "시험에 나오나요?" 같은 질문만 모아서 표시
+- **Sentiment**: ratio of positive / negative / neutral reactions
+- **Topics**: themes discussed in the comments (for example, "exam scope",
+  "slide errors", "thanks for the explanation")
+- **Auto-extracted questions**: only the comments that ask things like
+  "Could you re-explain this?" or "Will this be on the exam?"
 
-### 활용 예시
+### Cross-analysis example
 
-댓글에서 추출된 질문이 되감기 구간(Rewatch Hotspot)과 겹치는지 교차 분석됩니다:
+Extracted questions are cross-referenced with rewatch hotspots:
 
 ```
-[교차 분석 결과]
-- 토픽: "근위세뇨관 재흡수" → Rewatch Hotspot (12:30~15:00)
-  학생 질문 3건: "재흡수 과정이 헷갈립니다", "능동수송과 수동수송 차이?"
-  → 이 구간에 보충 설명이 필요합니다
+[Cross-analysis result]
+- Topic: "proximal-tubule reabsorption" → rewatch hotspot 12:30–15:00
+  3 student questions: "I'm confused about reabsorption",
+                       "What's the difference between active and passive transport?"
+  → This segment needs supplementary explanation.
 ```
 
 ---
 
-## 시나리오 4: "새로 촬영할 영상의 구성을 미리 점검하고 싶다"
+## Scenario 4: "I want to vet the structure of an upcoming video before I record it"
 
-### 상황
+### Situation
 
-다음 주에 "순환계" 강의를 촬영할 예정입니다. 촬영 전에 강의 대본(또는 이전 영상의 자막)을 분석하여 어떤 구간이 어렵게 느껴질지 미리 예측하고 싶습니다.
+Next week you will record a "Circulatory system" lecture. Before recording,
+you want to use the script (or the transcript of an earlier lecture) to
+predict which sections will feel difficult.
 
-### 해결
+### Solution
 
 ```bash
-# 이전 영상의 자막으로 분석
-tube-scout collect transcripts --video-id "이전영상ID"
-tube-scout analyze transcript --video-id "이전영상ID"
+# Analyze the transcript of an earlier video
+tube-scout collect transcripts --video-id "PREVIOUS_VIDEO_ID"
+tube-scout analyze transcript --video-id "PREVIOUS_VIDEO_ID"
 ```
 
-### 알 수 있는 것
+### What you learn
 
-- **자동 챕터 분할**: 영상이 자연스럽게 나뉘는 주제 단위
-- **구간별 요약**: 각 챕터의 핵심 내용
-- **난이도 점수**: 어휘/개념 밀도 기반으로 학생이 어려워할 구간 예측 (0.0 = 쉬움, 1.0 = 매우 어려움)
-- **주제 태그**: 각 구간의 키워드
+- **Automatic chapter splits**: natural topic boundaries in the video
+- **Per-chapter summaries**: the gist of each chapter
+- **Difficulty scores**: based on vocabulary and concept density (0.0 = easy,
+  1.0 = very hard)
+- **Topic tags**: keywords for each chapter
 
-### 활용 예시
+### Example output
 
 ```
-[자막 분석 결과]
-구간 1: "심장의 구조" (0:00-8:30) — 난이도 0.3 (쉬움)
-구간 2: "심장 전도계" (8:30-15:00) — 난이도 0.7 (어려움) ← 주의 필요
-구간 3: "혈압 조절 메커니즘" (15:00-22:00) — 난이도 0.8 (매우 어려움) ← 보충 자료 필요
-구간 4: "요약 및 정리" (22:00-25:00) — 난이도 0.2 (쉬움)
+[Transcript analysis]
+Chapter 1: "Heart anatomy"            (0:00–8:30)  — difficulty 0.3 (easy)
+Chapter 2: "Cardiac conduction"       (8:30–15:00) — difficulty 0.7 (hard)        ← attention
+Chapter 3: "Blood-pressure regulation"(15:00–22:00)— difficulty 0.8 (very hard)   ← supplement needed
+Chapter 4: "Recap"                    (22:00–25:00)— difficulty 0.2 (easy)
 ```
 
-난이도 0.7 이상인 구간에는 **시각 자료, 애니메이션, 단계별 설명**을 추가하는 것을 고려하세요.
+For chapters above 0.7, consider adding **visuals, animation, or step-by-step
+explanations**.
 
 ---
 
-## 시나리오 5: "학기 중 영상 시청 트렌드를 파악하여 운영 전략을 세우고 싶다"
+## Scenario 5: "I want to understand the term-to-term viewing trend so I can plan operations"
 
-### 상황
+### Situation
 
-한 학기 동안 영상을 꾸준히 올렸습니다. 시험 기간에 시청이 급증하는지, 방학에는 어떻게 변하는지 등 시청 패턴을 분석하여 다음 학기 영상 업로드 전략을 세우고 싶습니다.
+You uploaded videos consistently for a semester. You want to see whether
+viewership spikes during exams and dips during breaks, and use that to plan
+upload strategy for the next term.
 
-### 해결
+### Solution
 
 ```bash
-# 시계열 예측 실행 (6개월 이상 데이터 필요)
+# Forecast (requires 6+ months of data)
 tube-scout analyze forecast
 
-# 채널 종합 리포트에서 트렌드 확인
+# Inspect the trend in the channel report
 tube-scout report channel
 ```
 
-### 알 수 있는 것
+### What you learn
 
-- **향후 30일 조회수 예측** (신뢰 구간 포함)
-- **이상치 자동 탐지**: 시험 기간 급증, 방학 급감 등 비정상 패턴
-- **학기 주기 패턴**: 학기 초/중/말 시청 행동 차이
+- **Forecast** of view counts for the next 30 days, with confidence intervals
+- **Anomaly detection**: spikes during exam weeks, drops during breaks
+- **Term-cycle patterns**: differences between early / mid / late semester
 
-### 활용 예시
+### Example
 
 ```
-[이상치 탐지 결과]
-- 2025-04-15 ~ 04-22: 조회수 320% 급증 → 중간고사 기간
-- 2025-06-20 ~ 07-31: 조회수 85% 감소 → 여름방학
-- 2025-09-01 ~ 09-07: 조회수 250% 급증 → 개강 주간
+[Anomaly detection]
+- 2025-04-15 to 04-22: views up 320%   → midterm week
+- 2025-06-20 to 07-31: views down 85%  → summer break
+- 2025-09-01 to 09-07: views up 250%   → first week of fall semester
 ```
 
-**운영 전략 예시**:
-- 시험 2주 전에 "핵심 정리" 영상 업로드
-- 방학 중에는 "미리보기/예습" 콘텐츠 업로드
-- 개강 주간에 "오리엔테이션" 영상으로 신규 학생 유입
+**Strategy ideas**:
+
+- Upload "key-points review" videos two weeks before exams
+- Upload "preview / get-ready" content during breaks
+- Use orientation videos in the first week to attract new students
 
 ---
 
-## 시나리오 6: "내 영상의 교육적 품질을 객관적으로 평가받고 싶다"
+## Scenario 6: "I want my videos evaluated objectively for educational quality"
 
-### 상황
+### Situation
 
-조회수가 높다고 좋은 강의는 아닙니다. 내 영상이 교육적으로 얼마나 효과적인지 객관적인 기준으로 평가받고 싶습니다.
+A high view count does not mean a great lecture. You want an objective
+measure of how educationally effective your video is.
 
-### 해결
+### Solution
 
 ```bash
-# 교육 품질 점수 산출
-tube-scout analyze eqs --video-id "영상ID"
+# Per video
+tube-scout analyze eqs --video-id "VIDEO_ID"
 
-# 또는 전체 영상 한번에
+# All videos at once
 tube-scout analyze eqs
 ```
 
-### 알 수 있는 것
+### What you learn
 
-RACED 5축 평가:
+The RACED 5-axis evaluation:
 
-| 축 | 의미 | 낮은 점수일 때 개선 방향 |
-|----|------|----------------------|
-| **R**elevance (관련성) | 학습 목표에 부합하는가 | 강의 시작 시 학습 목표를 명확히 제시 |
-| **A**ccuracy (정확성) | 내용이 정확한가 | 최신 교과서/논문과 대조하여 내용 검증 |
-| **C**larity (명료성) | 이해하기 쉬운가 | 전문 용어에 설명 추가, 시각 자료 활용 |
-| **E**ngagement (참여도) | 학생이 집중하는가 | 질문 유도, 실습 예시, 퀴즈 삽입 |
-| **D**epth (깊이) | 주제를 충분히 다루는가 | 심화 내용 추가, 관련 사례 보강 |
+| Axis | Meaning | If the score is low |
+|------|---------|---------------------|
+| **R**elevance | Aligned with the learning goal | State the learning goal at the start |
+| **A**ccuracy | Content is correct | Cross-check with current textbooks and papers |
+| **C**larity | Easy to understand | Define jargon on screen, add visuals |
+| **E**ngagement | Students stay attentive | Ask questions, embed quizzes, show examples |
+| **D**epth | Topic is covered well | Add advanced material, related cases |
 
-### 활용 예시
+### Example
 
 ```
-[EQS 결과]
+[EQS result]
 Relevance:   0.85 ■■■■■■■■░░
 Accuracy:    0.92 ■■■■■■■■■░
-Clarity:     0.58 ■■■■■░░░░░  ← 개선 필요
-Engagement:  0.65 ■■■■■■░░░░  ← 개선 필요
+Clarity:     0.58 ■■■■■░░░░░  ← needs improvement
+Engagement:  0.65 ■■■■■■░░░░  ← needs improvement
 Depth:       0.78 ■■■■■■■░░░
 Overall:     0.76
 ```
 
-Clarity가 낮다면 → "어려운 용어를 사용할 때 화면에 정의를 함께 표시하세요"
+Low Clarity → "Show definitions on screen when you introduce difficult terms."
 
 ---
 
-## 시나리오 7: "여러 영상을 비교하여 가장 효과적인 강의 스타일을 찾고 싶다"
+## Scenario 7: "I want to compare videos and find the most effective lecture style"
 
-### 상황
+### Situation
 
-같은 과목을 다른 방식으로 촬영한 영상이 여러 개 있습니다 (칠판 강의, 슬라이드 강의, 실습 시연 등). 어떤 방식이 학생들에게 가장 효과적인지 데이터로 비교하고 싶습니다.
+You recorded the same subject in different formats — chalk talk, slide
+lecture, hands-on demo. You want a data-backed comparison of which format is
+most effective for students.
 
-### 해결
+### Solution
 
 ```bash
-# 전체 데이터 수집 + 분석
+# Collect and analyze everything
 tube-scout collect all
 tube-scout analyze all
 
-# 채널 종합 리포트에서 비교
+# Compare in the channel report
 tube-scout report channel
 ```
 
-### 알 수 있는 것
+### What you learn
 
-채널 종합 리포트에서 영상 간 비교 테이블이 생성됩니다:
+The channel report includes a side-by-side table:
 
-| 영상 | 형식 | 길이 | 조회수 | Hotspot 수 | Skip 수 | EQS |
-|------|------|------|--------|-----------|---------|-----|
-| 해부학 1강 | 칠판 | 45분 | 2,340 | 5 | 3 | 0.72 |
-| 해부학 2강 | 슬라이드 | 25분 | 3,120 | 2 | 1 | 0.81 |
-| 해부학 실습 | 시연 | 15분 | 4,560 | 1 | 0 | 0.88 |
+| Video | Format | Length | Views | Hotspots | Skips | EQS |
+|-------|--------|--------|-------|----------|-------|-----|
+| Anatomy 1 | Chalk talk | 45 min | 2,340 | 5 | 3 | 0.72 |
+| Anatomy 2 | Slides | 25 min | 3,120 | 2 | 1 | 0.81 |
+| Anatomy lab | Demo | 15 min | 4,560 | 1 | 0 | 0.88 |
 
-이 데이터에서 읽을 수 있는 인사이트:
-- 짧은 영상(15~25분)이 긴 영상(45분)보다 조회수와 EQS 모두 높음
-- 실습 시연 형식의 Hotspot/Skip이 가장 적음 → 학생 집중도 최고
-- 슬라이드 형식이 칠판 형식보다 명료성(Clarity) 점수 우위
+Insights you can read off the data:
+
+- Shorter videos (15–25 min) outperform longer ones (45 min) on both views
+  and EQS
+- Demo videos have the fewest hotspots and skips → highest student attention
+- Slide format scores higher on Clarity than chalk-talk format
 
 ---
 
-## 시나리오 8: "영상을 처음 올려보는 신임 교수인데, 어디서부터 시작해야 할지 모르겠다"
+## Scenario 8: "I'm new to teaching on video and don't know where to start"
 
-### 상황
+### Situation
 
-처음으로 강의 영상을 촬영하여 학과 채널에 업로드했습니다. 학생들이 잘 보고 있는지, 개선할 점이 있는지 확인하고 싶지만 YouTube Studio가 복잡합니다.
+You uploaded your first lecture to the department channel. You want to check
+how students are watching and what to improve, but YouTube Studio is
+overwhelming.
 
-### 단계별 가이드
+### Step-by-step
 
-**1단계: 기본 현황 파악 (5분)**
+**Step 1 — Lay of the land (5 minutes)**
 
 ```bash
-tube-scout init --channel-id "학과채널ID" --professor "본인이름"
+tube-scout init --channel-id "DEPARTMENT_CHANNEL_ID" --professor "Your Name"
 tube-scout collect videos
 tube-scout list
 ```
 
-이것만으로 내 영상의 조회수/좋아요/댓글 현황을 한눈에 볼 수 있습니다.
+That alone gives you views / likes / comments for every video of yours.
 
-**2단계: 학생 반응 확인 (10분)**
+**Step 2 — Student reactions (10 minutes)**
 
 ```bash
 tube-scout collect comments
 tube-scout analyze sentiment
 ```
 
-학생들이 어떤 반응을 보이는지, 어떤 질문을 하는지 자동으로 정리됩니다.
+You will see what students say and what they ask, organized for you.
 
-**3단계: 종합 리포트 (5분)**
+**Step 3 — Comprehensive report (5 minutes)**
 
 ```bash
-tube-scout report video --video-id "첫영상ID"
+tube-scout report video --video-id "FIRST_VIDEO_ID"
 ```
 
-브라우저에서 HTML 리포트를 열면 성과 요약, 개선 제안이 한 페이지로 정리됩니다.
+Open the HTML report in a browser. You get a single page with summary
+metrics and improvement suggestions.
 
-### 신임 교수를 위한 팁
+### Tips for first-time uploaders
 
-- 처음에는 `collect videos` + `list`만으로도 충분합니다
-- 영상이 10개 이상 쌓이면 `report channel`로 종합 분석을 해보세요
-- 시청 유지율 분석(`collect retention`)은 채널 관리자 권한이 필요하므로, 학과 조교나 채널 관리자에게 도움을 요청하세요
+- `collect videos` + `list` is enough to start
+- Once you have 10+ videos, run `report channel` for a wider view
+- Retention analysis (`collect retention`) needs channel-admin permission;
+  ask your department TA or channel admin for help
 
 ---
 
-## 자주 묻는 질문 (FAQ)
+## FAQ
 
-### Q: 다른 교수의 영상도 분석할 수 있나요?
+### Q: Can I analyze videos by other instructors?
 
-기본 메트릭(조회수, 좋아요, 댓글)은 공개 영상이면 누구든 분석 가능합니다. 시청 유지율(retention) 데이터만 채널 소유자 권한이 필요합니다.
+Basic metrics (views, likes, comments) work for any public video. Only
+audience retention requires channel-owner permissions.
 
-### Q: 비공개 영상도 분석되나요?
+### Q: Can private videos be analyzed?
 
-비공개(private) 영상은 API로 접근할 수 없습니다. 일부 공개(unlisted) 영상은 video_id를 알면 수집 가능합니다.
+Private videos cannot be reached via the API. Some unlisted videos can be
+collected if you know the video ID.
 
-### Q: API 비용이 발생하나요?
+### Q: Are there API costs?
 
-YouTube Data API는 무료입니다 (일일 10,000 units 제한). 감성분석/자막분석에 LLM API를 사용하면 소액의 비용이 발생합니다 (댓글 1,000건 기준 약 $0.02).
+The YouTube Data API is free (subject to a 10,000-unit daily quota). If you
+use an LLM provider for sentiment / transcript analysis, you pay a small
+amount (about $0.02 per 1,000 comments).
 
-### Q: 영상이 수백 개인데 할당량이 부족하면요?
+### Q: My channel has hundreds of videos and I keep hitting the quota.
 
-수집 중 할당량이 초과되면 진행 상태가 자동 저장됩니다. 다음 날 같은 명령을 실행하면 중단된 지점부터 이어서 수집합니다.
+When the quota runs out mid-collection, Tube Scout saves progress
+automatically. Run the same command the next day and it resumes from where
+it stopped.
 
-### Q: 한 채널에 여러 교수의 영상이 있으면요?
+### Q: My channel has many faculty members. Can I filter only my videos?
 
-`--professor` 옵션으로 교수명을 지정하면 해당 교수의 영상만 자동 필터링됩니다. 다른 교수의 영상은 수집되지 않습니다.
+Yes — use `--professor` with your name. Videos that do not contain your name
+are skipped.
 
-### Q: 자막이 없는 영상은요?
+### Q: What about videos without subtitles?
 
-YouTube 자동 자막이 있으면 그것을 사용합니다. 자막이 전혀 없고 Whisper(음성인식)가 설치되어 있으면 자동으로 자막을 생성합니다. 둘 다 불가능하면 해당 영상의 자막 분석만 건너뛰고 나머지 분석은 정상 진행됩니다.
+Tube Scout uses YouTube's auto-generated captions when available. If
+captions are missing and Whisper (speech recognition) is installed, it
+generates captions automatically. If neither path works, the transcript
+analysis is skipped for that video and the rest of the analyses still run.
