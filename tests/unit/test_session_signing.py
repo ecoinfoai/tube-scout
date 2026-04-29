@@ -17,7 +17,6 @@ import time
 
 import pytest
 
-
 SECRET = "test-secret-do-not-use-in-prod"
 
 

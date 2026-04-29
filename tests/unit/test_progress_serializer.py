@@ -18,7 +18,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-
 ALL_STAGES = [
     "listing",
     "metadata",

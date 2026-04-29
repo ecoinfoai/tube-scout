@@ -58,7 +58,9 @@ def test_content_disposition_html_inline() -> None:
     )
     assert cd.startswith("inline")
     assert "filename*=UTF-8''" in cd
-    encoded = urllib.parse.quote("물리치료과_홍길동_해부생리학_2026-03-01_2026-04-30_v1v3.html")
+    encoded = urllib.parse.quote(
+        "물리치료과_홍길동_해부생리학_2026-03-01_2026-04-30_v1v3.html"
+    )
     assert encoded in cd
 
 
