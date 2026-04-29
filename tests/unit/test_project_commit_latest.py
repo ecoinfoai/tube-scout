@@ -77,10 +77,16 @@ class TestCommitLatestAtomic:
         assert latest == proj.resolve()
 
     def test_commit_latest_replaces_previous(self, tmp_path: Path) -> None:
+        import time
+
         mgr1 = _make_manager(tmp_path)
         proj1 = mgr1.create_project()
         mgr1.videos_meta("nursing").write_text("[]", encoding="utf-8")
         mgr1.commit_latest()
+
+        # ProjectManager uses second-precision timestamps; ensure a
+        # distinct directory for the second run.
+        time.sleep(1.05)
 
         mgr2 = _make_manager(tmp_path)
         proj2 = mgr2.create_project()

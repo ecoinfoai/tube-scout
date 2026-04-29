@@ -1,6 +1,7 @@
 """Timestamped output directory management."""
 
 import os
+import tempfile
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -52,6 +53,10 @@ class ProjectManager:
     def create_project(self) -> Path:
         """Create a new timestamped project directory.
 
+        Per ADR-IDEA6-006 (D-3 fix): does NOT update ``latest`` on its
+        own. Writers must call :meth:`commit_latest` after persisting
+        at least one artifact under ``01_collect/``.
+
         Returns:
             Path to the created project directory.
         """
@@ -59,7 +64,6 @@ class ProjectManager:
         timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         self._project_dir = self._root / timestamp
         self._project_dir.mkdir(parents=True, exist_ok=True)
-        self._update_latest_link()
         return self._project_dir
 
     def open_project(self, project_path: Path) -> None:
@@ -172,6 +176,85 @@ class ProjectManager:
     def report_html(self, alias: str) -> Path:
         """Path to ``03_report/{alias}/report.html`` (FR-IDEA6-001)."""
         return self.stage_dir(Stage.REPORT, alias) / "report.html"
+
+    # ------------------------------------------------------------------
+    # Atomic latest-symlink (idea6 ADR-IDEA6-006)
+    # ------------------------------------------------------------------
+
+    def _collect_has_artifact(self) -> bool:
+        """Return True iff ``01_collect/`` contains at least one file."""
+        collect_root = self.project_dir / Stage.COLLECT.value
+        if not collect_root.exists():
+            return False
+        for path in collect_root.rglob("*"):
+            if path.is_file():
+                return True
+        return False
+
+    def commit_latest(self) -> None:
+        """Atomically point ``projects/latest`` at the current project.
+
+        Refuses to swap when the project's ``01_collect/`` is missing or
+        empty (D-3 root cause). Uses ``tempfile + os.replace`` so the
+        symlink swap is POSIX-atomic.
+
+        Raises:
+            UserFacingError: If no artifact has been written under
+                ``01_collect/``. The hint points the operator at
+                ``tube-scout admin repair-latest``.
+        """
+        from tube_scout.cli.errors import UserFacingError
+
+        if not self._collect_has_artifact():
+            raise UserFacingError(
+                message=(
+                    "Refusing to point projects/latest at an empty project "
+                    f"({self.project_dir.name}). 01_collect/ must contain "
+                    "at least one artifact before commit_latest()."
+                ),
+                next_command="tube-scout admin repair-latest",
+            )
+        target = self.project_dir.resolve()
+        # tempfile.mktemp avoided; create unique symlink name in same dir
+        # then os.replace for atomic swap.
+        tmp_link = self._root / f".latest.tmp.{os.getpid()}.{datetime.now(UTC).strftime('%H%M%S%f')}"
+        if tmp_link.exists() or tmp_link.is_symlink():
+            tmp_link.unlink()
+        tmp_link.symlink_to(target)
+        latest = self._root / "latest"
+        # os.replace works on symlinks since Python 3.3 (POSIX rename atomic).
+        os.replace(tmp_link, latest)
+
+    def resolve_latest_strict(self) -> Path:
+        """Resolve ``latest`` and raise on empty / missing target.
+
+        Returns:
+            Path to the latest project directory.
+
+        Raises:
+            UserFacingError: If ``latest`` is absent or points at an
+                empty project.
+        """
+        from tube_scout.cli.errors import UserFacingError
+
+        latest = self._root / "latest"
+        if not latest.is_symlink():
+            raise UserFacingError(
+                message="No projects/latest symlink — no project committed yet.",
+                next_command="tube-scout admin repair-latest",
+            )
+        target = latest.resolve()
+        collect_root = target / Stage.COLLECT.value
+        if not collect_root.exists() or not any(collect_root.rglob("*")):
+            raise UserFacingError(
+                message=(
+                    f"projects/latest points at an empty project ({target.name}). "
+                    "D-3 stale-symlink — operator should rerun the most recent "
+                    "successful collect, or repair the link."
+                ),
+                next_command="tube-scout admin repair-latest",
+            )
+        return target
 
 
 class OutputManager:
