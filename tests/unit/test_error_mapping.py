@@ -33,7 +33,6 @@ REQUIRED_CODES = [
     "pipeline.quota_exceeded",
     "pipeline.no_videos",
     "pipeline.internal",
-    "pipeline.not_integrated",
     "files.missing",
     "files.unknown_kind",
     "files.traversal",
@@ -100,3 +99,19 @@ def test_to_user_message_rejects_empty_code() -> None:
 
     with pytest.raises(ValueError):
         errors.to_user_message("")
+
+
+def test_pipeline_not_integrated_unreachable_after_t035bis() -> None:
+    """R-9: ``pipeline.not_integrated`` is removed once the helper is wired.
+
+    The code existed only while T035 stub raised it. After T035-bis,
+    ``cli.collect._collect_all_for_web`` is the integration point and
+    nothing emits this code. Asserting absence prevents the dead row from
+    being re-added by accident.
+    """
+    from tube_scout.web import errors
+
+    assert "pipeline.not_integrated" not in errors.USER_MESSAGES
+    # Calling with the now-unmapped code falls back to the internal message.
+    fallback = errors.to_user_message("pipeline.not_integrated")
+    assert "내부 오류" in fallback or "운영자" in fallback
