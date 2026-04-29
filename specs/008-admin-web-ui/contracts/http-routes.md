@@ -16,7 +16,7 @@
 - **인증**: `/login` 경로 외 모든 라우트는 미인증 시 302 → `/login?next=<path>`(spec FR-002)
 - **CSRF**: 모든 POST/PUT/PATCH/DELETE는 폼 필드 또는 헤더 `X-CSRF-Token` 필수
 - **세션**: 서명 쿠키(itsdangerous), 8h 만료(spec FR-004a)
-- **에러 표준**: 4xx는 한국어 메시지(폼 또는 JSON `error_message_kr`), 5xx는 "내부 오류" + 영문 상세 로그
+- **에러 표준**: 4xx **JSON** 응답은 한국어 사용자 메시지(`error_message_kr`) + `error_code` 키를 포함하며, 영문 상세는 로그에만(spec FR-015). HTML 폼 4xx는 한국어 메시지를 폼에 표시하면 충족(별도 `error_code` 키 노출 의무 없음, ADR-007). 5xx는 "내부 오류" + 영문 상세 로그
 
 ## Route Inventory
 
@@ -249,6 +249,6 @@ status=<confirmed_duplicate|false_positive|unreviewed>&note=<str>&csrf_token=<st
 ## Cross-cutting Contract Requirements
 
 - 모든 라우트의 응답에 **시크릿 정보 포함 금지** — 환경변수명, 토큰 경로, 채널 ID, agenix 키 등 0건. JSON 응답 구조에서도 위 필드 부재가 contract test로 검증된다(spec SC-006).
-- 모든 4xx 응답은 한국어 사용자 메시지 + `error_code` 키만 포함하며, 영문 상세는 로그에만(spec FR-015).
+- 모든 4xx **JSON** 응답은 한국어 사용자 메시지 + `error_code` 키를 포함하며, 영문 상세는 로그에만(spec FR-015). HTML 폼 4xx는 한국어 메시지를 폼에 표시하면 충족(별도 `error_code` 키 노출 의무 없음, ADR-007).
 - 모든 라우트는 `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin` 헤더를 추가한다(미들웨어 일괄).
 - 라우트 핸들러는 서비스 계층 함수만 호출하며 직접 google-api/transformer 호출 금지(Constitution IV — thin layer).
