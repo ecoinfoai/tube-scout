@@ -188,3 +188,52 @@ async def test_review_note_over_512_rejected(reviews_env: Path) -> None:
             )
     assert resp.status_code == 400
     assert "리뷰 메모는 512자 이하여야 합니다." in resp.text
+
+
+async def test_review_pair_belonging_to_other_job_rejected(
+    reviews_env: Path,
+) -> None:
+    """ADV-US2-22 (IDOR): cannot mutate a pair that belongs to a different job.
+
+    The route URL embeds ``{job_id}``, the form mutates the pair's status.
+    If the pair was originally surfaced under a *different* job, the
+    request is an IDOR attempt — must be rejected (404).
+    """
+    from tube_scout.web.app import create_app
+    from tube_scout.web.repo import jobs_repo, reviews_repo
+
+    other_job_id = "20260429-090000"
+    other_pair = "pair-other-001"
+    jobs_repo.JobsRepo().insert_pending(
+        {
+            "job_id": other_job_id,
+            "department_alias": DEPT_ALIAS,
+            "professor_name": "다른교수",
+            "course_name": "다른과목",
+            "period_start": "2026-04-01",
+            "period_end": "2026-04-28",
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "created_by": USERNAME,
+        }
+    )
+    jobs_repo.JobsRepo().transition_to(
+        other_job_id, status="completed", current_stage="done"
+    )
+    reviews_repo.ReviewsRepo().upsert_review(
+        pair_id=other_pair,
+        job_id=other_job_id,
+        status="unreviewed",
+        updated_by=None,
+        note=None,
+    )
+
+    app = create_app()
+    async with _build_client(app) as client:
+        async with app.router.lifespan_context(app):
+            csrf = await _login_and_csrf(client)
+            # Try to mutate other_pair via JOB_ID's URL — IDOR attempt.
+            resp = await client.post(
+                f"/jobs/{JOB_ID}/reviews/{other_pair}",
+                data={"status": "false_positive", "csrf_token": csrf},
+            )
+    assert resp.status_code == 404
