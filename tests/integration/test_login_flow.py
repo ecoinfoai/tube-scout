@@ -171,3 +171,65 @@ async def test_login_open_redirect_protection(login_env: None) -> None:
     # External redirect MUST be rejected — fall back to /jobs/new
     assert location.startswith("/")
     assert "evil.example.com" not in location
+
+
+async def test_login_form_does_not_reflect_unescaped_next_payload(
+    login_env: None,
+) -> None:
+    """ADV-US1-86: ``next`` value MUST be HTML-escaped in the form attr.
+
+    The login template renders ``<input ... value="{{ next_url }}">`` with
+    Jinja autoescape on. A reflected XSS payload like ``"><script>...``
+    must appear escaped (``&#34;&gt;&lt;script&gt;``) and never break out
+    of the attribute.
+    """
+    from tube_scout.web.app import create_app
+
+    app = create_app()
+    payload = '"><script>alert(1)</script>'
+    async with _build_client(app) as client:
+        async with app.router.lifespan_context(app):
+            from urllib.parse import quote
+
+            resp = await client.get(f"/login?next={quote(payload)}")
+    assert resp.status_code == 200
+    body = resp.text
+    assert "<script>alert(1)</script>" not in body
+    assert "alert(1)" not in body or "&#34;" in body or "&lt;" in body
+
+
+async def test_login_open_redirect_backslash_bypass_rejected(
+    login_env: None,
+) -> None:
+    """ADV-US1-74: ``/\\evil.com`` MUST NOT redirect off-site.
+
+    Some browsers normalise ``/\\`` → ``//`` and treat the result as a
+    protocol-relative URL pointing at ``evil.com``. ``urlsplit`` does not
+    flag the input as suspicious, so the safe-next filter must reject any
+    backslash byte (and ``//`` start) in addition to the scheme/netloc
+    check.
+    """
+    from tube_scout.web.app import create_app
+
+    app = create_app()
+    for payload in ["/\\evil.com", "//evil.com", "/\\\\evil.com"]:
+        async with _build_client(app) as client:
+            async with app.router.lifespan_context(app):
+                form = await client.get("/login")
+                csrf = re.search(
+                    r'name="csrf_token"\s+value="([0-9a-f]{32})"', form.text
+                ).group(1)
+                resp = await client.post(
+                    "/login",
+                    data={
+                        "username": USERNAME,
+                        "password": PASSWORD,
+                        "csrf_token": csrf,
+                        "next": payload,
+                    },
+                )
+        assert resp.status_code in {302, 303}, payload
+        location = resp.headers["location"]
+        assert location == "/jobs/new", (
+            f"payload {payload!r} bypassed safe-next filter → {location!r}"
+        )

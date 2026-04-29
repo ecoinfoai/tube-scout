@@ -45,15 +45,25 @@ SESSION_COOKIE_NAME = "session"
 def _safe_next_url(value: str | None) -> str:
     """Return a safe relative redirect target.
 
-    Open-redirect protection: only relative paths starting with ``/`` are
-    accepted. External / scheme-bearing URLs fall back to ``/jobs/new``.
+    Open-redirect protection (ADR + adversary ADV-US1-74):
+
+    1. Must start with a single ``/`` (not ``//`` — protocol-relative).
+    2. Must not contain backslashes (browsers normalise ``/\\`` → ``//``
+       and treat the result as a protocol-relative URL).
+    3. Must not have a scheme or netloc per ``urlsplit``.
+
+    Suspicious / external URLs fall back to ``/jobs/new``.
     """
     if not value:
         return "/jobs/new"
-    parsed = urlsplit(value)
-    if parsed.scheme or parsed.netloc:
+    if "\\" in value:
+        return "/jobs/new"
+    if value.startswith("//"):
         return "/jobs/new"
     if not value.startswith("/"):
+        return "/jobs/new"
+    parsed = urlsplit(value)
+    if parsed.scheme or parsed.netloc:
         return "/jobs/new"
     return value
 
@@ -196,7 +206,18 @@ async def post_login(request: Request) -> Response:
         )
 
     bcrypt_ok = False
-    if username and password and stored_hash and username == expected_username:
+    # ADV-US1-79: constant-time compare so user-existence cannot be inferred
+    # from response timing.
+    import hmac as _hmac
+
+    username_match = bool(
+        username
+        and expected_username
+        and _hmac.compare_digest(
+            username.encode("utf-8"), expected_username.encode("utf-8")
+        )
+    )
+    if username_match and password and stored_hash:
         try:
             bcrypt_ok = verify_password(password, stored_hash)
         except (ValueError, BadHashError):

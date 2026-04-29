@@ -113,3 +113,32 @@ def test_register_failure_rejects_empty_username() -> None:
     limiter = rate_limit.LoginRateLimiter(now_fn=lambda: 1000)
     with pytest.raises(ValueError):
         limiter.register_failure("")
+
+
+def test_failure_after_lock_expiry_resets_counter() -> None:
+    """ADV-US1-81: lock expiry MUST reset the counter.
+
+    Without a reset, a user who hits 5 failures, waits 5 minutes, then
+    fails once gets immediately re-locked (fail_count becomes 6 ≥ 5). The
+    spec wording "5회 연속 5분간 잠금" is read here as a sliding window —
+    the lock window expiring counts as a soft success that clears prior
+    failures.
+    """
+    from tube_scout.web.middleware import rate_limit
+
+    now_holder = {"t": 1000}
+    limiter = rate_limit.LoginRateLimiter(now_fn=lambda: now_holder["t"])
+    for _ in range(5):
+        limiter.register_failure("ops")
+    assert limiter.is_locked("ops") is True
+
+    # Advance past the 5-minute lock window — lock should be inactive.
+    now_holder["t"] += rate_limit.LOCK_WINDOW_SECONDS + 1
+    assert limiter.is_locked("ops") is False
+
+    # A single new failure must NOT immediately re-trigger the lock.
+    limiter.register_failure("ops")
+    assert limiter.is_locked("ops") is False, (
+        "fail_count was not reset after lock window expired"
+    )
+    assert limiter.fail_count("ops") == 1
