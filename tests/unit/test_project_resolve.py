@@ -21,6 +21,9 @@ class TestResolveProject:
         root = tmp_path / "projects"
         first = ProjectManager(projects_root=root)
         first.create_project()
+        # idea6 ADR-IDEA6-006: must commit_latest after writing an artifact.
+        first.videos_meta("nursing").write_text("[]", encoding="utf-8")
+        first.commit_latest()
 
         mgr = resolve_project(str(root), project="latest")
         assert mgr.project_dir == first.project_dir

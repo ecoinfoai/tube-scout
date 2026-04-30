@@ -109,25 +109,29 @@ class TestA01NewAdminStaff:
         assert loaded.total_collected == 5
 
     def test_client_secret_path_missing_env_var(self) -> None:
-        """Missing TUBE_SCOUT_CLIENT_SECRET should raise ValueError."""
+        """idea6 ADR-IDEA6-004: SecretConfigError (UserFacingError sub) when neither
+        TUBE_SCOUT_CLIENT_SECRET nor TUBE_SCOUT_CLIENT_SECRET_B64 is set.
+        """
+        from tube_scout.cli.errors import UserFacingError
         from tube_scout.services.auth import _default_client_secret_path
 
         with patch.dict(os.environ, {}, clear=True):
-            # Remove the env var if it exists
             os.environ.pop("TUBE_SCOUT_CLIENT_SECRET", None)
-            with pytest.raises(ValueError, match="TUBE_SCOUT_CLIENT_SECRET"):
+            os.environ.pop("TUBE_SCOUT_CLIENT_SECRET_B64", None)
+            with pytest.raises(UserFacingError, match="TUBE_SCOUT_CLIENT_SECRET"):
                 _default_client_secret_path()
 
     def test_client_secret_path_points_to_nonexistent_file(
         self, tmp_path: Path
     ) -> None:
-        """TUBE_SCOUT_CLIENT_SECRET pointing to missing file
-        should raise FileNotFoundError."""
+        """idea6 ADR-IDEA6-004: SecretConfigError when env var path missing."""
+        from tube_scout.cli.errors import UserFacingError
         from tube_scout.services.auth import _default_client_secret_path
 
         fake_path = str(tmp_path / "nonexistent_secret.json")
         with patch.dict(os.environ, {"TUBE_SCOUT_CLIENT_SECRET": fake_path}):
-            with pytest.raises(FileNotFoundError):
+            os.environ.pop("TUBE_SCOUT_CLIENT_SECRET_B64", None)
+            with pytest.raises(UserFacingError, match="does not exist"):
                 _default_client_secret_path()
 
     def test_empty_channel_id_rejected(self) -> None:
@@ -234,15 +238,19 @@ class TestA03DXOperatorParallel:
         assert p1 != p2
 
     def test_latest_symlink_points_to_last_created(self, tmp_path: Path) -> None:
-        """After creating multiple projects, latest should point to the most recent."""
+        """idea6 ADR-IDEA6-006: latest is updated only after commit_latest()."""
         mgr = ProjectManager(projects_root=tmp_path / "projects")
         mgr.create_project()
+        mgr.videos_meta("nursing").write_text("[]", encoding="utf-8")
+        mgr.commit_latest()
 
         import time
 
         time.sleep(1.1)
 
         p2 = mgr.create_project()
+        mgr.videos_meta("nursing").write_text("[]", encoding="utf-8")
+        mgr.commit_latest()
         latest = mgr.resolve_latest()
         assert latest is not None
         assert latest.resolve() == p2.resolve()

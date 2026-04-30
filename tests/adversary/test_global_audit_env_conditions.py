@@ -698,12 +698,14 @@ class TestB07Concurrency:
             assert loaded.channel_id == ch
 
     def test_latest_symlink_update_race(self, tmp_path: Path) -> None:
-        """Updating latest symlink multiple times should end at last project."""
+        """idea6 ADR-IDEA6-006: each commit_latest atomically swaps the link."""
         projects_root = tmp_path / "projects"
         last_project = None
         for _ in range(3):
             mgr = ProjectManager(projects_root=projects_root)
             last_project = mgr.create_project()
+            mgr.videos_meta("nursing").write_text("[]", encoding="utf-8")
+            mgr.commit_latest()
             time.sleep(1.1)
 
         mgr2 = ProjectManager(projects_root=projects_root)

@@ -503,10 +503,12 @@ class TestCombo07MultiProjectChannelCross:
             mgr.open_project(tmp_path / "projects" / "deleted_proj")
 
     def test_latest_symlink_survives_project_operations(self, tmp_path: Path) -> None:
-        """Latest symlink should point to most recent project even after cross-ops."""
+        """idea6 ADR-IDEA6-006: latest swap requires explicit commit_latest()."""
         projects_root = tmp_path / "projects"
         mgr = ProjectManager(projects_root=projects_root)
         mgr.create_project()
+        mgr.videos_meta("nursing").write_text("[]", encoding="utf-8")
+        mgr.commit_latest()
 
         import time
 
@@ -514,6 +516,8 @@ class TestCombo07MultiProjectChannelCross:
 
         mgr2 = ProjectManager(projects_root=projects_root)
         p2 = mgr2.create_project()
+        mgr2.videos_meta("nursing").write_text("[]", encoding="utf-8")
+        mgr2.commit_latest()
 
         latest = mgr2.resolve_latest()
         assert latest.resolve() == p2.resolve()
@@ -550,12 +554,15 @@ class TestCombo08NewMachineDiskError:
         with pytest.raises(json.JSONDecodeError):
             read_json(data_dir / "config.json")
 
-        # Missing client secret
+        # idea6 ADR-IDEA6-004: SecretConfigError (UserFacingError) is raised
+        # when neither path nor _B64 form is set.
+        from tube_scout.cli.errors import UserFacingError
         from tube_scout.services.auth import _default_client_secret_path
 
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("TUBE_SCOUT_CLIENT_SECRET", None)
-            with pytest.raises(ValueError, match="TUBE_SCOUT_CLIENT_SECRET"):
+            os.environ.pop("TUBE_SCOUT_CLIENT_SECRET_B64", None)
+            with pytest.raises(UserFacingError, match="TUBE_SCOUT_CLIENT_SECRET"):
                 _default_client_secret_path()
 
     def test_read_only_filesystem_write_fails(self, tmp_path: Path) -> None:

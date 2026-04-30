@@ -16,12 +16,18 @@ class TestProjectManagerCreate:
         assert project_dir.exists()
         assert project_dir.parent == tmp_path / "projects"
 
-    def test_create_project_updates_latest_symlink(self, tmp_path: Path) -> None:
+    def test_create_project_does_not_update_latest_symlink(self, tmp_path: Path) -> None:
+        """idea6 ADR-IDEA6-006 (D-3 fix): create_project no longer touches latest.
+
+        Writers must call commit_latest() after persisting at least one
+        artifact. This test pins the new contract.
+        """
         mgr = ProjectManager(projects_root=tmp_path / "projects")
-        project_dir = mgr.create_project()
+        mgr.create_project()
         latest = tmp_path / "projects" / "latest"
-        assert latest.is_symlink()
-        assert latest.resolve() == project_dir.resolve()
+        assert not latest.is_symlink(), (
+            "create_project must not auto-update latest (ADR-IDEA6-006)"
+        )
 
     def test_create_project_dir_name_is_timestamp(self, tmp_path: Path) -> None:
         mgr = ProjectManager(projects_root=tmp_path / "projects")
@@ -94,9 +100,15 @@ class TestProjectManagerLatest:
         mgr = ProjectManager(projects_root=tmp_path / "projects")
         assert mgr.resolve_latest() is None
 
-    def test_resolve_latest_returns_path(self, tmp_path: Path) -> None:
+    def test_resolve_latest_returns_path_after_commit(
+        self, tmp_path: Path
+    ) -> None:
+        """idea6 ADR-IDEA6-006: latest only resolved after commit_latest()."""
         mgr = ProjectManager(projects_root=tmp_path / "projects")
         project_dir = mgr.create_project()
+        # Populate 01_collect/ with at least one artifact (B2 guard).
+        mgr.videos_meta("nursing").write_text("[]", encoding="utf-8")
+        mgr.commit_latest()
         latest = mgr.resolve_latest()
         assert latest is not None
         assert latest.resolve() == project_dir.resolve()

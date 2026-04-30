@@ -138,10 +138,13 @@ class TestCollectVideosFlow:
         )
         assert result.exit_code == 0
 
-        # Find the created project directory
-        latest = project_dir / "latest"
-        assert latest.is_symlink()
-        proj = latest.resolve()
+        # idea6 ADR-IDEA6-006 (D-3 fix): create_project no longer
+        # auto-updates `latest`. Locate the project by timestamp dir.
+        candidates = sorted(
+            d for d in project_dir.iterdir() if d.is_dir() and d.name[0].isdigit()
+        )
+        assert candidates, "no timestamped project directory was created"
+        proj = candidates[-1]
 
         # Verify data files were created under 01_collect
         channel_dir = proj / "01_collect" / "channels" / "UCxxxxxxxxxxxxxxxxxxxxxx"
