@@ -167,8 +167,14 @@ class TestAuthenticateChannel:
     def test_authenticate_with_valid_token(
         self, tokens_dir: Path, sample_registry: Path, sample_token: Path
     ) -> None:
+        from tube_scout.services.auth import SCOPES
+
         mock_creds = MagicMock()
         mock_creds.valid = True
+        # idea6 ADR-IDEA6-005 / FR-IDEA6-005: _verify_scopes runs after
+        # every creds.valid path. Stub the scope set to satisfy the check.
+        mock_creds.scopes = list(SCOPES)
+        mock_creds.granted_scopes = list(SCOPES)
         with patch(
             "tube_scout.services.auth.Credentials.from_authorized_user_file",
             return_value=mock_creds,
@@ -180,11 +186,15 @@ class TestAuthenticateChannel:
     def test_authenticate_refreshes_expired_token(
         self, tokens_dir: Path, sample_registry: Path, sample_token: Path
     ) -> None:
+        from tube_scout.services.auth import SCOPES
+
         mock_creds = MagicMock()
         mock_creds.valid = False
         mock_creds.expired = True
         mock_creds.refresh_token = "1//fake_refresh_token"
         mock_creds.to_json.return_value = '{"token": "refreshed"}'
+        mock_creds.scopes = list(SCOPES)
+        mock_creds.granted_scopes = list(SCOPES)
 
         with (
             patch(
@@ -206,10 +216,26 @@ class TestAuthenticateChannel:
 class TestRegisterChannel:
     """Tests for register_channel function."""
 
+    @pytest.fixture(autouse=True)
+    def _force_tty(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """idea6 NFR-IDEA6-003 §"Headless guard": pretend a TTY is attached.
+
+        register_channel now refuses ``flow.run_local_server`` in non-TTY
+        contexts (B7). The unit tests mock the flow itself so we just
+        force ``sys.stdin.isatty`` -> True for the duration of each test.
+        """
+        import sys
+
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_register_saves_token_and_registry(self, tokens_dir: Path) -> None:
+        from tube_scout.services.auth import SCOPES
+
         mock_creds = MagicMock()
         mock_creds.to_json.return_value = '{"token": "fake"}'
+        mock_creds.scopes = list(SCOPES)
+        mock_creds.granted_scopes = list(SCOPES)
 
         mock_flow = MagicMock()
         mock_flow.run_local_server.return_value = mock_creds
@@ -253,7 +279,11 @@ class TestRegisterChannel:
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_register_no_channel_found_raises(self, tokens_dir: Path) -> None:
+        from tube_scout.services.auth import SCOPES
+
         mock_creds = MagicMock()
+        mock_creds.scopes = list(SCOPES)
+        mock_creds.granted_scopes = list(SCOPES)
         mock_flow = MagicMock()
         mock_flow.run_local_server.return_value = mock_creds
 
@@ -280,8 +310,12 @@ class TestRegisterChannel:
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_register_auto_detects_channel_id(self, tokens_dir: Path) -> None:
+        from tube_scout.services.auth import SCOPES
+
         mock_creds = MagicMock()
         mock_creds.to_json.return_value = '{"token": "fake"}'
+        mock_creds.scopes = list(SCOPES)
+        mock_creds.granted_scopes = list(SCOPES)
 
         mock_flow = MagicMock()
         mock_flow.run_local_server.return_value = mock_creds

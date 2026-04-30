@@ -1,14 +1,28 @@
-"""Tests for auth.py OAuth-only authentication (US1)."""
+"""Tests for auth.py OAuth-only authentication (US1).
+
+idea6 ADR-IDEA6-004: ``_default_client_secret_path`` is now a thin
+delegate to ``services.secret_loader.resolve_client_secret_path``,
+which raises :class:`SecretConfigError` (a subclass of
+:class:`UserFacingError`) instead of bare ``ValueError``/
+``FileNotFoundError``. The tests below pin the new contract while
+covering the same edge cases.
+"""
 
 from pathlib import Path
 
 import pytest
 
+from tube_scout.cli.errors import UserFacingError
 from tube_scout.services.auth import _default_client_secret_path
 
 
+@pytest.fixture(autouse=True)
+def _isolate_b64(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TUBE_SCOUT_CLIENT_SECRET_B64", raising=False)
+
+
 class TestDefaultClientSecretPath:
-    """Tests for _default_client_secret_path — env var only, no file-glob."""
+    """Tests for _default_client_secret_path — delegates to secret_loader."""
 
     def test_returns_path_from_env_var(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -22,10 +36,10 @@ class TestDefaultClientSecretPath:
         assert result == secret_file
 
     def test_raises_when_env_var_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Should raise ValueError when TUBE_SCOUT_CLIENT_SECRET is not set."""
+        """SecretConfigError when neither path nor _B64 form is set."""
         monkeypatch.delenv("TUBE_SCOUT_CLIENT_SECRET", raising=False)
 
-        with pytest.raises(ValueError, match="TUBE_SCOUT_CLIENT_SECRET"):
+        with pytest.raises(UserFacingError, match="TUBE_SCOUT_CLIENT_SECRET"):
             _default_client_secret_path()
 
     def test_no_file_glob_fallback(
@@ -40,16 +54,16 @@ class TestDefaultClientSecretPath:
 
         monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
-        with pytest.raises(ValueError, match="TUBE_SCOUT_CLIENT_SECRET"):
+        with pytest.raises(UserFacingError, match="TUBE_SCOUT_CLIENT_SECRET"):
             _default_client_secret_path()
 
     def test_raises_when_env_var_file_missing(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Should raise FileNotFoundError when env var points to missing file."""
+        """SecretConfigError when env var points to a missing file."""
         monkeypatch.setenv(
             "TUBE_SCOUT_CLIENT_SECRET", "/nonexistent/client_secret.json"
         )
 
-        with pytest.raises(FileNotFoundError, match="not found"):
+        with pytest.raises(UserFacingError, match="does not exist"):
             _default_client_secret_path()
