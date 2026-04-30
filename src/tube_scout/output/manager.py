@@ -156,10 +156,36 @@ class ProjectManager:
 
         Raises:
             RuntimeError: If no project has been created or opened.
+            ValueError: If ``alias`` contains path-traversal characters
+                (``/``, ``\\``, ``..`` parts, leading ``.``, or absolute
+                path) — A6-2 / FR-IDEA6-002 fail-fast guard.
         """
-        path = self.project_dir / stage.value / alias
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        # A6-2 (adversary P1) defensive sanitization.
+        if not alias:
+            raise ValueError(
+                "stage_dir: alias must be a non-empty string (FR-IDEA6-002)."
+            )
+        if (
+            "/" in alias
+            or "\\" in alias
+            or alias.startswith(".")
+            or alias == ".."
+            or Path(alias).is_absolute()
+        ):
+            raise ValueError(
+                f"stage_dir: rejecting path-traversal alias {alias!r}. "
+                "Aliases must be a single path component (FR-IDEA6-002, A6-2)."
+            )
+        base = self.project_dir / stage.value / alias
+        # Defense-in-depth: ensure the resolved path stays inside project_dir.
+        try:
+            base.resolve().relative_to(self.project_dir.resolve())
+        except ValueError as exc:  # pragma: no cover — guard above blocks this.
+            raise ValueError(
+                f"stage_dir: alias {alias!r} resolved outside project root."
+            ) from exc
+        base.mkdir(parents=True, exist_ok=True)
+        return base
 
     def videos_meta(self, alias: str) -> Path:
         """Path to ``01_collect/{alias}/videos_meta.json`` (FR-IDEA6-001)."""
