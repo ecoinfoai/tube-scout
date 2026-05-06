@@ -66,32 +66,32 @@ def token_success_response(
 
 
 def token_pending_response() -> httpx.Response:
-    """Build an authorization_pending polling response (RFC 8628 §3.5)."""
+    """Build an authorization_pending polling response (RFC 8628 §3.5 / Google: HTTP 400)."""
     return httpx.Response(
-        428,
+        400,
         json={"error": "authorization_pending"},
     )
 
 
 def token_slow_down_response() -> httpx.Response:
-    """Build a slow_down polling response (RFC 8628 §3.5)."""
+    """Build a slow_down polling response (RFC 8628 §3.5 / Google: HTTP 400)."""
     return httpx.Response(
-        428,
+        400,
         json={"error": "slow_down"},
     )
 
 
 def token_expired_response() -> httpx.Response:
-    """Build an expired_token response (RFC 8628 §3.5)."""
+    """Build an expired_token response (RFC 8628 §3.5 / Google: HTTP 400)."""
     return httpx.Response(
-        428,
+        400,
         json={"error": "expired_token"},
     )
 
 
 def token_access_denied_response() -> httpx.Response:
-    """Build an access_denied response (RFC 8628 §3.5)."""
+    """Build an access_denied response (RFC 8628 §3.5 / Google: HTTP 400)."""
     return httpx.Response(
-        428,
+        400,
         json={"error": "access_denied"},
     )
