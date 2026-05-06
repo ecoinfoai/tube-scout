@@ -5,6 +5,7 @@ Supports both single-channel (legacy) and multi-channel token management.
 
 import json
 import os
+import re
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +26,34 @@ SCOPES = [
 ]
 REQUIRED_SCOPES = frozenset(SCOPES)
 TOKEN_FILE = "token.json"
+
+_ALIAS_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,31}$")
+
+
+def _validate_alias(alias: str) -> None:
+    """Raise UserFacingError if alias is unsafe for use as a filesystem path component.
+
+    Allowed charset: ASCII alphanumeric, hyphens, underscores; 1–32 chars;
+    must not start with a hyphen or dot. Rejects path-traversal sequences,
+    null bytes, non-ASCII, and leading special characters.
+
+    Args:
+        alias: The channel alias string to validate.
+
+    Raises:
+        UserFacingError: If alias contains unsafe characters or fails length check.
+    """
+    from tube_scout.cli.errors import UserFacingError
+
+    if not alias or not _ALIAS_RE.match(alias):
+        raise UserFacingError(
+            message=(
+                f"Invalid channel alias {alias!r}. "
+                "Aliases must be 1–32 ASCII characters: letters, digits, "
+                "hyphens, underscores; must not start with a hyphen."
+            ),
+            next_command="tube-scout auth --channel <safe-alias>",
+        )
 
 
 class ScopeReauthRequired(Exception):
@@ -304,6 +333,7 @@ def update_last_used(tokens_path: Path | None, alias: str) -> None:
     Raises:
         KeyError: If alias is not registered.
     """
+    _validate_alias(alias)
     tokens_path = tokens_path or _tokens_dir()
     registry = load_registry(tokens_path)
     if alias not in registry:
@@ -340,6 +370,7 @@ def authenticate_channel(alias: str) -> Credentials:
         ValueError: If token is expired and has no refresh_token.
         google.auth.exceptions.RefreshError: If token refresh fails.
     """
+    _validate_alias(alias)
     tokens_path = _tokens_dir()
     registry = load_registry(tokens_path)
     if alias not in registry:
@@ -390,6 +421,7 @@ def register_channel(alias: str) -> ChannelRegistration:
         FileNotFoundError: If client secret file is not found.
         ValueError: If no channel is found on the authenticated account.
     """
+    _validate_alias(alias)
     tokens_path = _tokens_dir()
     tokens_path.mkdir(parents=True, exist_ok=True)
 
@@ -450,6 +482,7 @@ def revoke_channel(alias: str) -> None:
     Raises:
         KeyError: If alias is not registered.
     """
+    _validate_alias(alias)
     tokens_path = _tokens_dir()
     registry = load_registry(tokens_path)
     if alias not in registry:
