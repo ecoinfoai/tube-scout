@@ -412,7 +412,7 @@ def register_channel(alias: str) -> ChannelRegistration:
     channels.list(mine=True), saves the token, and updates the registry.
 
     Args:
-        alias: Human-readable department alias (e.g., "간호학과").
+        alias: Department alias (e.g., "nursing"). ASCII alphanumeric, hyphens, underscores only.
 
     Returns:
         ChannelRegistration for the newly registered channel.
