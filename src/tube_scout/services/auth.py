@@ -463,3 +463,62 @@ def revoke_channel(alias: str) -> None:
     # Remove from registry
     del registry[alias]
     save_registry(tokens_path, registry)
+
+
+# ─── Channel alias resolution (spec 009 FR-006) ───
+
+
+def resolve_channel_alias(
+    explicit: str | None,
+    registry: dict[str, "ChannelRegistration"],
+) -> str:
+    """Resolve a channel alias from an explicit flag or the registry.
+
+    Implements FR-006 auto-select / multi-alias guard:
+    - explicit provided and valid → return it
+    - explicit provided but not in registry → raise UserFacingError
+    - explicit=None, registry empty → raise NoAliasRegistered
+    - explicit=None, registry has 1 alias → auto-select, emit dim notice
+    - explicit=None, registry has 2+ aliases → raise MultipleAliasesNoSelection
+
+    Args:
+        explicit: The alias passed via --channel, or None if omitted.
+        registry: Mapping of alias → ChannelRegistration (from load_registry).
+
+    Returns:
+        Resolved alias string.
+
+    Raises:
+        NoAliasRegistered: No aliases in registry and none given explicitly.
+        MultipleAliasesNoSelection: Multiple aliases registered, none specified.
+        UserFacingError: Explicit alias not found in registry.
+    """
+    from tube_scout.cli.errors import (
+        MultipleAliasesNoSelection,
+        NoAliasRegistered,
+        UserFacingError,
+    )
+
+    if explicit is not None:
+        if explicit not in registry:
+            raise UserFacingError(
+                message=(
+                    f"Channel alias '{explicit}' is not registered."
+                    f" Registered: {', '.join(registry) or '(none)'}."
+                ),
+                next_command=f"tube-scout auth --channel {explicit}",
+            )
+        return explicit
+
+    aliases = list(registry)
+    if len(aliases) == 0:
+        raise NoAliasRegistered()
+    if len(aliases) == 1:
+        from rich.console import Console
+
+        Console(stderr=True).print(
+            f"[dim]Auto-selected channel alias '{aliases[0]}'.[/dim]"
+        )
+        return aliases[0]
+
+    raise MultipleAliasesNoSelection(aliases=aliases)
