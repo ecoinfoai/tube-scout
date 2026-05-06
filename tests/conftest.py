@@ -5,6 +5,11 @@ from typing import Generator
 
 import pytest
 
+# pytest-httpx provides httpx_mock fixture automatically via its plugin.
+# tests.fixtures.httpx_mock re-exports HTTPXMock type + response builders for
+# contract tests (spec 009 T008–T010).
+from tests.fixtures.httpx_mock import HTTPXMock as HTTPXMock  # noqa: F401
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Add ``--run-manual`` opt-in for tests/manual/* (FR-IDEA6-009)."""
