@@ -35,13 +35,13 @@ def _mock_tokens_dir(tokens_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def sample_registry(tokens_dir: Path) -> Path:
     """Create a sample channels.json registry."""
     registry = {
-        "간호학과": {
-            "alias": "간호학과",
+        "nursing": {
+            "alias": "nursing",
             "channel_id": "UCxxxxxxxxxxxxxxxxxxxxxx",
-            "channel_name": "부산보건대 간호학과",
+            "channel_name": "Nursing Department",
             "registered_at": "2026-04-04T12:00:00",
             "last_used_at": "2026-04-04T15:30:00",
-            "token_path": str(tokens_dir / "간호학과.json"),
+            "token_path": str(tokens_dir / "nursing.json"),
         },
     }
     channels_file = tokens_dir / "channels.json"
@@ -51,7 +51,7 @@ def sample_registry(tokens_dir: Path) -> Path:
 
 @pytest.fixture()
 def sample_token(tokens_dir: Path) -> Path:
-    """Create a sample token file for 간호학과."""
+    """Create a sample token file for nursing alias."""
     token_data = {
         "token": "ya29.fake_access_token",
         "refresh_token": "1//fake_refresh_token",
@@ -63,7 +63,7 @@ def sample_token(tokens_dir: Path) -> Path:
             "https://www.googleapis.com/auth/yt-analytics.readonly",
         ],
     }
-    token_file = tokens_dir / "간호학과.json"
+    token_file = tokens_dir / "nursing.json"
     token_file.write_text(json.dumps(token_data), encoding="utf-8")
     return token_file
 
@@ -75,8 +75,8 @@ class TestLoadRegistry:
         self, tokens_dir: Path, sample_registry: Path
     ) -> None:
         registry = load_registry(tokens_dir)
-        assert "간호학과" in registry
-        assert registry["간호학과"].channel_id == "UCxxxxxxxxxxxxxxxxxxxxxx"
+        assert "nursing" in registry
+        assert registry["nursing"].channel_id == "UCxxxxxxxxxxxxxxxxxxxxxx"
 
     def test_load_empty_dir_returns_empty_dict(self, tokens_dir: Path) -> None:
         registry = load_registry(tokens_dir)
@@ -96,17 +96,17 @@ class TestSaveRegistry:
         from tube_scout.models.config import ChannelRegistration
 
         reg = ChannelRegistration(
-            alias="물리치료과",
+            alias="physical",
             channel_id="UCtest1234567890abcdef",
-            channel_name="부산보건대 물리치료과",
+            channel_name="Physical Therapy Department",
             registered_at="2026-04-04T12:00:00",
             last_used_at="2026-04-04T12:00:00",
-            token_path=str(tokens_dir / "물리치료과.json"),
+            token_path=str(tokens_dir / "physical.json"),
         )
-        save_registry(tokens_dir, {"물리치료과": reg})
+        save_registry(tokens_dir, {"physical": reg})
         reloaded = load_registry(tokens_dir)
-        assert "물리치료과" in reloaded
-        assert reloaded["물리치료과"].channel_id == "UCtest1234567890abcdef"
+        assert "physical" in reloaded
+        assert reloaded["physical"].channel_id == "UCtest1234567890abcdef"
 
 
 class TestUpdateLastUsed:
@@ -116,10 +116,10 @@ class TestUpdateLastUsed:
         self, tokens_dir: Path, sample_registry: Path
     ) -> None:
         registry = load_registry(tokens_dir)
-        old_timestamp = registry["간호학과"].last_used_at
-        update_last_used(tokens_dir, "간호학과")
+        old_timestamp = registry["nursing"].last_used_at
+        update_last_used(tokens_dir, "nursing")
         updated = load_registry(tokens_dir)
-        assert updated["간호학과"].last_used_at != old_timestamp
+        assert updated["nursing"].last_used_at != old_timestamp
 
     def test_update_missing_alias_raises(self, tokens_dir: Path) -> None:
         with pytest.raises(KeyError, match="not registered"):
@@ -133,7 +133,7 @@ class TestListChannels:
     def test_list_with_registered_channels(self, sample_registry: Path) -> None:
         channels = list_channels()
         assert len(channels) == 1
-        assert channels[0].alias == "간호학과"
+        assert channels[0].alias == "nursing"
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_list_empty(self) -> None:
@@ -149,10 +149,10 @@ class TestRevokeChannel:
         self, tokens_dir: Path, sample_registry: Path, sample_token: Path
     ) -> None:
         assert sample_token.exists()
-        revoke_channel("간호학과")
+        revoke_channel("nursing")
         assert not sample_token.exists()
         registry = load_registry(tokens_dir)
-        assert "간호학과" not in registry
+        assert "nursing" not in registry
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_revoke_missing_alias_raises(self) -> None:
@@ -179,7 +179,7 @@ class TestAuthenticateChannel:
             "tube_scout.services.auth.Credentials.from_authorized_user_file",
             return_value=mock_creds,
         ):
-            creds = authenticate_channel("간호학과")
+            creds = authenticate_channel("nursing")
             assert creds is mock_creds
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
@@ -203,7 +203,7 @@ class TestAuthenticateChannel:
             ),
             patch("tube_scout.services.auth.Request"),
         ):
-            creds = authenticate_channel("간호학과")
+            creds = authenticate_channel("nursing")
             mock_creds.refresh.assert_called_once()
             assert creds is mock_creds
 
@@ -244,7 +244,7 @@ class TestRegisterChannel:
             "items": [
                 {
                     "id": "UCnew_channel_id_12345",
-                    "snippet": {"title": "새학과 채널"},
+                    "snippet": {"title": "New Dept Channel"},
                 }
             ]
         }
@@ -267,15 +267,15 @@ class TestRegisterChannel:
             ch_list = mock_service.channels.return_value.list
             ch_list.return_value.execute.return_value = mock_channels_response
 
-            reg = register_channel("새학과")
+            reg = register_channel("newdept")
 
-        assert reg.alias == "새학과"
+        assert reg.alias == "newdept"
         assert reg.channel_id == "UCnew_channel_id_12345"
-        assert reg.channel_name == "새학과 채널"
-        assert (tokens_dir / "새학과.json").exists()
+        assert reg.channel_name == "New Dept Channel"
+        assert (tokens_dir / "newdept.json").exists()
 
         registry = load_registry(tokens_dir)
-        assert "새학과" in registry
+        assert "newdept" in registry
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_register_no_channel_found_raises(self, tokens_dir: Path) -> None:
@@ -306,7 +306,7 @@ class TestRegisterChannel:
             ch_list.return_value.execute.return_value = {"items": []}
 
             with pytest.raises(ValueError, match="No channel found"):
-                register_channel("빈학과")
+                register_channel("emptydept")
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_register_auto_detects_channel_id(self, tokens_dir: Path) -> None:
@@ -324,7 +324,7 @@ class TestRegisterChannel:
             "items": [
                 {
                     "id": "UCauto_detected_chan_123",
-                    "snippet": {"title": "자동감지 채널"},
+                    "snippet": {"title": "Auto Detected Channel"},
                 }
             ]
         }
@@ -347,7 +347,7 @@ class TestRegisterChannel:
             ch_list = mock_service.channels.return_value.list
             ch_list.return_value.execute.return_value = mock_channels_response
 
-            reg = register_channel("자동학과")
+            reg = register_channel("autodept")
             assert reg.channel_id == "UCauto_detected_chan_123"
 
 
