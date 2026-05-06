@@ -2,7 +2,7 @@
 
 **Feature Branch**: `009-runtime-auth-fix`
 **Created**: 2026-05-07
-**Status**: Draft
+**Status**: Planned (post-/speckit.tasks; ready for implementation)
 **Input**: User description: "Tube Scout v7 — Runtime Integration & Multi-Channel Auth Fix. Source: `idea/idea7-runtime-integration-fix.md`. Captures defects D-13~D-17 + L-1~L-3 discovered during the first end-to-end real-data run on 2026-05-07 (one week after idea6 Phase 4 closure). idea6 fixed static boundaries (paths, scopes, silent-skip); idea7 fixes runtime boundaries (project resolution defaults, multi-channel token routing, OAuth callback robustness, transcript metadata)."
 
 ## User Scenarios & Testing *(mandatory)*
@@ -46,7 +46,7 @@ The same operator wants to run a sequence like `collect videos → collect trans
 
 ### User Story 3 — Symmetric `--channel` API across the collect command group (Priority: P2)
 
-The operator expects every `collect <subcommand>` to accept `--channel <alias>` and route auth through the corresponding multi-channel token. Today, `collect videos`, `collect transcripts`, and `collect comments` accept `--channel`, while `collect retention`, `collect analytics`, and (likely) `collect bulk` do not.
+The operator expects every `collect <subcommand>` to accept `--channel <alias>` and route auth through the corresponding multi-channel token. Today, `collect videos`, `collect transcripts`, and `collect comments` accept `--channel`, while `collect retention`, `collect analytics`, and `collect bulk` do not.
 
 **Why this priority**: P2 because it is closely related to Story 1's outcome but is partially mitigated by Story 1's auto-routing behavior (with one alias registered, the system can pick it automatically). However, multi-alias environments require explicit `--channel`, and without symmetric API surface those environments cannot select the right channel for retention/analytics at all.
 
@@ -89,6 +89,28 @@ After collecting transcripts, the operator wants to know (a) which videos got tr
 - Device-code flow polling reaches its timeout while the operator is still entering the code. The CLI fails fast with an actionable error and removes any partial token file.
 - `collect videos` fails partway through (network drop). `latest` is NOT advanced to point at a partially-collected project; the previous good project remains the reference.
 
+## Cross-Spec Boundaries *(mandatory per Constitution Principle VII)*
+
+This feature shares the following boundaries with prior specs and external systems. For each, the prior side's guarantee is named, this spec's assumption is declared, and at least one acceptance scenario exercises the boundary end-to-end.
+
+| Boundary | Prior side (guarantee) | This spec (assumes / produces) | Validation |
+|---|---|---|---|
+| Atomic project commit (`commit_latest`) — idea6 ADR-006 | Atomic symlink update; empty-project guard | This spec WIRES the call into the producer command (`collect videos`). Producer set is enumerated in code. | US2 acceptance #1 + edge case "collect videos fails partway through" |
+| Multi-channel token layout (`tokens/<alias>.json`, `tokens/channels.json`) — idea6 D-5 / FR-IDEA6-001 | 0600 atomic; alias-keyed; carries channel_id and scopes | This spec ROUTES every auth-using command through the alias-keyed token. Legacy single-channel `token.json` is deprecated and migrated. | US1 acceptance #1, #4, #5 |
+| Secret loader (`TUBE_SCOUT_CLIENT_SECRET[_B64]`) — idea6 D-4 / FR-IDEA6-004 | Reads filesystem path or base64 env var | Consumed unchanged. Device flow uses the same client-secret material. | No new test (covered by idea6) |
+| Scope verifier (`_verify_scopes`, `REQUIRED_SCOPES`) — idea6 D-8 / FR-IDEA6-005 | Raises when stored token lacks REQUIRED_SCOPES | Migration verifies legacy token scopes before adoption. Device flow requests REQUIRED_SCOPES at start. | US1 acceptance #4 (legacy scope check during migration) |
+| User-facing error pattern (`UserFacingError` + `render_error`) — idea6 ADR-007 | Cause + suggested-next-command | This spec ADDS error subclasses (LegacyTokenChannelMismatch, MultipleAliasesNoSelection, DeviceCodeTimeout, etc.) all carrying `next_command`. | FR-017 + every acceptance scenario whose error path is enumerated |
+| Silent-skip lint guard — idea6 FR-IDEA6-010 / ADR-007+ADR-003 | AST-walk lint forbids `except SystemExit: pass` and similar | This spec MUST NOT introduce any silent-skip path. | FR-018 + lint pass during polish |
+| Headless TTY guard (`_require_tty`, `InteractiveAuthRequired`) — idea6 NFR-IDEA6-003 / B7 | Raises in non-TTY contexts | Device flow integrates: `--browser-redirect` + non-TTY → fall back to device-code; if even stdout is unavailable, raise. | US1 acceptance #2 + edge case "non-interactive terminal" |
+| `tests/manual/` exclusion — idea6 D-9 / FR-IDEA6-009 | `tests/manual/` excluded from default suite | Real-OAuth-against-Google tests stay in `tests/manual/`. | Default `pytest` run remains green |
+| Web UI pipeline helper (`_collect_all_for_web`) — spec 008 T035-bis | Web UI imports `cli/collect.py` internals | This spec's `--project` default change AUTOMATICALLY benefits web UI; web UI continues to pass explicit `--project` for determinism. | Existing spec 008 integration test must remain green |
+| Content reuse detection — spec 007 | Reads `videos_meta.json` + transcripts under the project | Spec 009 transcript JSON gains `source` field as additive only; content scan does NOT require it. | US4 acceptance #1, #2 + backward-compat test |
+| YouTube Captions API + youtube-transcript-api | Captions API requires force-ssl scope; library is best-effort | Spec 009 polishes verbose 1st-step exception output and adds source attribution. No semantic change to capture logic. | US4 acceptance #3 (≤2 lines per fallback-succeeded video) |
+| `~/.config/tube-scout/` directory layout | XDG-compliant, 0600 files | Migration MUST NOT relax permissions. After migration, deprecated paths do not reappear. | FR-010 + post-migration filesystem invariant |
+| agenix env vars (`TUBE_SCOUT_CLIENT_SECRET[_B64]`) | Provided via `flake.nix` devShell injection | Consumed unchanged. No new env var introduced. | No new test (covered by idea6) |
+
+**Failure modes**: any boundary whose prior side returns missing/empty/unreadable state MUST cause this spec's command to fail-fast with `UserFacingError`, never silent-skip (Principle II + FR-018).
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -104,7 +126,7 @@ After collecting transcripts, the operator wants to know (a) which videos got tr
 
 - **FR-005**: Every command that performs an authenticated YouTube API call (Data API, Analytics API, Reporting API) MUST route credentials through the multi-channel auth path keyed by an alias. No code path may consult the legacy single-channel default token file once an alias is resolvable.
 - **FR-006**: When `--channel` is omitted and exactly one alias is registered in the channels registry, the system MUST auto-select that alias and emit a one-line notice. When zero aliases are registered, the system MUST refuse and emit guidance to run `auth --channel <name>`. When two or more aliases are registered, the system MUST refuse and list the registered aliases with their `channel_id` and last-used date and the corrected command.
-- **FR-007**: `collect retention`, `collect analytics`, and `collect bulk` MUST accept `--channel <alias>` with the same semantics as `collect videos`, `collect transcripts`, and `collect comments`. The CLI surface across the collect group MUST be symmetric.
+- **FR-007**: `collect retention`, `collect analytics`, and `collect bulk` MUST accept `--channel <alias>` (matching the option already present on `collect videos`, `collect transcripts`, and `collect comments`). The CLI option surface across the collect group MUST be symmetric. Auth-routing semantics for these flags are governed by FR-005.
 
 #### Legacy token migration
 
@@ -117,6 +139,7 @@ After collecting transcripts, the operator wants to know (a) which videos got tr
 - **FR-011**: The default OAuth flow used by `auth --channel <alias>` (and any implicit re-auth triggered by a collect command) MUST be the device-code flow: print a verification URL and a short device code to the terminal, poll the token endpoint until the operator confirms in any browser, then persist the credentials atomically to `tokens/<alias>.json`.
 - **FR-012**: An opt-in flag `--browser-redirect` MUST be available on `auth --channel <alias>` to use the legacy local-server redirect flow. When this flag is passed but the process detects a non-interactive environment (no TTY), the system MUST refuse the redirect flow and fall back to device-code, consistent with idea6 NFR-IDEA6-003.
 - **FR-013**: Device-code polling MUST have a bounded timeout. On timeout, the system MUST fail fast with an actionable error message, MUST NOT leave any partial token file on disk, and MUST NOT block indefinitely.
+- **FR-013-bis**: When the operator opts into `--browser-redirect`, the local-server listener MUST have an upper-bound timeout of 5 minutes. On timeout, the system MUST fail fast with the same actionable-error pattern as FR-013, MUST NOT leave a partial token file, and MUST close the listener (no orphaned port). This closes the D-17 hang surface even on the opt-in path.
 
 #### Transcript metadata and audit
 
@@ -146,7 +169,7 @@ After collecting transcripts, the operator wants to know (a) which videos got tr
 - **SC-003**: Running any `collect <subcommand>` without `--project` after a successful `collect videos` finds the just-collected videos **on the first attempt**, with **zero empty sibling project directories** created during the operation.
 - **SC-004**: After upgrade, on a machine that carried a legacy `token.json` from a prior single-channel install, the first auth-using command **migrates** the legacy token rather than failing — the operator is not forced through a fresh OAuth round.
 - **SC-005**: When the channels registry has two or more aliases and the operator omits `--channel`, the command refuses with a message that includes the **exact corrected command** for at least one available alias. The command does not silently pick one.
-- **SC-006**: For a 200-video private channel, the operator's terminal output during `collect transcripts` is readable enough that the per-video success / fallback / failure status is identifiable at a glance — the verbose primary-library stack trace is **not** emitted line-by-line for fallback-succeeded videos.
+- **SC-006**: For a 200-video private channel, the operator's terminal output during `collect transcripts` is readable enough that the per-video success / fallback / failure status is identifiable at a glance. Specifically, fallback-succeeded videos MUST produce **≤2 terminal lines per video** (one progress line + one optional dim primary-skip notice); the verbose primary-library stack trace is NOT emitted for fallback-succeeded videos.
 - **SC-007**: For every video that did not produce a transcript in a given run, the operator can answer "why?" by reading **one row** in the audit artifact — without re-reading terminal logs or looking at YouTube directly.
 - **SC-008**: 100% of newly written transcript JSON files include a `source` field, and 0% of code paths consult the deprecated `token.json` / `token_forcessl.json` after migration completes.
 - **SC-009**: An OAuth flow that times out (device-code expires, operator does not finish in time) leaves the system in a clean state — no partial token files, no half-written registry rows, no orphaned listening sockets.
