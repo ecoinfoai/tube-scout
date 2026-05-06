@@ -1,6 +1,7 @@
 """Shared test fixtures for tube-scout."""
 
 from pathlib import Path
+from typing import Generator
 
 import pytest
 
@@ -45,6 +46,20 @@ def tmp_data_dir(tmp_path: Path) -> Path:
     (data_dir / "reports" / "channel").mkdir(parents=True)
     (data_dir / "checkpoints").mkdir(parents=True)
     return data_dir
+
+
+@pytest.fixture
+def tmp_projects_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
+    """Yield a temporary projects root directory and patch env + CWD defaults.
+
+    Patches TUBE_SCOUT_PROJECTS_DIR so that any ProjectManager constructed
+    without an explicit ``projects_root`` argument uses this temp directory
+    instead of a relative ``./projects`` that would pollute the working tree.
+    """
+    root = tmp_path / "projects"
+    root.mkdir()
+    monkeypatch.setenv("TUBE_SCOUT_PROJECTS_DIR", str(root))
+    yield root
 
 
 @pytest.fixture
