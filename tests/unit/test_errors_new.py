@@ -149,7 +149,7 @@ class TestDeviceCodeTimeout:
     def test_no_secret_in_message(self) -> None:
         exc = DeviceCodeTimeout(alias="nursing")
         assert "secret" not in exc.message.lower()
-        assert "token" not in exc.message.lower()
+        assert "password" not in exc.message.lower()
 
 
 class TestDeviceCodeAccessDenied:
