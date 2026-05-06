@@ -34,6 +34,129 @@ class UserFacingError(Exception):
         super().__init__(message)
 
 
+class LegacyTokenChannelMismatch(UserFacingError):
+    """Legacy token channel_id does not match any registered alias.
+
+    Args:
+        channel_id: The channel_id embedded in the legacy token.
+        token_path: Filesystem path of the legacy token file.
+    """
+
+    def __init__(self, *, channel_id: str, token_path: str) -> None:
+        super().__init__(
+            message=(
+                f"Legacy token at '{token_path}' carries channel_id '{channel_id}'"
+                " which is not registered as any alias. The file has been deleted."
+            ),
+            next_command="tube-scout auth --channel <name>",
+        )
+
+
+class LegacyTokenCorrupt(UserFacingError):
+    """Legacy token file could not be parsed (corrupt or empty).
+
+    Args:
+        token_path: Filesystem path of the legacy token file.
+        reason: Short description of the parse failure.
+    """
+
+    def __init__(self, *, token_path: str, reason: str) -> None:
+        super().__init__(
+            message=(
+                f"Legacy token at '{token_path}' is corrupt and cannot be migrated"
+                f" ({reason}). The file has been deleted."
+            ),
+            next_command="tube-scout auth --channel <name>",
+        )
+
+
+class MultipleAliasesNoSelection(UserFacingError):
+    """Multiple aliases registered but no --channel flag provided.
+
+    Args:
+        aliases: List of currently registered alias names.
+    """
+
+    def __init__(self, *, aliases: list[str]) -> None:
+        alias_list = ", ".join(aliases)
+        first = aliases[0] if aliases else "<alias>"
+        super().__init__(
+            message=(
+                f"Multiple channel aliases registered ({alias_list})."
+                " Specify one with --channel."
+            ),
+            next_command=f"tube-scout collect <subcommand> --channel {first}",
+        )
+
+
+class NoAliasRegistered(UserFacingError):
+    """No channel aliases are registered yet."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            message="No channel aliases are registered.",
+            next_command="tube-scout auth --channel <name>",
+        )
+
+
+class DeviceCodeTimeout(UserFacingError):
+    """Device-code flow polling timed out before operator confirmed.
+
+    Args:
+        alias: The channel alias for which auth was attempted.
+    """
+
+    def __init__(self, *, alias: str) -> None:
+        super().__init__(
+            message=(
+                f"Device-code authorization for '{alias}' timed out."
+                " No partial token has been written."
+            ),
+            next_command=f"tube-scout auth --channel {alias}",
+        )
+
+
+class DeviceCodeAccessDenied(UserFacingError):
+    """Device-code flow was denied by the operator.
+
+    Args:
+        alias: The channel alias for which auth was attempted.
+    """
+
+    def __init__(self, *, alias: str) -> None:
+        super().__init__(
+            message=f"Device-code authorization for '{alias}' was denied.",
+            next_command=f"tube-scout auth --channel {alias}",
+        )
+
+
+class LatestProjectMissing(UserFacingError):
+    """No 'latest' project exists when a consumer command needs one."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            message=(
+                "No 'latest' project found. Run 'collect videos' first"
+                " to create a project."
+            ),
+            next_command="tube-scout collect videos --channel <alias>",
+        )
+
+
+class ProducerCommandRequiresChannel(UserFacingError):
+    """A producer command was invoked without a resolvable channel alias.
+
+    Args:
+        command: The CLI command string that requires a channel.
+    """
+
+    def __init__(self, *, command: str) -> None:
+        super().__init__(
+            message=f"'{command}' requires a channel alias.",
+            next_command=f"tube-scout {command} --channel <alias>",
+        )
+
+
 def render_error(exc: UserFacingError, stream: TextIO | None = None) -> None:
     """Print an actionable error block to stderr.
 
