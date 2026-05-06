@@ -51,7 +51,7 @@ class TestLegacyTokenChannelMismatch:
         )
         assert "secret" not in exc.message.lower()
         assert "password" not in exc.message.lower()
-        assert "token" not in exc.next_command.lower() or "auth" in exc.next_command.lower()
+        assert "auth" in exc.next_command.lower()
 
 
 class TestLegacyTokenCorrupt:
