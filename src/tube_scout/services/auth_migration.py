@@ -63,7 +63,10 @@ def recover_channel_id(
     creds_obj: Credentials
     if isinstance(creds, dict):
         try:
-            creds_obj = Credentials.from_authorized_user_info(creds)
+            # google-auth's Credentials lacks py.typed; pre-existing project pattern.
+            creds_obj = Credentials.from_authorized_user_info(  # type: ignore[no-untyped-call]
+                creds
+            )
         except (ValueError, KeyError, TypeError):
             return None
     else:
@@ -95,9 +98,7 @@ def _atomic_replace(src: Path, dst: Path, mode: int = 0o600) -> None:
     # symlink's target.  A regular file at dst is handled by os.rename itself.
     if dst.is_symlink():
         dst.unlink()
-    fd, tmp_path = tempfile.mkstemp(
-        dir=dst.parent, suffix=".tmp", prefix=".migrating_"
-    )
+    fd, tmp_path = tempfile.mkstemp(dir=dst.parent, suffix=".tmp", prefix=".migrating_")
     try:
         with open(fd, "wb") as out:
             out.write(src.read_bytes())
@@ -189,7 +190,9 @@ def _process_legacy_path(
         legacy_path.unlink()
         raise LegacyTokenCorrupt(
             token_path=str(legacy_path),
-            reason="channel_id could not be recovered (revoked, expired, or no channel)",
+            reason=(
+                "channel_id could not be recovered (revoked, expired, or no channel)"
+            ),
         )
 
     channels_path = config_dir / CHANNELS_FILE_RELATIVE[0] / CHANNELS_FILE_RELATIVE[1]

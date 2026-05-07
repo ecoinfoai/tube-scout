@@ -1,7 +1,7 @@
 """Shared test fixtures for tube-scout."""
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import pytest
 
@@ -54,7 +54,9 @@ def tmp_data_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def tmp_projects_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
+def tmp_projects_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[Path, None, None]:
     """Yield a temporary projects root directory and patch env + CWD defaults.
 
     Patches TUBE_SCOUT_PROJECTS_DIR so that any ProjectManager constructed

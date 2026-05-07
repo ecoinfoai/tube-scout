@@ -68,14 +68,15 @@ class TestExplicitProjectPath:
         from tube_scout.cli.project import resolve_project
 
         with pytest.raises((typer.Exit, SystemExit)):
-            resolve_project(str(tmp_path), str(tmp_path / "does_not_exist"), producer=False)
+            resolve_project(
+                str(tmp_path), str(tmp_path / "does_not_exist"), producer=False
+            )
 
 
 class TestNullProjectConsumerBehavior:
     """project=None with producer=False must open latest or raise LatestProjectMissing."""
 
     def test_null_consumer_opens_latest(self, tmp_path: Path) -> None:
-        from tube_scout.cli.errors import LatestProjectMissing
         from tube_scout.cli.project import resolve_project
 
         proj = _make_committed_project(tmp_path)

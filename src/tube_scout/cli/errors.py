@@ -26,9 +26,7 @@ class UserFacingError(Exception):
 
     def __init__(self, *, message: str, next_command: str) -> None:
         if not next_command:
-            raise ValueError(
-                "UserFacingError.next_command must be a non-empty string"
-            )
+            raise ValueError("UserFacingError.next_command must be a non-empty string")
         self.message = message
         self.next_command = next_command
         super().__init__(message)
@@ -113,10 +111,11 @@ class ClientTypeNotSupportedForDeviceFlow(UserFacingError):
     def __init__(self, *, alias: str) -> None:
         super().__init__(
             message=(
-                f"Device-code flow for '{alias}' failed: the OAuth client type does not"
-                " support device authorization (invalid_client). In production, create a"
-                " 'TVs and Limited Input devices' OAuth client in Google Cloud Console."
-                " Falling back to browser-redirect flow."
+                f"Device-code flow for '{alias}' failed: the OAuth client type"
+                " does not support device authorization (invalid_client). In"
+                " production, create a 'TVs and Limited Input devices' OAuth"
+                " client in Google Cloud Console. Falling back to"
+                " browser-redirect flow."
             ),
             next_command=f"tube-scout auth --channel {alias} --browser-redirect",
         )

@@ -5,8 +5,6 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-import pytest
-
 from tube_scout.services.transcripts_audit import (
     ALLOWED_CLASSIFICATIONS,
     AUDIT_HEADER,
@@ -137,6 +135,4 @@ class TestTranscriptSourceField:
     def test_source_values_documented(self) -> None:
         # Compile-time check: source is one of the documented values
         documented = {"manual", "auto_generated", "captions_api"}
-        assert documented.issubset(
-            {"manual", "auto_generated", "captions_api"}
-        )
+        assert documented.issubset({"manual", "auto_generated", "captions_api"})

@@ -12,15 +12,10 @@ from __future__ import annotations
 import io
 import json
 import os
-import shutil
-import tempfile
 import threading
-import time
-from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Phase 4 — User Story 2 (project resolution)
@@ -155,7 +150,9 @@ def test_p11_collect_all_propagates_channel_to_every_stage(tmp_path: Path) -> No
     # Each elif block for a stage that has a --channel option must include
     # `kwargs["channel"] = channel`.
     for stage_name in ("comments", "transcripts"):
-        block = src.split(f'stage_name == "{stage_name}"')[1].split("elif stage_name")[0]
+        block = src.split(f'stage_name == "{stage_name}"')[1].split("elif stage_name")[
+            0
+        ]
         assert 'kwargs["channel"] = channel' in block, (
             f"Stage {stage_name!r} does not propagate --channel from collect_all_command"
         )

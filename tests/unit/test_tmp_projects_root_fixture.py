@@ -3,8 +3,6 @@
 import os
 from pathlib import Path
 
-import pytest
-
 
 def test_tmp_projects_root_yields_path(tmp_projects_root: Path) -> None:
     """Fixture yields a Path and the directory exists."""
@@ -18,7 +16,9 @@ def test_tmp_projects_root_env_patched(tmp_projects_root: Path) -> None:
     assert os.environ.get("TUBE_SCOUT_PROJECTS_DIR") == str(tmp_projects_root)
 
 
-def test_tmp_projects_root_project_manager_uses_fixture(tmp_projects_root: Path) -> None:
+def test_tmp_projects_root_project_manager_uses_fixture(
+    tmp_projects_root: Path,
+) -> None:
     """ProjectManager() without explicit root resolves to the fixture path."""
     from tube_scout.output.manager import ProjectManager
 

@@ -13,7 +13,7 @@ FR: FR-007 (alias-keyed token routing)
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -33,7 +33,10 @@ class TestBuildAnalyticsClientAliasParam:
         from tube_scout.services.auth import build_analytics_client  # noqa: PLC0415
 
         calls = []
-        with patch("tube_scout.services.auth.authenticate_channel", side_effect=lambda a: calls.append(a) or MagicMock()):
+        with patch(
+            "tube_scout.services.auth.authenticate_channel",
+            side_effect=lambda a: calls.append(a) or MagicMock(),
+        ):
             with patch("tube_scout.services.auth.build", return_value=MagicMock()):
                 build_analytics_client(alias="nursing")
         assert "nursing" in calls
@@ -56,13 +59,19 @@ class TestBuildAnalyticsClientAliasParam:
                 reads.append(p)
             return original_open(path, *args, **kwargs)
 
-        with patch("tube_scout.services.auth.authenticate_channel", return_value=MagicMock()):
+        with patch(
+            "tube_scout.services.auth.authenticate_channel", return_value=MagicMock()
+        ):
             with patch("tube_scout.services.auth.build", return_value=MagicMock()):
                 with patch("builtins.open", side_effect=tracking_open):
                     build_analytics_client(alias="nursing")
 
-        token_json_reads = [r for r in reads if "tube-scout" in str(r) or r == legacy_token]
-        assert len(token_json_reads) == 0, f"Unexpected token.json read: {token_json_reads}"
+        token_json_reads = [
+            r for r in reads if "tube-scout" in str(r) or r == legacy_token
+        ]
+        assert len(token_json_reads) == 0, (
+            f"Unexpected token.json read: {token_json_reads}"
+        )
 
 
 class TestBuildReportingClientAliasParam:
@@ -80,7 +89,10 @@ class TestBuildReportingClientAliasParam:
         from tube_scout.services.auth import build_reporting_client  # noqa: PLC0415
 
         calls = []
-        with patch("tube_scout.services.auth.authenticate_channel", side_effect=lambda a: calls.append(a) or MagicMock()):
+        with patch(
+            "tube_scout.services.auth.authenticate_channel",
+            side_effect=lambda a: calls.append(a) or MagicMock(),
+        ):
             with patch("tube_scout.services.auth.build", return_value=MagicMock()):
                 build_reporting_client(alias="nursing")
         assert "nursing" in calls
@@ -99,33 +111,37 @@ class TestBuildReportingClientAliasParam:
                 reads.append(p)
             return original_open(path, *args, **kwargs)
 
-        with patch("tube_scout.services.auth.authenticate_channel", return_value=MagicMock()):
+        with patch(
+            "tube_scout.services.auth.authenticate_channel", return_value=MagicMock()
+        ):
             with patch("tube_scout.services.auth.build", return_value=MagicMock()):
                 with patch("builtins.open", side_effect=tracking_open):
                     build_reporting_client(alias="nursing")
 
         token_json_reads = [r for r in reads if "tube-scout" in str(r)]
-        assert len(token_json_reads) == 0, f"Unexpected token.json read: {token_json_reads}"
+        assert len(token_json_reads) == 0, (
+            f"Unexpected token.json read: {token_json_reads}"
+        )
 
 
 class TestAliasValidationInRouting:
     def test_build_analytics_client_rejects_invalid_alias(self) -> None:
-        from tube_scout.services.auth import build_analytics_client  # noqa: PLC0415
         from tube_scout.cli.errors import UserFacingError  # noqa: PLC0415
+        from tube_scout.services.auth import build_analytics_client  # noqa: PLC0415
 
         with pytest.raises(UserFacingError):
             build_analytics_client(alias="../evil")
 
     def test_build_reporting_client_rejects_invalid_alias(self) -> None:
-        from tube_scout.services.auth import build_reporting_client  # noqa: PLC0415
         from tube_scout.cli.errors import UserFacingError  # noqa: PLC0415
+        from tube_scout.services.auth import build_reporting_client  # noqa: PLC0415
 
         with pytest.raises(UserFacingError):
             build_reporting_client(alias="../evil")
 
     def test_build_analytics_client_rejects_empty_alias(self) -> None:
-        from tube_scout.services.auth import build_analytics_client  # noqa: PLC0415
         from tube_scout.cli.errors import UserFacingError  # noqa: PLC0415
+        from tube_scout.services.auth import build_analytics_client  # noqa: PLC0415
 
         with pytest.raises(UserFacingError):
             build_analytics_client(alias="")

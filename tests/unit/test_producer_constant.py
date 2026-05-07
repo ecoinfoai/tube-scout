@@ -4,8 +4,6 @@ PRODUCER_COMMANDS = frozenset({"collect.videos"}) is the single source of truth
 for which CLI commands are allowed to create a new project.
 """
 
-import pytest
-
 
 def test_producer_commands_is_frozenset() -> None:
     """PRODUCER_COMMANDS must be a frozenset (immutable, no accidental mutation)."""

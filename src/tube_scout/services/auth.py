@@ -72,8 +72,7 @@ class ScopeReauthRequired(Exception):
             + ", ".join(missing)
         )
         self.next_command = (
-            f"tube-scout auth --revoke {alias} && "
-            f"tube-scout auth --channel {alias}"
+            f"tube-scout auth --revoke {alias} && tube-scout auth --channel {alias}"
         )
         super().__init__(self.message)
 
@@ -88,12 +87,8 @@ class InteractiveAuthRequired(Exception):
 
     def __init__(self, alias: str = "default") -> None:
         self.alias = alias
-        self.message = (
-            f"OAuth flow requires a TTY for channel '{alias}'."
-        )
-        self.next_command = (
-            f"ssh to host and run tube-scout auth --channel {alias}"
-        )
+        self.message = f"OAuth flow requires a TTY for channel '{alias}'."
+        self.next_command = f"ssh to host and run tube-scout auth --channel {alias}"
         super().__init__(self.message)
 
 
@@ -439,7 +434,8 @@ def register_channel(alias: str) -> ChannelRegistration:
     channels.list(mine=True), saves the token, and updates the registry.
 
     Args:
-        alias: Department alias (e.g., "nursing"). ASCII alphanumeric, hyphens, underscores only.
+        alias: Department alias (e.g., "nursing"). ASCII alphanumeric,
+            hyphens, underscores only.
 
     Returns:
         ChannelRegistration for the newly registered channel.

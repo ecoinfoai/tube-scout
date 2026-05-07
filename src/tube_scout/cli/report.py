@@ -863,9 +863,7 @@ def report_content_command(
 
     registry = load_registry()
     if channel not in registry:
-        console.print(
-            f"[red]Channel '{channel}' not registered.[/red]"
-        )
+        console.print(f"[red]Channel '{channel}' not registered.[/red]")
         raise typer.Exit(code=1)
 
     channel_id = registry[channel].channel_id
@@ -884,6 +882,7 @@ def report_content_command(
     quality_results = []
     # Load all quality results manually
     import sqlite3
+
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     cursor = conn.execute("SELECT * FROM quality_results")

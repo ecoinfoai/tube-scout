@@ -39,7 +39,10 @@ class TestResolveChannelAliasExplicit:
         registry = {"nursing": _make_reg("nursing")}
         with pytest.raises(UserFacingError) as exc_info:
             resolve_channel_alias("dental", registry)
-        assert "dental" in exc_info.value.message or "dental" in exc_info.value.next_command
+        assert (
+            "dental" in exc_info.value.message
+            or "dental" in exc_info.value.next_command
+        )
 
     def test_explicit_invalid_alias_next_command_contains_channel_flag(self) -> None:
         registry = {"nursing": _make_reg("nursing")}

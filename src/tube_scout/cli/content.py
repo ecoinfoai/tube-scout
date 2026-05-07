@@ -90,9 +90,7 @@ def _load_transcripts(
     return result
 
 
-def _load_parsed_titles(
-    analyze_dir: Path, channel_id: str
-) -> list[dict[str, Any]]:
+def _load_parsed_titles(analyze_dir: Path, channel_id: str) -> list[dict[str, Any]]:
     """Load parsed title data.
 
     Args:
@@ -114,9 +112,7 @@ def _load_parsed_titles(
     return []
 
 
-def _load_videos_meta(
-    collect_dir: Path, channel_id: str
-) -> list[dict[str, Any]]:
+def _load_videos_meta(collect_dir: Path, channel_id: str) -> list[dict[str, Any]]:
     """Load video metadata.
 
     Args:
@@ -192,9 +188,7 @@ def content_fingerprint_command(
         raise typer.Exit(code=2)
 
     count = len(transcripts)
-    console.print(
-        f"[bold]Generating fingerprints for {count} videos...[/bold]"
-    )
+    console.print(f"[bold]Generating fingerprints for {count} videos...[/bold]")
 
     processed = 0
     skipped = 0
@@ -284,8 +278,7 @@ def content_compare_command(
     parsed_titles = _load_parsed_titles(mgr.analyze_dir, channel_id)
     if not parsed_titles:
         console.print(
-            "[yellow]No parsed titles found. "
-            "Run title parsing first.[/yellow]"
+            "[yellow]No parsed titles found. Run title parsing first.[/yellow]"
         )
         raise typer.Exit(code=2)
 
@@ -294,21 +287,18 @@ def content_compare_command(
         parsed_titles = [t for t in parsed_titles if t.get("course") == course]
     if professor:
         parsed_titles = [
-            t for t in parsed_titles
-            if professor in t.get("professor", [])
+            t for t in parsed_titles if professor in t.get("professor", [])
         ]
 
     pairs = match_comparison_pairs(parsed_titles, year_from=year_from, year_to=year_to)
     if not pairs:
         console.print(
-            "[yellow]No comparison pairs found "
-            "for the specified years.[/yellow]"
+            "[yellow]No comparison pairs found for the specified years.[/yellow]"
         )
         raise typer.Exit(code=2)
 
     console.print(
-        f"[bold]Comparing {len(pairs)} pairs "
-        f"({year_from} vs {year_to})...[/bold]"
+        f"[bold]Comparing {len(pairs)} pairs ({year_from} vs {year_to})...[/bold]"
     )
 
     # Load transcripts for text comparison
@@ -334,19 +324,36 @@ def content_compare_command(
     for pair in pairs:
         result = comparator.compare_pair(pair)
         try:
-            db.insert_comparison(**{
-                k: result[k] for k in [
-                    "source_video_id", "target_video_id", "professor", "course",
-                    "week", "session", "year_from", "year_to",
-                    "i1_hash_match", "i2_cosine_similarity", "i3_change_rate",
-                    "i4_new_term_count", "i5_duration_diff_seconds",
-                    "suspicion_score", "grade",
-                ]
-            })
+            db.insert_comparison(
+                **{
+                    k: result[k]
+                    for k in [
+                        "source_video_id",
+                        "target_video_id",
+                        "professor",
+                        "course",
+                        "week",
+                        "session",
+                        "year_from",
+                        "year_to",
+                        "i1_hash_match",
+                        "i2_cosine_similarity",
+                        "i3_change_rate",
+                        "i4_new_term_count",
+                        "i5_duration_diff_seconds",
+                        "suspicion_score",
+                        "grade",
+                    ]
+                }
+            )
             results_count += 1
         except Exception as e:
-            logger.warning("Failed to store comparison %s<>%s: %s",
-                           pair["source_video_id"], pair["target_video_id"], e)
+            logger.warning(
+                "Failed to store comparison %s<>%s: %s",
+                pair["source_video_id"],
+                pair["target_video_id"],
+                e,
+            )
 
     # Show summary
     table = Table(title="Comparison Summary")
@@ -433,9 +440,7 @@ def content_quality_command(
 
     all_video_ids = set(list(transcripts.keys()) + [v["video_id"] for v in videos])
     count = len(all_video_ids)
-    console.print(
-        f"[bold]Running quality checks on {count} videos...[/bold]"
-    )
+    console.print(f"[bold]Running quality checks on {count} videos...[/bold]")
 
     for video_id in all_video_ids:
         segments = transcripts.get(video_id)
@@ -483,8 +488,7 @@ def content_review_command(
         None,
         "--status",
         help=(
-            "Filter by review status "
-            "(UNREVIEWED, CONFIRMED_DUPLICATE, FALSE_POSITIVE)."
+            "Filter by review status (UNREVIEWED, CONFIRMED_DUPLICATE, FALSE_POSITIVE)."
         ),
     ),
     grade: str | None = typer.Option(
@@ -538,8 +542,7 @@ def content_review_command(
         try:
             db.update_review_status(comp_id, new_status, reviewed_by="cli")
             console.print(
-                f"[green]Comparison {comp_id} "
-                f"marked as {new_status}.[/green]"
+                f"[green]Comparison {comp_id} marked as {new_status}.[/green]"
             )
         except ValueError as e:
             console.print(f"[red]{e}[/red]")

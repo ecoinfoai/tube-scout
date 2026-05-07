@@ -1,7 +1,6 @@
 """Smoke test for httpx_mock fixture via pytest-httpx (T003)."""
 
 import httpx
-import pytest
 from pytest_httpx import HTTPXMock
 
 from tests.fixtures.httpx_mock import (
@@ -21,7 +20,10 @@ def test_httpx_mock_post_returns_expected_payload(httpx_mock: HTTPXMock) -> None
         url="https://oauth2.googleapis.com/token",
         json={"access_token": "ya29.test", "token_type": "Bearer"},
     )
-    response = httpx.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:device_code"})
+    response = httpx.post(
+        "https://oauth2.googleapis.com/token",
+        data={"grant_type": "urn:ietf:params:oauth:grant-type:device_code"},
+    )
     assert response.status_code == 200
     assert response.json()["access_token"] == "ya29.test"
 

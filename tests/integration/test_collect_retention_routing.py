@@ -11,10 +11,10 @@ FR: FR-007 (alias-keyed token routing in collect commands)
 
 from __future__ import annotations
 
+import json
 import socket
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
-import json
+from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
@@ -36,9 +36,17 @@ def project_env(tmp_path: Path):
     project.mkdir()
 
     videos_meta = project / "videos_meta.json"
-    videos_meta.write_text(json.dumps([
-        {"video_id": "abc123", "title": "Test Video", "channel_id": "UCnursing123"}
-    ]))
+    videos_meta.write_text(
+        json.dumps(
+            [
+                {
+                    "video_id": "abc123",
+                    "title": "Test Video",
+                    "channel_id": "UCnursing123",
+                }
+            ]
+        )
+    )
 
     config_dir = tmp_path / "tube-scout"
     config_dir.mkdir()
@@ -60,16 +68,25 @@ def project_env(tmp_path: Path):
     alias_token.write_text(json.dumps(token_data))
 
     channels_json = tokens_dir / "channels.json"
-    channels_json.write_text(json.dumps({
-        "nursing": {
-            "alias": "nursing",
-            "channel_id": "UCnursing123",
-            "display_name": "Nursing Dept",
-            "last_used": "2026-05-01T00:00:00+00:00",
-        }
-    }))
+    channels_json.write_text(
+        json.dumps(
+            {
+                "nursing": {
+                    "alias": "nursing",
+                    "channel_id": "UCnursing123",
+                    "display_name": "Nursing Dept",
+                    "last_used": "2026-05-01T00:00:00+00:00",
+                }
+            }
+        )
+    )
 
-    return {"projects": projects, "project": project, "config_dir": config_dir, "alias_token": alias_token}
+    return {
+        "projects": projects,
+        "project": project,
+        "config_dir": config_dir,
+        "alias_token": alias_token,
+    }
 
 
 class TestCollectRetentionChannelFlag:
@@ -82,10 +99,14 @@ class TestCollectRetentionChannelFlag:
             result = runner.invoke(
                 app,
                 [
-                    "collect", "retention",
-                    "--channel", "nursing",
-                    "--project", str(project_env["project"]),
-                    "--project-dir", str(project_env["projects"]),
+                    "collect",
+                    "retention",
+                    "--channel",
+                    "nursing",
+                    "--project",
+                    str(project_env["project"]),
+                    "--project-dir",
+                    str(project_env["projects"]),
                 ],
             )
         assert result.exit_code != 2, f"CLI rejected --channel flag: {result.output}"
@@ -101,10 +122,14 @@ class TestCollectRetentionChannelFlag:
                 runner.invoke(
                     app,
                     [
-                        "collect", "retention",
-                        "--channel", "nursing",
-                        "--project", str(project_env["project"]),
-                        "--project-dir", str(project_env["projects"]),
+                        "collect",
+                        "retention",
+                        "--channel",
+                        "nursing",
+                        "--project",
+                        str(project_env["project"]),
+                        "--project-dir",
+                        str(project_env["projects"]),
                     ],
                 )
         mock_auth.assert_called_with("nursing")
@@ -122,20 +147,30 @@ class TestCollectRetentionChannelFlag:
 
         monkeypatch.setattr(socket.socket, "bind", tracking_bind)
 
-        with patch("tube_scout.services.auth.authenticate_channel", return_value=MagicMock()):
+        with patch(
+            "tube_scout.services.auth.authenticate_channel", return_value=MagicMock()
+        ):
             with patch("tube_scout.services.auth.build", return_value=MagicMock()):
                 runner.invoke(
                     app,
                     [
-                        "collect", "retention",
-                        "--channel", "nursing",
-                        "--project", str(project_env["project"]),
-                        "--project-dir", str(project_env["projects"]),
+                        "collect",
+                        "retention",
+                        "--channel",
+                        "nursing",
+                        "--project",
+                        str(project_env["project"]),
+                        "--project-dir",
+                        str(project_env["projects"]),
                     ],
                 )
 
-        port_8080_binds = [a for a in binds if isinstance(a, tuple) and len(a) >= 2 and a[1] == 8080]
-        assert len(port_8080_binds) == 0, f"Unexpected port 8080 bind: {port_8080_binds}"
+        port_8080_binds = [
+            a for a in binds if isinstance(a, tuple) and len(a) >= 2 and a[1] == 8080
+        ]
+        assert len(port_8080_binds) == 0, (
+            f"Unexpected port 8080 bind: {port_8080_binds}"
+        )
 
 
 class TestCollectRetentionLatestProject:
@@ -143,18 +178,26 @@ class TestCollectRetentionLatestProject:
         self, runner: CliRunner, project_env: dict
     ) -> None:
         """--channel + --project latest must not fail with exit code 2."""
-        with patch("tube_scout.services.auth.authenticate_channel", return_value=MagicMock()):
+        with patch(
+            "tube_scout.services.auth.authenticate_channel", return_value=MagicMock()
+        ):
             with patch("tube_scout.services.auth.build", return_value=MagicMock()):
                 result = runner.invoke(
                     app,
                     [
-                        "collect", "retention",
-                        "--channel", "nursing",
-                        "--project", "latest",
-                        "--project-dir", str(project_env["projects"]),
+                        "collect",
+                        "retention",
+                        "--channel",
+                        "nursing",
+                        "--project",
+                        "latest",
+                        "--project-dir",
+                        str(project_env["projects"]),
                     ],
                 )
-        assert result.exit_code != 2, f"CLI rejected --channel with --project latest: {result.output}"
+        assert result.exit_code != 2, (
+            f"CLI rejected --channel with --project latest: {result.output}"
+        )
 
     def test_collect_retention_invalid_alias_rejected(
         self, runner: CliRunner, project_env: dict
@@ -163,10 +206,14 @@ class TestCollectRetentionLatestProject:
         result = runner.invoke(
             app,
             [
-                "collect", "retention",
-                "--channel", "../evil",
-                "--project", str(project_env["project"]),
-                "--project-dir", str(project_env["projects"]),
+                "collect",
+                "retention",
+                "--channel",
+                "../evil",
+                "--project",
+                str(project_env["project"]),
+                "--project-dir",
+                str(project_env["projects"]),
             ],
         )
         assert result.exit_code != 0, "Expected non-zero exit for invalid alias"
