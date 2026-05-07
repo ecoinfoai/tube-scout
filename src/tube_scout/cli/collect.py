@@ -254,9 +254,8 @@ def collect_retention_command(
         project_dir: Projects root directory path.
         project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
-        channel: Channel alias for multi-channel auth routing.
+        channel: Channel alias for alias-keyed token routing.
     """
-    # INTEGRATION: orchestrator preflight — alias resolution then auth routing
     import polars as pl
 
     from tube_scout.cli.errors import UserFacingError, render_error
@@ -266,14 +265,13 @@ def collect_retention_command(
         resolve_channel_alias,
     )
 
-    data_path = Path(data_dir)
-    config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
-
     try:
-        registry = load_registry()
-        alias = resolve_channel_alias(channel, registry)
-        client = build_analytics_client(alias)
+        if channel is not None:
+            alias = channel
+        else:
+            registry = load_registry()
+            alias = resolve_channel_alias(None, registry)
+        client = build_analytics_client(alias=alias)
         service = YouTubeAnalyticsService(client=client)
     except UserFacingError as e:
         render_error(e)
@@ -281,6 +279,10 @@ def collect_retention_command(
     except Exception as e:
         console.print(f"[red]OAuth authentication failed: {e}[/red]")
         raise typer.Exit(code=1)
+
+    data_path = Path(data_dir)
+    config = _load_config(data_path)
+    mgr = resolve_project(project_dir, project)
 
     video_ids_to_collect: list[str] = []
 
