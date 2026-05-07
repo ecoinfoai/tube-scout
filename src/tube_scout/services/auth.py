@@ -242,14 +242,28 @@ def _authorized_http(creds: Credentials) -> AuthorizedHttp:
     return AuthorizedHttp(creds, http=http)
 
 
-def build_data_client() -> Any:
+def build_data_client(alias: str) -> Any:
     """Build and return an authenticated YouTube Data API client.
 
+    Spec-009 T032 follow-up: parallel to ``build_analytics_client(alias)``
+    and ``build_reporting_client(alias)`` so every CLI subcommand can
+    obtain a per-alias YouTube Data API client through a single helper
+    instead of re-inlining the ``authenticate_channel`` + ``build``
+    pattern at every call site.
+
+    Args:
+        alias: Channel alias to authenticate (routed via authenticate_channel).
+
     Returns:
-        YouTube Data API v3 client resource (with OAuth, can access unlisted videos).
+        YouTube Data API v3 client resource (OAuth-authorized; can access
+        unlisted videos and the calling user's caption tracks).
+
+    Raises:
+        UserFacingError: If alias is invalid or not registered.
     """
-    creds = authenticate()
-    return build("youtube", "v3", http=_authorized_http(creds))
+    _validate_alias(alias)
+    creds = authenticate_channel(alias)
+    return build("youtube", "v3", credentials=creds)
 
 
 def build_analytics_client(alias: str) -> Any:

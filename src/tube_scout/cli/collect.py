@@ -76,7 +76,7 @@ def collect_videos_command(
     """
     from tube_scout.cli.errors import UserFacingError, render_error
     from tube_scout.services.auth import (
-        authenticate_channel,
+        build_data_client,
         load_registry,
         resolve_channel_alias,
     )
@@ -92,10 +92,7 @@ def collect_videos_command(
     mgr = resolve_project(project_dir, project, producer=is_producer("collect.videos"))
 
     try:
-        creds = authenticate_channel(alias)
-        from googleapiclient.discovery import build as build_api
-
-        client = build_api("youtube", "v3", credentials=creds)
+        client = build_data_client(alias)
         service = YouTubeDataService(client=client)
         console.print(f"[dim]Using channel auth for '{alias}'[/dim]")
     except UserFacingError as e:
@@ -392,7 +389,7 @@ def collect_comments_command(
     """
     from tube_scout.cli.errors import UserFacingError, render_error
     from tube_scout.services.auth import (
-        authenticate_channel,
+        build_data_client,
         load_registry,
         resolve_channel_alias,
     )
@@ -410,10 +407,7 @@ def collect_comments_command(
     )
 
     try:
-        creds = authenticate_channel(alias)
-        from googleapiclient.discovery import build as build_api
-
-        client = build_api("youtube", "v3", credentials=creds)
+        client = build_data_client(alias)
         service = YouTubeDataService(client=client)
     except UserFacingError as e:
         render_error(e)
