@@ -257,23 +257,37 @@ def build_data_client() -> Any:
     return build("youtube", "v3", http=_authorized_http(creds))
 
 
-def build_analytics_client() -> Any:
+def build_analytics_client(alias: str) -> Any:
     """Build and return an authenticated YouTube Analytics API client.
+
+    Args:
+        alias: Channel alias to authenticate (routed via authenticate_channel).
 
     Returns:
         YouTube Analytics API client resource.
+
+    Raises:
+        UserFacingError: If alias is invalid or not registered.
     """
-    creds = authenticate()
+    _validate_alias(alias)
+    creds = authenticate_channel(alias)
     return build("youtubeAnalytics", "v2", http=_authorized_http(creds))
 
 
-def build_reporting_client() -> Any:
+def build_reporting_client(alias: str) -> Any:
     """Build and return an authenticated YouTube Reporting API client.
+
+    Args:
+        alias: Channel alias to authenticate (routed via authenticate_channel).
 
     Returns:
         YouTube Reporting API v1 client resource.
+
+    Raises:
+        UserFacingError: If alias is invalid or not registered.
     """
-    creds = authenticate()
+    _validate_alias(alias)
+    creds = authenticate_channel(alias)
     return build("youtubereporting", "v1", http=_authorized_http(creds))
 
 
@@ -368,9 +382,15 @@ def authenticate_channel(alias: str) -> Credentials:
         KeyError: If alias is not registered.
         FileNotFoundError: If token file is missing.
         ValueError: If token is expired and has no refresh_token.
+        UserFacingError: If legacy token migration lock cannot be acquired.
         google.auth.exceptions.RefreshError: If token refresh fails.
     """
     _validate_alias(alias)
+
+    from tube_scout.services import auth_migration  # noqa: PLC0415
+
+    auth_migration.run_once(config_dir=Path.home() / ".config" / "tube-scout")
+
     tokens_path = _tokens_dir()
     registry = load_registry(tokens_path)
     if alias not in registry:
