@@ -243,8 +243,10 @@ class SentimentService:
             pipe = _load_local_pipeline()
         except ImportError:
             raise ValueError(
-                "Local sentiment backend requires the transformers library. "
-                "Install with: pip install transformers torch"
+                "Local sentiment backend requires the transformers + torch "
+                "stack, which is shipped as an optional extra. "
+                "Install with: uv sync --extra ml-sentiment "
+                "(or: pip install 'tube-scout[ml-sentiment]')."
             )
 
         texts = [c["text"] for c in comments]

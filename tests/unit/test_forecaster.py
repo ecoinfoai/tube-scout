@@ -4,9 +4,9 @@ from datetime import date
 
 import pytest
 
-pytest.importorskip("numpy")
+pytest.importorskip("numpy", exc_type=ImportError)
 
-from tube_scout.services.forecaster import ForecasterService
+from tube_scout.services.forecaster import ForecasterService  # noqa: E402
 
 
 class TestForecasterService:

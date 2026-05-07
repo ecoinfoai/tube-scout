@@ -3515,30 +3515,48 @@ dependencies = [
     { name = "pandas" },
     { name = "plotly" },
     { name = "polars" },
-    { name = "prophet" },
     { name = "pydantic" },
     { name = "python-levenshtein" },
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "starlette" },
-    { name = "statsmodels" },
-    { name = "torch" },
-    { name = "transformers" },
     { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
-    { name = "weasyprint" },
     { name = "youtube-transcript-api" },
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "prophet" },
+    { name = "statsmodels" },
+    { name = "torch" },
+    { name = "transformers" },
+    { name = "weasyprint" },
+]
 dev = [
-    { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-httpx" },
     { name = "ruff" },
+]
+ml = [
+    { name = "prophet" },
+    { name = "statsmodels" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+ml-forecast = [
+    { name = "prophet" },
+    { name = "statsmodels" },
+]
+ml-sentiment = [
+    { name = "torch" },
+    { name = "transformers" },
+]
+pdf = [
+    { name = "weasyprint" },
 ]
 
 [package.dev-dependencies]
@@ -3555,7 +3573,6 @@ requires-dist = [
     { name = "google-api-python-client", specifier = ">=2.100.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.1.0" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "nbformat", specifier = ">=5.9.0" },
@@ -3564,7 +3581,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.1.0" },
     { name = "plotly", specifier = ">=5.18.0" },
     { name = "polars", specifier = ">=0.20.0" },
-    { name = "prophet", specifier = ">=1.1.5" },
+    { name = "prophet", marker = "extra == 'ml-forecast'", specifier = ">=1.1.5" },
     { name = "pydantic", specifier = ">=2.5.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
@@ -3576,15 +3593,17 @@ requires-dist = [
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
     { name = "starlette", specifier = ">=0.37.0" },
-    { name = "statsmodels", specifier = ">=0.14.0" },
-    { name = "torch", specifier = ">=2.2.0" },
-    { name = "transformers", specifier = ">=4.40.0" },
+    { name = "statsmodels", marker = "extra == 'ml-forecast'", specifier = ">=0.14.0" },
+    { name = "torch", marker = "extra == 'ml-sentiment'", specifier = ">=2.2.0" },
+    { name = "transformers", marker = "extra == 'ml-sentiment'", specifier = ">=4.40.0" },
+    { name = "tube-scout", extras = ["ml", "pdf"], marker = "extra == 'all'" },
+    { name = "tube-scout", extras = ["ml-sentiment", "ml-forecast"], marker = "extra == 'ml'" },
     { name = "typer", specifier = ">=0.12.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
-    { name = "weasyprint", specifier = ">=62.0" },
+    { name = "weasyprint", marker = "extra == 'pdf'", specifier = ">=62.0" },
     { name = "youtube-transcript-api", specifier = ">=0.6.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["ml-sentiment", "ml-forecast", "ml", "pdf", "all", "dev"]
 
 [package.metadata.requires-dev]
 dev = [

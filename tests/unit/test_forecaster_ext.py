@@ -7,7 +7,14 @@ import pytest
 
 np = pytest.importorskip("numpy", reason="numpy not available", exc_type=ImportError)
 pytest.importorskip(
-    "statsmodels", reason="statsmodels not available", exc_type=ImportError
+    "statsmodels",
+    reason="statsmodels missing — install with: uv sync --extra ml-forecast",
+    exc_type=ImportError,
+)
+pytest.importorskip(
+    "prophet",
+    reason="prophet missing — install with: uv sync --extra ml-forecast",
+    exc_type=ImportError,
 )
 
 from tube_scout.services.forecaster import ForecasterService  # noqa: E402

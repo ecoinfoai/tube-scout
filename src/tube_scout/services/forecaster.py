@@ -208,7 +208,16 @@ class ForecasterService:
             List of forecast result dicts.
         """
         import numpy as np
-        from statsmodels.tsa.arima.model import ARIMA
+
+        try:
+            from statsmodels.tsa.arima.model import ARIMA
+        except ImportError as exc:
+            raise ImportError(
+                "ARIMA forecasting requires statsmodels, shipped as an "
+                "optional extra. Install with: "
+                "uv sync --extra ml-forecast "
+                "(or: pip install 'tube-scout[ml-forecast]')."
+            ) from exc
 
         values = np.array([d["value"] for d in data], dtype=np.float64)
         last_date = max(d["date"] for d in data)
@@ -268,7 +277,16 @@ class ForecasterService:
             List of forecast result dicts.
         """
         import pandas as pd
-        from prophet import Prophet
+
+        try:
+            from prophet import Prophet
+        except ImportError as exc:
+            raise ImportError(
+                "Prophet forecasting requires the prophet package, shipped "
+                "as an optional extra. Install with: "
+                "uv sync --extra ml-forecast "
+                "(or: pip install 'tube-scout[ml-forecast]')."
+            ) from exc
 
         last_date = max(d["date"] for d in data)
 
