@@ -73,28 +73,33 @@ def collect_videos_command(
         force_refresh: Whether to ignore existing checkpoints.
         channel: Optional channel alias for multi-channel auth.
     """
+    from tube_scout.cli.errors import UserFacingError, render_error
+    from tube_scout.services.auth import (
+        authenticate_channel,
+        load_registry,
+        resolve_channel_alias,
+    )
+
+    try:
+        alias = resolve_channel_alias(channel, load_registry())
+    except UserFacingError as e:
+        render_error(e)
+        raise typer.Exit(code=1)
+
     data_path = Path(data_dir)
     config = _load_config(data_path)
     mgr = resolve_project(project_dir, project, producer=is_producer("collect.videos"))
 
     try:
-        if channel:
-            from tube_scout.services.auth import authenticate_channel
+        creds = authenticate_channel(alias)
+        from googleapiclient.discovery import build as build_api
 
-            creds = authenticate_channel(channel)
-            from googleapiclient.discovery import build as build_api
-
-            client = build_api("youtube", "v3", credentials=creds)
-            service = YouTubeDataService(client=client)
-            console.print(f"[dim]Using multi-channel auth for '{channel}'[/dim]")
-        else:
-            from tube_scout.services.auth import build_data_client
-
-            client = build_data_client()
-            service = YouTubeDataService(client=client)
-            console.print(
-                "[dim]Using OAuth authentication (unlisted videos accessible)[/dim]"
-            )
+        client = build_api("youtube", "v3", credentials=creds)
+        service = YouTubeDataService(client=client)
+        console.print(f"[dim]Using channel auth for '{alias}'[/dim]")
+    except UserFacingError as e:
+        render_error(e)
+        raise typer.Exit(code=1)
     except (FileNotFoundError, ValueError) as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1)
@@ -366,6 +371,11 @@ def collect_comments_command(
         "--include-replies",
         help="Also collect replies for each comment thread.",
     ),
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias (registered via 'tube-scout auth --channel ...').",
+    ),
 ) -> None:
     """Collect comments for videos from YouTube Data API.
 
@@ -375,16 +385,34 @@ def collect_comments_command(
         project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
         include_replies: Whether to collect reply threads.
+        channel: Channel alias to authenticate (auto-selected if only one is registered).
     """
+    from tube_scout.cli.errors import UserFacingError, render_error
+    from tube_scout.services.auth import (
+        authenticate_channel,
+        load_registry,
+        resolve_channel_alias,
+    )
+
+    try:
+        alias = resolve_channel_alias(channel, load_registry())
+    except UserFacingError as e:
+        render_error(e)
+        raise typer.Exit(code=1)
+
     data_path = Path(data_dir)
     config = _load_config(data_path)
     mgr = resolve_project(project_dir, project, producer=is_producer("collect.comments"))
 
     try:
-        from tube_scout.services.auth import build_data_client
+        creds = authenticate_channel(alias)
+        from googleapiclient.discovery import build as build_api
 
-        client = build_data_client()
+        client = build_api("youtube", "v3", credentials=creds)
         service = YouTubeDataService(client=client)
+    except UserFacingError as e:
+        render_error(e)
+        raise typer.Exit(code=1)
     except (FileNotFoundError, ValueError) as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1)
@@ -473,8 +501,20 @@ def collect_transcripts_command(
         video_id: Optional specific video ID.
         channel: Optional channel alias for multi-channel auth.
     """
+    from tube_scout.cli.errors import UserFacingError, render_error
+    from tube_scout.services.auth import (
+        authenticate_channel,
+        load_registry,
+        resolve_channel_alias,
+    )
     from tube_scout.services.rate_limiter import RateLimiter
     from tube_scout.services.transcript import TranscriptService
+
+    try:
+        alias = resolve_channel_alias(channel, load_registry())
+    except UserFacingError as e:
+        render_error(e)
+        raise typer.Exit(code=1)
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
@@ -488,36 +528,31 @@ def collect_transcripts_command(
         ),
     )
 
-    # Build Captions API client for private video fallback
+    # Build Captions API client for private video fallback (always built
+    # post-spec-009: every collect command routes through alias auth).
     captions_client = None
-    if channel:
-        try:
-            from googleapiclient.discovery import build as api_build
+    try:
+        from googleapiclient.discovery import build as api_build
 
-            from tube_scout.services.auth import (
-                _authorized_http,
-                authenticate_channel,
-            )
-            from tube_scout.services.captions_api import (
-                CaptionsAPIClient,
-            )
-            creds = authenticate_channel(channel)
-            yt_client = api_build(
-                "youtube", "v3",
-                http=_authorized_http(creds),
-            )
-            captions_client = CaptionsAPIClient(
-                youtube_service=yt_client,
-            )
-            console.print(
-                "[dim]Captions API fallback enabled"
-                " for private videos[/dim]"
-            )
-        except Exception as e:
-            console.print(
-                f"[yellow]Captions API fallback"
-                f" unavailable: {e}[/yellow]"
-            )
+        from tube_scout.services.auth import _authorized_http
+        from tube_scout.services.captions_api import (
+            CaptionsAPIClient,
+        )
+        creds = authenticate_channel(alias)
+        yt_client = api_build(
+            "youtube", "v3",
+            http=_authorized_http(creds),
+        )
+        captions_client = CaptionsAPIClient(
+            youtube_service=yt_client,
+        )
+        console.print(
+            "[dim]Captions API fallback enabled for private videos[/dim]"
+        )
+    except Exception as e:
+        console.print(
+            f"[yellow]Captions API fallback unavailable: {e}[/yellow]"
+        )
 
     service = TranscriptService(
         rate_limiter=rate_limiter,
@@ -526,29 +561,15 @@ def collect_transcripts_command(
 
     video_ids_to_collect: list[str] = []
 
-    # Resolve channel filter
-    channels_to_scan = config.channels
-    if channel:
-        from tube_scout.services.auth import load_registry
-        registry = load_registry()
-        if channel in registry:
-            ch_id = registry[channel].channel_id
-            channels_to_scan = [
-                c for c in config.channels
-                if c.channel_id == ch_id
-            ]
-            if not channels_to_scan:
-                from tube_scout.models.config import ChannelConfig
-                channels_to_scan = [
-                    ChannelConfig(channel_id=ch_id)
-                ]
-        else:
-            console.print(
-                f"[red]Channel '{channel}' not found."
-                " Run 'tube-scout auth register'"
-                " first.[/red]"
-            )
-            raise typer.Exit(code=1)
+    # Resolve channel filter from registry (alias already validated)
+    registry_for_filter = load_registry()
+    ch_id = registry_for_filter[alias].channel_id
+    channels_to_scan = [
+        c for c in config.channels if c.channel_id == ch_id
+    ]
+    if not channels_to_scan:
+        from tube_scout.models.config import ChannelConfig
+        channels_to_scan = [ChannelConfig(channel_id=ch_id)]
 
     if video_id:
         video_ids_to_collect = [video_id]
@@ -874,9 +895,11 @@ def collect_all_command(
             "project_dir": project_dir,
             "project": proj_path,
         }
+        # Spec 009 FR-006/FR-007 invariant: every stage receives the same
+        # resolved alias. Stage-specific extras follow.
+        kwargs["channel"] = channel
         if stage_name == "videos":
             kwargs["force_refresh"] = force_refresh
-            kwargs["channel"] = channel
         elif stage_name == "comments":
             kwargs["video_id"] = None
             kwargs["include_replies"] = False
@@ -884,9 +907,7 @@ def collect_all_command(
             kwargs["video_id"] = None
         elif stage_name == "retention":
             kwargs["video_id"] = None
-            kwargs["channel"] = channel
         elif stage_name == "analytics":
-            kwargs["channel"] = channel
             kwargs["start_date"] = None
             kwargs["report_type"] = None
             kwargs["video_id"] = None
