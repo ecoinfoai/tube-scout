@@ -21,7 +21,6 @@ from __future__ import annotations
 import fcntl
 import json
 import os
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -84,12 +83,18 @@ def recover_channel_id(
 def _atomic_replace(src: Path, dst: Path, mode: int = 0o600) -> None:
     """Atomically rename ``src`` into ``dst`` after copying with ``mode`` bits.
 
+    If ``dst`` is a symlink, the symlink itself is replaced (not its target).
+
     Args:
         src: Source path (existing legacy file).
         dst: Destination path inside the alias tokens directory.
         mode: POSIX permission bits to apply before the rename. Default 0o600.
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
+    # Remove an existing symlink so os.rename replaces the path entry, not the
+    # symlink's target.  A regular file at dst is handled by os.rename itself.
+    if dst.is_symlink():
+        dst.unlink()
     fd, tmp_path = tempfile.mkstemp(
         dir=dst.parent, suffix=".tmp", prefix=".migrating_"
     )
@@ -147,7 +152,19 @@ def _process_legacy_path(
     config_dir: Path,
     cache_path: Path,
 ) -> None:
-    """Migrate or unlink a single legacy token file."""
+    """Migrate or unlink a single legacy token file.
+
+    Raises:
+        LegacyTokenCorrupt: Token JSON is corrupt, non-dict, or channel_id
+            unrecoverable. File is unlinked before raising.
+        LegacyTokenChannelMismatch: Token's channel_id does not match any
+            registered alias. File is unlinked before raising.
+    """
+    from tube_scout.cli.errors import (  # noqa: PLC0415
+        LegacyTokenChannelMismatch,
+        LegacyTokenCorrupt,
+    )
+
     if not legacy_path.exists():
         return
 
@@ -155,37 +172,35 @@ def _process_legacy_path(
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        sys.stderr.write(
-            f"[migration] removing corrupt legacy token at {legacy_path}\n"
-        )
         legacy_path.unlink()
-        return
+        raise LegacyTokenCorrupt(
+            token_path=str(legacy_path),
+            reason="JSON decode error",
+        )
     if not isinstance(data, dict):
-        sys.stderr.write(
-            f"[migration] removing non-dict legacy token at {legacy_path}\n"
-        )
         legacy_path.unlink()
-        return
+        raise LegacyTokenCorrupt(
+            token_path=str(legacy_path),
+            reason="top-level value is not a JSON object",
+        )
 
     channel_id = recover_channel_id(data, cache_path)
     if channel_id is None:
-        sys.stderr.write(
-            f"[migration] removing legacy token at {legacy_path} "
-            f"(channel_id not recoverable)\n"
-        )
         legacy_path.unlink()
-        return
+        raise LegacyTokenCorrupt(
+            token_path=str(legacy_path),
+            reason="channel_id could not be recovered (revoked, expired, or no channel)",
+        )
 
     channels_path = config_dir / CHANNELS_FILE_RELATIVE[0] / CHANNELS_FILE_RELATIVE[1]
     registry = _load_channels_registry(channels_path)
     match = _alias_for_channel_id(registry, channel_id)
     if match is None:
-        sys.stderr.write(
-            f"[migration] removing legacy token at {legacy_path} "
-            f"(channel_id {channel_id} not in registry)\n"
-        )
         legacy_path.unlink()
-        return
+        raise LegacyTokenChannelMismatch(
+            channel_id=channel_id,
+            token_path=str(legacy_path),
+        )
 
     target = config_dir / TOKENS_DIR_NAME / f"{match}.json"
     if target.exists():
@@ -232,8 +247,9 @@ def run_once(
 
     Raises:
         UserFacingError: When the advisory lock cannot be acquired within
-            ``flock_timeout`` seconds. This is the only error path; corrupt
-            or unrecoverable legacy tokens are unlinked rather than raising.
+            ``flock_timeout`` seconds. Per-file migration errors
+            (``LegacyTokenCorrupt``, ``LegacyTokenChannelMismatch``) are
+            caught, rendered to stderr, and do not abort the remaining files.
     """
     from tube_scout.cli.errors import UserFacingError  # noqa: PLC0415
 
@@ -262,11 +278,16 @@ def run_once(
 
         try:
             for name in LEGACY_TOKEN_NAMES:
-                _process_legacy_path(
-                    config_dir / name,
-                    config_dir=config_dir,
-                    cache_path=cache_path,
-                )
+                try:
+                    _process_legacy_path(
+                        config_dir / name,
+                        config_dir=config_dir,
+                        cache_path=cache_path,
+                    )
+                except UserFacingError as migration_err:
+                    from tube_scout.cli.errors import render_error  # noqa: PLC0415
+
+                    render_error(migration_err)
             if cache_path.exists():
                 cache_path.unlink()
         finally:
