@@ -10,42 +10,77 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 
+# ─── Core runtime dependencies ───
+# Lean baseline that every CLI subcommand can rely on. Heavy ML/PDF
+# stacks live in optional-extras (see [project.optional-dependencies])
+# so a default `uv sync` stays under ~1 GB and pytest collection does
+# not OOM 13 GB dev hosts. All heavy imports in src/ are function-local
+# (lazy) so the absence of an extra surfaces as a clear ImportError at
+# call time, not at module load.
 dependencies = [
+    # CLI + presentation
     "typer>=0.12.0",
     "rich>=13.0.0",
-    "google-api-python-client>=2.100.0",
-    "google-auth-oauthlib>=1.1.0",
-    "youtube-transcript-api>=0.6.0",
-    "pandas>=2.1.0",
-    "polars>=0.20.0",
-    "plotly>=5.18.0",
     "jinja2>=3.1.0",
     "pydantic>=2.5.0",
-    "nbformat>=5.9.0",
-    "anthropic>=0.40.0",
-    "openai>=1.50.0",
-    "statsmodels>=0.14.0",
-    "prophet>=1.1.5",
-    "transformers>=4.40.0",
-    "torch>=2.2.0",
     "pyyaml>=6.0",
     "openpyxl>=3.1.0",
     "python-Levenshtein>=0.25.0",
-    "weasyprint>=62.0",
+    "httpx>=0.27.0",
+    # Google + YouTube data sources
+    "google-api-python-client>=2.100.0",
+    "google-auth-oauthlib>=1.1.0",
+    "youtube-transcript-api>=0.6.0",
+    # Tabular + plotting (mid-weight, used broadly across collect/report)
+    "pandas>=2.1.0",
+    "polars>=0.20.0",
+    "plotly>=5.18.0",
+    "nbformat>=5.9.0",
+    # LLM API clients (lightweight HTTP wrappers)
+    "anthropic>=0.40.0",
+    "openai>=1.50.0",
+    # Web admin UI
     "starlette>=0.37.0",
     "uvicorn[standard]>=0.30.0",
     "itsdangerous>=2.2.0",
     "bcrypt>=4.1.0",
     "python-multipart>=0.0.9",
-    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
+# `pip install tube-scout[ml-sentiment]` — local KoBERT/KoELECTRA pipeline.
+# Heavy: transformers + torch wheels are ~1 GB on disk and load ~600 MB into
+# RAM on import. Required ONLY when SentimentService(backend="local").
+ml-sentiment = [
+    "transformers>=4.40.0",
+    "torch>=2.2.0",
+]
+# `pip install tube-scout[ml-forecast]` — ARIMA + Prophet time-series models.
+# Heavy: prophet bundles cmdstanpy/Stan compilation; statsmodels ~150 MB.
+# Required ONLY when ForecasterService.predict(model="arima"|"prophet").
+ml-forecast = [
+    "statsmodels>=0.14.0",
+    "prophet>=1.1.5",
+]
+# Aggregate ML extras.
+ml = [
+    "tube-scout[ml-sentiment,ml-forecast]",
+]
+# `pip install tube-scout[pdf]` — WeasyPrint HTML→PDF rendering. Pulls
+# native cairo/pango on first run; required ONLY by report bundle PDF
+# emission paths (department_report.py / bundle_report.py).
+pdf = [
+    "weasyprint>=62.0",
+]
+# Everything-and-the-kitchen-sink.
+all = [
+    "tube-scout[ml,pdf]",
+]
+# Test + lint toolchain.
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.23.0",
-    "httpx>=0.27.0",
     "pytest-httpx>=0.30.0",
     "ruff>=0.4.0",
 ]

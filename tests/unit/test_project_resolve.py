@@ -12,10 +12,21 @@ from tube_scout.output.manager import ProjectManager
 class TestResolveProject:
     """Tests for resolve_project helper."""
 
-    def test_none_creates_new_project(self, tmp_path: Path) -> None:
-        mgr = resolve_project(str(tmp_path / "projects"), project=None)
+    def test_none_with_producer_creates_new_project(self, tmp_path: Path) -> None:
+        # Spec 009 T026: project=None requires producer=True to create a new
+        # project; consumer mode (default) raises LatestProjectMissing.
+        mgr = resolve_project(
+            str(tmp_path / "projects"), project=None, producer=True
+        )
         assert isinstance(mgr, ProjectManager)
         assert mgr.project_dir.exists()
+
+    def test_none_consumer_raises_latest_missing(self, tmp_path: Path) -> None:
+        # Spec 009 T026: consumer mode + no latest project → LatestProjectMissing.
+        from tube_scout.cli.errors import LatestProjectMissing
+
+        with pytest.raises(LatestProjectMissing):
+            resolve_project(str(tmp_path / "projects"), project=None)
 
     def test_latest_resolves_symlink(self, tmp_path: Path) -> None:
         root = tmp_path / "projects"
