@@ -144,13 +144,21 @@ class DeviceFlow:
             if resp.status_code == 200:
                 return resp.json()
 
-            payload = resp.json() if resp.content else {}
+            try:
+                payload = resp.json() if resp.content else {}
+            except ValueError as exc:
+                raise UserFacingError(
+                    message=(
+                        f"Google token endpoint returned non-JSON content "
+                        f"(HTTP {resp.status_code}): {resp.text[:200]!r}."
+                    ),
+                    next_command=f"tube-scout auth --channel {self.alias}",
+                ) from exc
             error = payload.get("error", "")
             if error == "authorization_pending":
                 pass
             elif error == "slow_down":
                 current_interval = current_interval + 5
-                continue
             elif error == "expired_token":
                 raise DeviceCodeTimeout(alias=self.alias)
             elif error == "access_denied":
@@ -193,8 +201,19 @@ class DeviceFlow:
             DeviceCodeAccessDenied: Operator declined consent.
             UserFacingError: Network or protocol error.
         """
+        from tube_scout.cli.errors import UserFacingError  # noqa: PLC0415
+
         try:
             device_resp = self.fetch_device_code(scopes=scopes)
+            for required in ("device_code", "user_code", "verification_url"):
+                if required not in device_resp:
+                    raise UserFacingError(
+                        message=(
+                            f"Google device-code response missing required field "
+                            f"'{required}': {device_resp}."
+                        ),
+                        next_command=f"tube-scout auth --channel {self.alias}",
+                    )
             on_code(
                 device_resp["user_code"],
                 device_resp["verification_url"],
@@ -206,7 +225,7 @@ class DeviceFlow:
                 expires_in=device_resp.get("expires_in", 1800),
                 _capture_intervals=_capture_intervals,
             )
-        except Exception:
+        except BaseException:
             if token_path is not None and token_path.exists():
                 token_path.unlink()
             raise
