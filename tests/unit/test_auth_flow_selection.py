@@ -108,11 +108,15 @@ class TestBrowserRedirectTimeout:
         """FR-013-bis: on timeout, listener socket must be closed (no orphaned port)."""
         from tube_scout.cli.auth_cli import run_browser_redirect_with_timeout  # noqa: PLC0415
         from tube_scout.cli.auth_cli import BrowserRedirectTimeout  # noqa: PLC0415
+        import tube_scout.cli.auth_cli as auth_cli_mod  # noqa: PLC0415
 
-        import time  # noqa: PLC0415
+        def _no_secret() -> None:
+            raise FileNotFoundError("test-no-secret")
 
-        monotonic_values = iter([0.0, 301.0])
-        monkeypatch.setattr(time, "monotonic", lambda: next(monotonic_values))
+        monkeypatch.setattr(
+            "tube_scout.services.auth._default_client_secret_path", _no_secret
+        )
+        monkeypatch.setattr(auth_cli_mod.time, "monotonic", lambda: 9999.0)
 
         with pytest.raises(BrowserRedirectTimeout):
             run_browser_redirect_with_timeout(alias="nursing", timeout_seconds=300)
@@ -123,11 +127,15 @@ class TestBrowserRedirectTimeout:
         """FR-013-bis: timeout must not leave partial token file on disk."""
         from tube_scout.cli.auth_cli import run_browser_redirect_with_timeout  # noqa: PLC0415
         from tube_scout.cli.auth_cli import BrowserRedirectTimeout  # noqa: PLC0415
+        import tube_scout.cli.auth_cli as auth_cli_mod  # noqa: PLC0415
 
-        import time  # noqa: PLC0415
+        def _no_secret() -> None:
+            raise FileNotFoundError("test-no-secret")
 
-        monotonic_values = iter([0.0, 301.0])
-        monkeypatch.setattr(time, "monotonic", lambda: next(monotonic_values))
+        monkeypatch.setattr(
+            "tube_scout.services.auth._default_client_secret_path", _no_secret
+        )
+        monkeypatch.setattr(auth_cli_mod.time, "monotonic", lambda: 9999.0)
 
         token_path = tmp_path / "token.json"
         with pytest.raises(BrowserRedirectTimeout):

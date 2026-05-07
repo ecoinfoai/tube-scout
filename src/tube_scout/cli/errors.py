@@ -99,6 +99,29 @@ class NoAliasRegistered(UserFacingError):
         )
 
 
+class ClientTypeNotSupportedForDeviceFlow(UserFacingError):
+    """OAuth client type does not support device-code flow (HTTP 401 invalid_client).
+
+    Google returns 401 invalid_client when the OAuth client is a "Desktop app"
+    rather than a "TVs and Limited Input devices" type. Fall back to
+    browser-redirect flow, or re-create the client in Google Cloud Console.
+
+    Args:
+        alias: The channel alias for which auth was attempted.
+    """
+
+    def __init__(self, *, alias: str) -> None:
+        super().__init__(
+            message=(
+                f"Device-code flow for '{alias}' failed: the OAuth client type does not"
+                " support device authorization (invalid_client). In production, create a"
+                " 'TVs and Limited Input devices' OAuth client in Google Cloud Console."
+                " Falling back to browser-redirect flow."
+            ),
+            next_command=f"tube-scout auth --channel {alias} --browser-redirect",
+        )
+
+
 class DeviceCodeTimeout(UserFacingError):
     """Device-code flow polling timed out before operator confirmed.
 
