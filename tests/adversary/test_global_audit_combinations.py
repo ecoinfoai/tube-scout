@@ -54,22 +54,22 @@ class TestCombo01NewStaffWrongToken:
         tokens_dir = tmp_path / "tokens"
         now = datetime.now(UTC).isoformat()
         reg = {
-            "간호학과": ChannelRegistration(
-                alias="간호학과",
+            "nursing": ChannelRegistration(
+                alias="nursing",
                 channel_id="UCnurse",
-                channel_name="간호학과",
+                channel_name="nursing",
                 registered_at=now,
                 last_used_at=now,
-                token_path=str(tokens_dir / "간호학과.json"),
+                token_path=str(tokens_dir / "nursing.json"),
             )
         }
         save_registry(tokens_dir, reg)
 
         registry = load_registry(tokens_dir)
-        assert "간호학과" in registry
-        assert "물리치료학과" not in registry
+        assert "nursing" in registry
+        assert "physio" not in registry
         # Using wrong alias should fail clearly
-        assert registry["간호학과"].channel_id == "UCnurse"
+        assert registry["nursing"].channel_id == "UCnurse"
 
     def test_channel_id_mismatch_detection(self, tmp_path: Path) -> None:
         """Config channel_id != token's channel_id should be detectable."""
@@ -110,7 +110,7 @@ class TestCombo01NewStaffWrongToken:
 
         with patch("tube_scout.services.auth._tokens_dir", return_value=tokens_dir):
             with pytest.raises(KeyError, match="not registered"):
-                authenticate_channel("물리치료학과")
+                authenticate_channel("physio")
 
     def test_empty_channels_json_all_aliases_fail(self, tmp_path: Path) -> None:
         """With empty channels.json, any alias authentication should fail."""
@@ -121,7 +121,7 @@ class TestCombo01NewStaffWrongToken:
         (tokens_dir / "channels.json").write_text("{}", encoding="utf-8")
 
         registry = load_registry(tokens_dir)
-        for alias in ["간호학과", "물리치료학과", "치위생학과"]:
+        for alias in ["nursing", "physio", "dental"]:
             assert alias not in registry
 
 

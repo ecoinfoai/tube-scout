@@ -429,7 +429,7 @@ class TestA05WrongPermissionsTA:
         (tokens_dir / "channels.json").write_text("{}", encoding="utf-8")
 
         registry = load_registry(tokens_dir)
-        assert "간호학과" not in registry
+        assert "nursing" not in registry
 
     def test_token_file_missing_for_registered_channel(self, tmp_path: Path) -> None:
         """Registered channel with missing token file should raise FileNotFoundError."""
@@ -441,18 +441,18 @@ class TestA05WrongPermissionsTA:
         tokens_dir = tmp_path / "tokens"
         tokens_dir.mkdir()
         reg = ChannelRegistration(
-            alias="간호학과",
+            alias="nursing",
             channel_id="UCnurse123",
             channel_name="간호학과 채널",
             registered_at=datetime.now(UTC).isoformat(),
             last_used_at=datetime.now(UTC).isoformat(),
-            token_path=str(tokens_dir / "간호학과.json"),  # file doesn't exist
+            token_path=str(tokens_dir / "nursing.json"),  # file doesn't exist
         )
-        save_registry(tokens_dir, {"간호학과": reg})
+        save_registry(tokens_dir, {"nursing": reg})
 
         with patch("tube_scout.services.auth._tokens_dir", return_value=tokens_dir):
             with pytest.raises(FileNotFoundError, match="Token file not found"):
-                authenticate_channel("간호학과")
+                authenticate_channel("nursing")
 
     def test_channel_id_alias_confusion(self, tmp_path: Path) -> None:
         """Using a channel ID where an alias is expected should not crash the system."""
@@ -471,17 +471,17 @@ class TestA05WrongPermissionsTA:
 
         tokens_dir = tmp_path / "tokens"
         reg = ChannelRegistration(
-            alias="간호학과",
+            alias="nursing",
             channel_id="UCnurse123",
-            channel_name="간호학과",
+            channel_name="nursing",
             registered_at=datetime.now(UTC).isoformat(),
             last_used_at=datetime.now(UTC).isoformat(),
-            token_path=str(tokens_dir / "간호학과.json"),
+            token_path=str(tokens_dir / "nursing.json"),
         )
-        save_registry(tokens_dir, {"간호학과": reg})
+        save_registry(tokens_dir, {"nursing": reg})
 
         registry = load_registry(tokens_dir)
-        assert "간호학과" in registry
+        assert "nursing" in registry
         assert "간호 학과" not in registry
         assert "UCnurse123" not in registry
 
@@ -495,7 +495,7 @@ class TestA05WrongPermissionsTA:
 
         with patch("tube_scout.services.auth._tokens_dir", return_value=tokens_dir):
             with pytest.raises(KeyError, match="not registered"):
-                update_last_used(tokens_dir, "존재하지않는학과")
+                update_last_used(tokens_dir, "missing-alias")
 
 
 # ============================================================
