@@ -8,8 +8,10 @@ typer's CliRunner.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from tube_scout.cli.main import app
@@ -18,6 +20,49 @@ from tube_scout.storage.checkpoint import load_checkpoint
 from tube_scout.storage.json_store import read_json, write_json
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def _spec009_auth_bypass(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bypass spec-009 alias/auth runtime preflight for legacy e2e tests.
+
+    These tests pre-date the multi-channel alias registry (spec 003 / 009)
+    — they exercise the pipeline with the channel_id pinned in
+    ``config.json`` and per-test ``@patch("…build_data_client")`` /
+    ``…build_analytics_client`` mocks. Spec-009 T032 added a runtime
+    ``resolve_channel_alias()`` preflight that requires at least one
+    alias to be registered in ``tokens/channels.json`` before any
+    ``collect`` subcommand will run; without this bypass every test
+    here exits with ``NoAliasRegistered``.
+
+    The bypass injects a synthetic single-alias registry plus a
+    no-op ``authenticate_channel`` so the legacy fixture path keeps
+    working while the actual multi-alias contract is exercised by the
+    dedicated spec-009 suites (test_resolve_channel_alias.py,
+    test_collect_channel_symmetry.py, test_resolve_channel_multi_alias.py).
+    """
+    fake_registry = {
+        "default": {
+            "channel_id": CHANNEL_ID,
+            "channel_name": "Test Channel",
+            "registered_at": "2026-05-08T00:00:00Z",
+            "last_used_at": "2026-05-08T00:00:00Z",
+        }
+    }
+
+    def _fake_creds(_alias: str) -> Any:
+        creds = MagicMock()
+        creds.token = "fake-token"
+        creds.valid = True
+        creds.expired = False
+        return creds
+
+    monkeypatch.setattr(
+        "tube_scout.services.auth.load_registry", lambda: fake_registry
+    )
+    monkeypatch.setattr(
+        "tube_scout.services.auth.authenticate_channel", _fake_creds
+    )
 
 # ---------------------------------------------------------------------------
 # Shared constants and mock data factories
