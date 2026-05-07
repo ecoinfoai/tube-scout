@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -91,9 +91,7 @@ class TestRecoverChannelIdNone:
             run_once(config_dir=migration_env)
         assert not legacy.exists()
 
-    def test_no_channel_id_does_not_raise(
-        self, run_once, migration_env: Path
-    ) -> None:
+    def test_no_channel_id_does_not_raise(self, run_once, migration_env: Path) -> None:
         token_data = {
             "token": "ya29.test",
             "refresh_token": "1//test",
@@ -141,14 +139,9 @@ class TestNoLegacyFiles:
 
 
 class TestFlockRaceProtection:
-    def test_run_once_idempotent_within_process(
-        self, migration_env: Path
-    ) -> None:
+    def test_run_once_idempotent_within_process(self, migration_env: Path) -> None:
         """run_once() MUST be a no-op on second call within same process."""
         from tube_scout.services.auth_migration import run_once  # noqa: PLC0415
-
-        call_count = 0
-        original_impl = run_once.__wrapped__ if hasattr(run_once, "__wrapped__") else None
 
         run_once(config_dir=migration_env)
         run_once(config_dir=migration_env)
@@ -157,7 +150,6 @@ class TestFlockRaceProtection:
         self, run_once, migration_env: Path
     ) -> None:
         """If flock cannot be acquired within 10s, raise UserFacingError."""
-        import fcntl  # noqa: PLC0415
 
         from tube_scout.cli.errors import UserFacingError  # noqa: PLC0415
 
@@ -183,4 +175,7 @@ class TestFlockRaceProtection:
         with patch("fcntl.flock", side_effect=BlockingIOError("timeout")):
             with pytest.raises(UserFacingError) as exc_info:
                 run_once(config_dir=migration_env, flock_timeout=0)
-        assert "retry" in exc_info.value.next_command.lower() or "auth" in exc_info.value.next_command.lower()
+        assert (
+            "retry" in exc_info.value.next_command.lower()
+            or "auth" in exc_info.value.next_command.lower()
+        )

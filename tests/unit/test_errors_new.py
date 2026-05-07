@@ -6,8 +6,6 @@ inheritance from UserFacingError (ADR-007 pattern).
 
 from __future__ import annotations
 
-import pytest
-
 from tube_scout.cli.errors import (
     DeviceCodeAccessDenied,
     DeviceCodeTimeout,

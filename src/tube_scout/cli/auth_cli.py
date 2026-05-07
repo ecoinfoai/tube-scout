@@ -83,8 +83,12 @@ def run_browser_redirect_with_timeout(
 
     creds = None
     try:
-        from tube_scout.services.auth import _default_client_secret_path, SCOPES  # noqa: PLC0415
         from google_auth_oauthlib.flow import InstalledAppFlow  # noqa: PLC0415
+
+        from tube_scout.services.auth import (  # noqa: PLC0415
+            SCOPES,
+            _default_client_secret_path,
+        )
 
         client_secret = _default_client_secret_path()
         flow = InstalledAppFlow.from_client_secrets_file(str(client_secret), SCOPES)
@@ -227,7 +231,9 @@ def _revoke_channel(alias: str) -> None:
         raise typer.Exit(code=1)
 
 
-def _register_channel_device_flow(alias: str, *, _browser_fallback: bool = False) -> None:
+def _register_channel_device_flow(
+    alias: str, *, _browser_fallback: bool = False
+) -> None:
     """Register a channel using RFC 8628 device-code flow.
 
     When the OAuth client type does not support device authorization
@@ -240,21 +246,21 @@ def _register_channel_device_flow(alias: str, *, _browser_fallback: bool = False
     """
     import json  # noqa: PLC0415
     from datetime import UTC, datetime  # noqa: PLC0415
-    from pathlib import Path  # noqa: PLC0415
 
+    from googleapiclient.discovery import build as build_api  # noqa: PLC0415
+
+    from tube_scout.models.config import ChannelRegistration  # noqa: PLC0415
     from tube_scout.services.auth import (  # noqa: PLC0415
         SCOPES,
         _authorized_http,
+        _default_client_secret_path,
         _secure_write,
         _tokens_dir,
-        _default_client_secret_path,
         _validate_alias,
         load_registry,
         save_registry,
     )
     from tube_scout.services.auth_device_flow import DeviceFlow  # noqa: PLC0415
-    from tube_scout.models.config import ChannelRegistration  # noqa: PLC0415
-    from googleapiclient.discovery import build as build_api  # noqa: PLC0415
 
     _validate_alias(alias)
 
@@ -289,7 +295,9 @@ def _register_channel_device_flow(alias: str, *, _browser_fallback: bool = False
             token_path=token_file,
         )
     except UserFacingError as e:
-        from tube_scout.cli.errors import ClientTypeNotSupportedForDeviceFlow  # noqa: PLC0415
+        from tube_scout.cli.errors import (
+            ClientTypeNotSupportedForDeviceFlow,  # noqa: PLC0415
+        )
 
         if isinstance(e, ClientTypeNotSupportedForDeviceFlow) and not _browser_fallback:
             console.print(f"[yellow]Warning: {e.message}[/yellow]")
@@ -303,7 +311,8 @@ def _register_channel_device_flow(alias: str, *, _browser_fallback: bool = False
     from google.oauth2.credentials import Credentials  # noqa: PLC0415
 
     granted_scopes = token_dict.get("scope", "").split() or SCOPES
-    creds = Credentials(
+    # google-auth's Credentials lacks py.typed; pre-existing project pattern.
+    creds = Credentials(  # type: ignore[no-untyped-call]
         token=token_dict["access_token"],
         refresh_token=token_dict.get("refresh_token"),
         token_uri="https://oauth2.googleapis.com/token",
@@ -311,7 +320,7 @@ def _register_channel_device_flow(alias: str, *, _browser_fallback: bool = False
         client_secret=client_secret,
         scopes=granted_scopes,
     )
-    _secure_write(token_file, creds.to_json())
+    _secure_write(token_file, creds.to_json())  # type: ignore[no-untyped-call]
 
     yt_service = build_api("youtube", "v3", http=_authorized_http(creds))
     response = yt_service.channels().list(mine=True, part="snippet").execute()

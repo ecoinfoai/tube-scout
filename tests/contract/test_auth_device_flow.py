@@ -44,7 +44,9 @@ class TestDeviceFlowSuccess:
         httpx_mock.add_response(
             url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
-        result = device_flow.fetch_device_code(scopes=["https://www.googleapis.com/auth/youtube.readonly"])
+        result = device_flow.fetch_device_code(
+            scopes=["https://www.googleapis.com/auth/youtube.readonly"]
+        )
         assert result["device_code"] == "test-device-code"
         assert result["user_code"] == "TEST-CODE"
         assert "verification_url" in result
@@ -65,9 +67,7 @@ class TestDeviceFlowSuccess:
         assert token["refresh_token"] == "1//test-refresh-token"
         assert token["token_type"] == "Bearer"
 
-    def test_run_success_path(
-        self, device_flow, httpx_mock: HTTPXMock
-    ) -> None:
+    def test_run_success_path(self, device_flow, httpx_mock: HTTPXMock) -> None:
         httpx_mock.add_response(
             url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
@@ -82,9 +82,7 @@ class TestDeviceFlowSuccess:
 
 
 class TestDeviceFlowPendingThenSuccess:
-    def test_pending_then_success(
-        self, device_flow, httpx_mock: HTTPXMock
-    ) -> None:
+    def test_pending_then_success(self, device_flow, httpx_mock: HTTPXMock) -> None:
         httpx_mock.add_response(
             url=DEVICE_AUTH_URL, method="POST", **device_code_response(interval=0)
         )
@@ -163,7 +161,9 @@ class TestDeviceFlowSlowDown:
             _capture_intervals=intervals,
         )
         assert token["access_token"] == "ya29.test-access-token"
-        assert any(i >= 5 for i in intervals), f"expected ≥5s interval after slow_down, got {intervals}"
+        assert any(i >= 5 for i in intervals), (
+            f"expected ≥5s interval after slow_down, got {intervals}"
+        )
 
 
 class TestDeviceFlowExpired:
@@ -289,23 +289,35 @@ class TestDeviceFlowInvalidClient:
     def test_fetch_device_code_401_raises_client_type_not_supported(
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
-        from tube_scout.cli.errors import ClientTypeNotSupportedForDeviceFlow  # noqa: PLC0415
+        from tube_scout.cli.errors import (
+            ClientTypeNotSupportedForDeviceFlow,  # noqa: PLC0415
+        )
 
         httpx_mock.add_response(
             url=DEVICE_AUTH_URL,
             method="POST",
             status_code=401,
-            json={"error": "invalid_client", "error_description": "The OAuth client was not found."},
+            json={
+                "error": "invalid_client",
+                "error_description": "The OAuth client was not found.",
+            },
         )
         with pytest.raises(ClientTypeNotSupportedForDeviceFlow) as exc_info:
-            device_flow.fetch_device_code(scopes=["https://www.googleapis.com/auth/youtube.readonly"])
+            device_flow.fetch_device_code(
+                scopes=["https://www.googleapis.com/auth/youtube.readonly"]
+            )
         assert exc_info.value.next_command != ""
-        assert "TVs and Limited Input" in exc_info.value.message or "invalid_client" in exc_info.value.message
+        assert (
+            "TVs and Limited Input" in exc_info.value.message
+            or "invalid_client" in exc_info.value.message
+        )
 
     def test_run_401_raises_client_type_not_supported(
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
-        from tube_scout.cli.errors import ClientTypeNotSupportedForDeviceFlow  # noqa: PLC0415
+        from tube_scout.cli.errors import (
+            ClientTypeNotSupportedForDeviceFlow,  # noqa: PLC0415
+        )
 
         httpx_mock.add_response(
             url=DEVICE_AUTH_URL,
@@ -326,7 +338,9 @@ class TestDeviceFlowInvalidClient:
         browser-redirect exactly once (recursion guard prevents infinite fallback)."""
         from unittest.mock import patch  # noqa: PLC0415
 
-        from tube_scout.cli.errors import ClientTypeNotSupportedForDeviceFlow  # noqa: PLC0415
+        from tube_scout.cli.errors import (
+            ClientTypeNotSupportedForDeviceFlow,  # noqa: PLC0415
+        )
 
         secret_file = tmp_path / "secret.json"
         secret_file.write_text(
@@ -347,9 +361,14 @@ class TestDeviceFlowInvalidClient:
                 "tube_scout.cli.auth_cli.run_browser_redirect_with_timeout",
             ) as mock_browser,
             patch("tube_scout.services.auth._validate_alias"),
-            patch("tube_scout.services.auth._tokens_dir", return_value=tmp_path / "tokens"),
+            patch(
+                "tube_scout.services.auth._tokens_dir", return_value=tmp_path / "tokens"
+            ),
         ):
-            from tube_scout.cli.auth_cli import _register_channel_device_flow  # noqa: PLC0415
+            from tube_scout.cli.auth_cli import (
+                _register_channel_device_flow,  # noqa: PLC0415
+            )
+
             _register_channel_device_flow("nursing")
 
         assert mock_browser.call_count == 1, (

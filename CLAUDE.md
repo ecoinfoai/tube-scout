@@ -37,7 +37,7 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
-- 009-runtime-auth-fix: Added Python 3.11 (pinned via flake.nix devShell + pyproject.toml). + typer, rich, google-api-python-client,
+- 009-runtime-auth-fix: OAuth device-code flow (RFC 8628) is now the default for `tube-scout auth --channel <alias>`; `--browser-redirect` opt-in retains the legacy local-server flow with a 5-minute timeout fallback. One-shot legacy `~/.config/tube-scout/token{,_forcessl}.json` migration into `tokens/<alias>.json` runs at the first `authenticate_channel()` call (atomic rename, fcntl.flock). `resolve_project()` now distinguishes producer vs consumer commands: only `collect.videos` advances `projects/latest`. `--channel` flag is symmetric across every `collect` subcommand (videos/transcripts/comments/retention/analytics/bulk) with a single centralized `resolve_channel_alias()` call. Diagnostic transcript audit CSV emitted at `<project>/01_collect/transcripts_audit.csv`. Adds `httpx` as a direct dependency.
 - 008-admin-web-ui: Added starlette, uvicorn[standard], itsdangerous, bcrypt, python-multipart, pytest-asyncio, httpx, jinja2 for the operator admin web UI (US1+US2+US3)
 - 007-content-reuse-detection: Added Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pydantic v2, sentence-transformers, polars, plotly, jinja2, openpyxl
 

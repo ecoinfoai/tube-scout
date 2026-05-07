@@ -6,7 +6,7 @@ Tests:
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -18,9 +18,7 @@ def _make_config(tmp_path: Path) -> Path:
     data_dir = tmp_path / "data"
     data_dir.mkdir()
     config = {
-        "channels": [
-            {"channel_id": "UCtest123abcdefg", "professor_name": "Test Prof"}
-        ],
+        "channels": [{"channel_id": "UCtest123abcdefg", "professor_name": "Test Prof"}],
         "settings": {
             "rate_limit_transcript": {
                 "base_delay": 2.0,
@@ -50,10 +48,18 @@ class TestCollectVideosCommitLatest:
             "uploads_playlist_id": "UU_test",
         }
         mock_service.list_all_videos.return_value = [
-            {"video_id": "vid001", "title": "Test Prof Lecture 1", "channel_id": "UCtest123abcdefg"},
+            {
+                "video_id": "vid001",
+                "title": "Test Prof Lecture 1",
+                "channel_id": "UCtest123abcdefg",
+            },
         ]
         mock_service.filter_by_professor.return_value = [
-            {"video_id": "vid001", "title": "Test Prof Lecture 1", "channel_id": "UCtest123abcdefg"},
+            {
+                "video_id": "vid001",
+                "title": "Test Prof Lecture 1",
+                "channel_id": "UCtest123abcdefg",
+            },
         ]
         mock_service.get_video_details.return_value = {}
 
@@ -72,9 +78,7 @@ class TestCollectVideosCommitLatest:
                 return_value=MagicMock(),
             ),
             patch("googleapiclient.discovery.build", return_value=MagicMock()),
-            patch(
-                "tube_scout.cli.collect.resolve_project"
-            ) as mock_resolve,
+            patch("tube_scout.cli.collect.resolve_project") as mock_resolve,
         ):
             # Make resolve_project return a manager where commit_latest is tracked
             from tube_scout.output.manager import ProjectManager
@@ -125,9 +129,7 @@ class TestCollectVideosCommitLatest:
                 return_value=MagicMock(),
             ),
             patch("googleapiclient.discovery.build", return_value=MagicMock()),
-            patch(
-                "tube_scout.cli.collect.resolve_project"
-            ) as mock_resolve,
+            patch("tube_scout.cli.collect.resolve_project") as mock_resolve,
         ):
             from tube_scout.output.manager import ProjectManager
 

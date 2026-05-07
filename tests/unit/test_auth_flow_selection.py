@@ -106,9 +106,11 @@ class TestBrowserRedirectTimeout:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """FR-013-bis: on timeout, listener socket must be closed (no orphaned port)."""
-        from tube_scout.cli.auth_cli import run_browser_redirect_with_timeout  # noqa: PLC0415
-        from tube_scout.cli.auth_cli import BrowserRedirectTimeout  # noqa: PLC0415
         import tube_scout.cli.auth_cli as auth_cli_mod  # noqa: PLC0415
+        from tube_scout.cli.auth_cli import (
+            BrowserRedirectTimeout,  # noqa: PLC0415
+            run_browser_redirect_with_timeout,  # noqa: PLC0415
+        )
 
         def _no_secret() -> None:
             raise FileNotFoundError("test-no-secret")
@@ -125,9 +127,11 @@ class TestBrowserRedirectTimeout:
         self, tmp_path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """FR-013-bis: timeout must not leave partial token file on disk."""
-        from tube_scout.cli.auth_cli import run_browser_redirect_with_timeout  # noqa: PLC0415
-        from tube_scout.cli.auth_cli import BrowserRedirectTimeout  # noqa: PLC0415
         import tube_scout.cli.auth_cli as auth_cli_mod  # noqa: PLC0415
+        from tube_scout.cli.auth_cli import (
+            BrowserRedirectTimeout,  # noqa: PLC0415
+            run_browser_redirect_with_timeout,  # noqa: PLC0415
+        )
 
         def _no_secret() -> None:
             raise FileNotFoundError("test-no-secret")

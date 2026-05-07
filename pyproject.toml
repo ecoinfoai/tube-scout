@@ -70,8 +70,42 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+# Spec-009 UserFacingError subclasses use descriptive names defined in the
+# spec contract (e.g., DeviceCodeTimeout, MultipleAliasesNoSelection) that
+# intentionally do NOT carry an "Error" suffix; the contract is referenced
+# across tests/docs and renaming would break the public API.
+"src/tube_scout/cli/errors.py" = ["N818"]
+"src/tube_scout/cli/auth_cli.py" = ["N818"]
+# Pre-existing service-layer exceptions (ScopeReauthRequired,
+# InteractiveAuthRequired) predate the N818 rule; their public name is part
+# of the runtime contract.
+"src/tube_scout/services/auth.py" = ["N818"]
+# Test files routinely embed long fixture strings (URLs, error messages,
+# JSON literals); the 88-char line cap fights readability there. Test
+# mock classes also mirror upstream library exception names verbatim
+# (TranscriptsDisabled, NoTranscriptFound from youtube-transcript-api),
+# so renaming for N818 would defeat the mock.
+"tests/**/*.py" = ["E501", "N818"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["tube_scout"]
+
+# Google OAuth/API libraries do not ship `py.typed` markers or PEP 561
+# stubs. Suppress import-untyped + untyped-call noise so spec-009's typed
+# auth modules can call them under `mypy --strict` without scattered
+# per-line ignores. Re-evaluate when google-auth ships stubs upstream.
+[[tool.mypy.overrides]]
+module = [
+    "google.auth.transport.requests",
+    "google.oauth2.credentials",
+    "google_auth_httplib2",
+    "google_auth_oauthlib.flow",
+    "googleapiclient.discovery",
+    "httplib2",
+]
+ignore_missing_imports = true
+disable_error_code = ["no-untyped-call"]
 
 [dependency-groups]
 dev = [

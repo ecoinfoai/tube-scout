@@ -290,7 +290,9 @@ def collect_retention_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project, producer=is_producer("collect.retention"))
+    mgr = resolve_project(
+        project_dir, project, producer=is_producer("collect.retention")
+    )
 
     video_ids_to_collect: list[str] = []
 
@@ -386,7 +388,7 @@ def collect_comments_command(
         project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
         include_replies: Whether to collect reply threads.
-        channel: Channel alias to authenticate (auto-selected if only one is registered).
+        channel: Channel alias to authenticate (auto-selects when one alias).
     """
     from tube_scout.cli.errors import UserFacingError, render_error
     from tube_scout.services.auth import (
@@ -403,7 +405,9 @@ def collect_comments_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project, producer=is_producer("collect.comments"))
+    mgr = resolve_project(
+        project_dir, project, producer=is_producer("collect.comments")
+    )
 
     try:
         creds = authenticate_channel(alias)
@@ -519,13 +523,14 @@ def collect_transcripts_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project, producer=is_producer("collect.transcripts"))
+    mgr = resolve_project(
+        project_dir, project, producer=is_producer("collect.transcripts")
+    )
 
     rate_limiter = RateLimiter(
         config.settings.rate_limit_transcript,
         on_backoff=lambda attempt, delay: console.print(
-            f"  [yellow]Backoff: attempt {attempt + 1},"
-            f" waiting {delay:.1f}s[/yellow]"
+            f"  [yellow]Backoff: attempt {attempt + 1}, waiting {delay:.1f}s[/yellow]"
         ),
     )
 
@@ -539,21 +544,19 @@ def collect_transcripts_command(
         from tube_scout.services.captions_api import (
             CaptionsAPIClient,
         )
+
         creds = authenticate_channel(alias)
         yt_client = api_build(
-            "youtube", "v3",
+            "youtube",
+            "v3",
             http=_authorized_http(creds),
         )
         captions_client = CaptionsAPIClient(
             youtube_service=yt_client,
         )
-        console.print(
-            "[dim]Captions API fallback enabled for private videos[/dim]"
-        )
+        console.print("[dim]Captions API fallback enabled for private videos[/dim]")
     except Exception as e:
-        console.print(
-            f"[yellow]Captions API fallback unavailable: {e}[/yellow]"
-        )
+        console.print(f"[yellow]Captions API fallback unavailable: {e}[/yellow]")
 
     service = TranscriptService(
         rate_limiter=rate_limiter,
@@ -565,11 +568,10 @@ def collect_transcripts_command(
     # Resolve channel filter from registry (alias already validated)
     registry_for_filter = load_registry()
     ch_id = registry_for_filter[alias].channel_id
-    channels_to_scan = [
-        c for c in config.channels if c.channel_id == ch_id
-    ]
+    channels_to_scan = [c for c in config.channels if c.channel_id == ch_id]
     if not channels_to_scan:
         from tube_scout.models.config import ChannelConfig
+
         channels_to_scan = [ChannelConfig(channel_id=ch_id)]
 
     if video_id:
@@ -589,9 +591,7 @@ def collect_transcripts_command(
                     if isinstance(videos_data, list)
                     else videos_data.get("videos", [])
                 )
-                video_ids_to_collect.extend(
-                    v["video_id"] for v in videos
-                )
+                video_ids_to_collect.extend(v["video_id"] for v in videos)
 
     if not video_ids_to_collect:
         console.print(
@@ -681,9 +681,7 @@ def collect_transcripts_command(
     if audit_rows:
         audit_path = mgr.collect_dir / "transcripts_audit.csv"
         write_audit_csv(audit_rows, audit_path)
-        console.print(
-            f"[dim]Wrote {len(audit_rows)} miss(es) to {audit_path}.[/dim]"
-        )
+        console.print(f"[dim]Wrote {len(audit_rows)} miss(es) to {audit_path}.[/dim]")
 
 
 def collect_analytics_command(
@@ -743,18 +741,19 @@ def collect_analytics_command(
     # INTEGRATION: orchestrator preflight — alias resolution then auth routing
     import polars as pl
 
-    from tube_scout.storage.parquet_store import write_parquet
-
     from tube_scout.cli.errors import UserFacingError, render_error
     from tube_scout.services.auth import (
         build_analytics_client,
         load_registry,
         resolve_channel_alias,
     )
+    from tube_scout.storage.parquet_store import write_parquet
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project, producer=is_producer("collect.analytics"))
+    mgr = resolve_project(
+        project_dir, project, producer=is_producer("collect.analytics")
+    )
 
     try:
         registry = load_registry()
@@ -1103,7 +1102,7 @@ def collect_bulk_command(
         data_dir: User data directory path.
         project_dir: Projects root directory path.
         project: Existing project path or 'latest'.
-        channel: Channel alias to authenticate (auto-selected if only one is registered).
+        channel: Channel alias to authenticate (auto-selects when one alias).
     """
     from tube_scout.cli.errors import UserFacingError, render_error
     from tube_scout.services.auth import (

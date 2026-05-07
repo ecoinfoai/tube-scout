@@ -64,6 +64,4 @@ def test_subcommand_rejects_invalid_alias_format(
     if subcmd == "bulk":
         args.extend(["--report-type", "channel_basic_a2"])
     result = runner.invoke(app, args)
-    assert result.exit_code != 0, (
-        f"collect {subcmd} accepted invalid alias '../evil'"
-    )
+    assert result.exit_code != 0, f"collect {subcmd} accepted invalid alias '../evil'"

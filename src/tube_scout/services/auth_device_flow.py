@@ -71,13 +71,16 @@ class DeviceFlow:
         except httpx.HTTPError as exc:
             raise UserFacingError(
                 message=(
-                    f"Could not reach Google device-code endpoint ({exc.__class__.__name__})."
+                    "Could not reach Google device-code endpoint"
+                    f" ({exc.__class__.__name__})."
                 ),
                 next_command=f"tube-scout auth --channel {self.alias}",
             ) from exc
 
         if resp.status_code == 401:
-            from tube_scout.cli.errors import ClientTypeNotSupportedForDeviceFlow  # noqa: PLC0415
+            from tube_scout.cli.errors import (
+                ClientTypeNotSupportedForDeviceFlow,  # noqa: PLC0415
+            )
 
             raise ClientTypeNotSupportedForDeviceFlow(alias=self.alias)
 
@@ -89,7 +92,8 @@ class DeviceFlow:
                 ),
                 next_command=f"tube-scout auth --channel {self.alias}",
             )
-        return resp.json()
+        payload: dict[str, Any] = resp.json()
+        return payload
 
     def poll_token(
         self,
@@ -147,10 +151,13 @@ class DeviceFlow:
                 ) from exc
 
             if resp.status_code == 200:
-                return resp.json()
+                token: dict[str, Any] = resp.json()
+                return token
 
             try:
-                payload = resp.json() if resp.content else {}
+                payload: dict[str, Any] = (
+                    resp.json() if resp.content else {}
+                )
             except ValueError as exc:
                 raise UserFacingError(
                     message=(

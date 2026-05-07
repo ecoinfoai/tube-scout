@@ -18,13 +18,11 @@ FR: FR-008 / FR-009 / FR-010
 from __future__ import annotations
 
 import json
-import os
 import time
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 
 VALID_TOKEN_DATA = {
     "token": "ya29.test-access",
@@ -58,7 +56,9 @@ def config_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def run_once(config_dir):
-    from tube_scout.services.auth_migration import run_once as _run_once  # noqa: PLC0415
+    from tube_scout.services.auth_migration import (
+        run_once as _run_once,  # noqa: PLC0415
+    )
 
     return _run_once
 
@@ -92,9 +92,7 @@ class TestMatchNewer:
         content = json.loads(alias_token.read_text())
         assert content.get("refresh_token") == "1//test-refresh"
 
-    def test_newer_legacy_removed_after_copy(
-        self, run_once, config_dir: Path
-    ) -> None:
+    def test_newer_legacy_removed_after_copy(self, run_once, config_dir: Path) -> None:
         alias_token = config_dir / "tokens" / "nursing.json"
         alias_token.write_text(json.dumps({"old": True}))
         alias_token.touch()
@@ -163,9 +161,7 @@ class TestNoMatch:
 
         assert not legacy.exists()
 
-    def test_empty_registry_legacy_deleted(
-        self, run_once, config_dir: Path
-    ) -> None:
+    def test_empty_registry_legacy_deleted(self, run_once, config_dir: Path) -> None:
         legacy = config_dir / "token.json"
         legacy.write_text(json.dumps(VALID_TOKEN_DATA))
 
@@ -188,9 +184,7 @@ class TestCorrupt:
         run_once(config_dir=config_dir)
         assert not legacy.exists()
 
-    def test_corrupt_forcessl_legacy_deleted(
-        self, run_once, config_dir: Path
-    ) -> None:
+    def test_corrupt_forcessl_legacy_deleted(self, run_once, config_dir: Path) -> None:
         legacy = config_dir / "token_forcessl.json"
         legacy.write_text("null")
         run_once(config_dir=config_dir)
@@ -213,16 +207,12 @@ class TestMissing:
         assert not (config_dir / "token.json").exists()
         assert not (config_dir / "token_forcessl.json").exists()
 
-    def test_missing_returns_without_error(
-        self, run_once, config_dir: Path
-    ) -> None:
+    def test_missing_returns_without_error(self, run_once, config_dir: Path) -> None:
         run_once(config_dir=config_dir)
 
 
 class TestBothPathsPresent:
-    def test_both_legacy_files_processed(
-        self, run_once, config_dir: Path
-    ) -> None:
+    def test_both_legacy_files_processed(self, run_once, config_dir: Path) -> None:
         (config_dir / "token.json").write_text(json.dumps(VALID_TOKEN_DATA))
         (config_dir / "token_forcessl.json").write_text(json.dumps(VALID_TOKEN_DATA))
 
