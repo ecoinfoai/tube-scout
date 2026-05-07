@@ -42,7 +42,7 @@ class TestDeviceFlowSuccess:
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response()
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
         result = device_flow.fetch_device_code(scopes=["https://www.googleapis.com/auth/youtube.readonly"])
         assert result["device_code"] == "test-device-code"
@@ -54,7 +54,7 @@ class TestDeviceFlowSuccess:
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_success_response()
+            url=TOKEN_URL, method="POST", **token_success_response()
         )
         token = device_flow.poll_token(
             device_code="test-device-code",
@@ -69,10 +69,10 @@ class TestDeviceFlowSuccess:
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response()
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_success_response()
+            url=TOKEN_URL, method="POST", **token_success_response()
         )
         token = device_flow.run(
             scopes=["https://www.googleapis.com/auth/youtube.readonly"],
@@ -86,13 +86,13 @@ class TestDeviceFlowPendingThenSuccess:
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response(interval=0)
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response(interval=0)
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_pending_response()
+            url=TOKEN_URL, method="POST", **token_pending_response()
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_success_response()
+            url=TOKEN_URL, method="POST", **token_success_response()
         )
         token = device_flow.run(
             scopes=["https://www.googleapis.com/auth/youtube.readonly"],
@@ -104,14 +104,14 @@ class TestDeviceFlowPendingThenSuccess:
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response(interval=0)
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response(interval=0)
         )
         for _ in range(3):
             httpx_mock.add_response(
-                url=TOKEN_URL, method="POST", response=token_pending_response()
+                url=TOKEN_URL, method="POST", **token_pending_response()
             )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_success_response()
+            url=TOKEN_URL, method="POST", **token_success_response()
         )
         token = device_flow.run(
             scopes=["https://www.googleapis.com/auth/youtube.readonly"],
@@ -125,13 +125,13 @@ class TestDeviceFlowSlowDown:
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response(interval=0)
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response(interval=0)
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_slow_down_response()
+            url=TOKEN_URL, method="POST", **token_slow_down_response()
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_success_response()
+            url=TOKEN_URL, method="POST", **token_success_response()
         )
         token = device_flow.run(
             scopes=["https://www.googleapis.com/auth/youtube.readonly"],
@@ -143,13 +143,13 @@ class TestDeviceFlowSlowDown:
         self, device_flow, httpx_mock: HTTPXMock
     ) -> None:
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response(interval=0)
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response(interval=0)
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_slow_down_response()
+            url=TOKEN_URL, method="POST", **token_slow_down_response()
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_success_response()
+            url=TOKEN_URL, method="POST", **token_success_response()
         )
         intervals: list[float] = []
         original_run = device_flow.run
@@ -173,10 +173,10 @@ class TestDeviceFlowExpired:
         from tube_scout.cli.errors import DeviceCodeTimeout  # noqa: PLC0415
 
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response()
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_expired_response()
+            url=TOKEN_URL, method="POST", **token_expired_response()
         )
         with pytest.raises(DeviceCodeTimeout) as exc_info:
             device_flow.run(
@@ -191,10 +191,10 @@ class TestDeviceFlowExpired:
         from tube_scout.cli.errors import DeviceCodeTimeout  # noqa: PLC0415
 
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response()
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_expired_response()
+            url=TOKEN_URL, method="POST", **token_expired_response()
         )
         with pytest.raises(DeviceCodeTimeout):
             device_flow.run(
@@ -212,10 +212,10 @@ class TestDeviceFlowAccessDenied:
         from tube_scout.cli.errors import DeviceCodeAccessDenied  # noqa: PLC0415
 
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response()
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_access_denied_response()
+            url=TOKEN_URL, method="POST", **token_access_denied_response()
         )
         with pytest.raises(DeviceCodeAccessDenied) as exc_info:
             device_flow.run(
@@ -230,10 +230,10 @@ class TestDeviceFlowAccessDenied:
         from tube_scout.cli.errors import DeviceCodeAccessDenied  # noqa: PLC0415
 
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response()
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
         httpx_mock.add_response(
-            url=TOKEN_URL, method="POST", response=token_access_denied_response()
+            url=TOKEN_URL, method="POST", **token_access_denied_response()
         )
         with pytest.raises(DeviceCodeAccessDenied):
             device_flow.run(
@@ -270,7 +270,7 @@ class TestDeviceFlowNetworkError:
         from tube_scout.cli.errors import UserFacingError  # noqa: PLC0415
 
         httpx_mock.add_response(
-            url=DEVICE_AUTH_URL, method="POST", response=device_code_response()
+            url=DEVICE_AUTH_URL, method="POST", **device_code_response()
         )
         httpx_mock.add_exception(
             _httpx.ConnectError("Connection refused"), url=TOKEN_URL
