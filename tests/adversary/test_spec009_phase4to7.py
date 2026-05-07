@@ -282,16 +282,6 @@ def test_p18_legacy_token_corrupt_renders_full_path_with_pii() -> None:
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "P19 — auth_migration._atomic_replace (line 98) and _process_legacy_path "
-        "(line 154) call .read_bytes() on the legacy path. If a malicious actor "
-        "places a symlink to /dev/zero (or /dev/random) at the legacy token path, "
-        "the migration consumes unbounded memory. SUGGESTED FIX: stat-and-cap, "
-        "reject non-regular files, or use os.O_NOFOLLOW + size_limit."
-    ),
-)
 def test_p19_legacy_token_dev_zero_symlink_bounded(tmp_path: Path) -> None:
     """Legacy token symlinked to /dev/zero must be rejected, not consumed."""
     from tube_scout.services.auth_migration import _process_legacy_path
