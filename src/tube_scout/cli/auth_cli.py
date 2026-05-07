@@ -288,11 +288,19 @@ def _register_channel_device_flow(alias: str) -> None:
         console.print(f"  Try: {e.next_command}")
         raise typer.Exit(code=1)
 
-    _secure_write(token_file, json.dumps(token_dict))
-
     from google.oauth2.credentials import Credentials  # noqa: PLC0415
 
-    creds = Credentials.from_authorized_user_info(token_dict)
+    granted_scopes = token_dict.get("scope", "").split() or SCOPES
+    creds = Credentials(
+        token=token_dict["access_token"],
+        refresh_token=token_dict.get("refresh_token"),
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=client_id,
+        client_secret=client_secret,
+        scopes=granted_scopes,
+    )
+    _secure_write(token_file, creds.to_json())
+
     yt_service = build_api("youtube", "v3", http=_authorized_http(creds))
     response = yt_service.channels().list(mine=True, part="snippet").execute()
     items = response.get("items", [])
