@@ -92,6 +92,15 @@ tube-scout = "tube_scout.cli.main:app"
 packages = ["src/tube_scout"]
 
 [tool.pytest.ini_options]
+# Full default suite — unit + integration + contract + adversary —
+# peaks ~280 MB on 13 GB-RAM dev hosts. Adversary used to spike to
+# 6.6 GB and trigger kernel OOM, but the root cause was a single
+# unbounded `Path.read_bytes()` on a `/dev/zero` symlink in
+# auth_migration._process_legacy_path; with the stat-and-cap fix in
+# place the suite is bounded and adversary is included by default.
+# tests/conftest.py still applies a 10 GiB RLIMIT_AS cap as
+# defense-in-depth so any future unbounded-read regression surfaces
+# as MemoryError instead of an OOM-kill of the interactive session.
 testpaths = ["tests"]
 pythonpath = ["src"]
 asyncio_mode = "auto"

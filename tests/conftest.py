@@ -1,9 +1,29 @@
 """Shared test fixtures for tube-scout."""
 
+import os
+import resource
 from collections.abc import Generator
 from pathlib import Path
 
 import pytest
+
+# Hard cap pytest process memory at 10 GiB on 13 GB-RAM dev hosts.
+# Without this, runaway collection/fixtures have hit 12 GB anon-rss and
+# triggered the kernel OOM-killer on the ghostty cgroup, taking down the
+# whole interactive session (shell + Claude Code + dev-squad agents).
+# Crossing this cap surfaces as a normal `MemoryError` in the offending
+# test instead. Disable by exporting `TUBE_SCOUT_NO_MEM_CAP=1`.
+if not os.environ.get("TUBE_SCOUT_NO_MEM_CAP"):
+    _MEMORY_CAP_BYTES = 10 * 1024**3
+    for _rlimit in (resource.RLIMIT_AS, resource.RLIMIT_DATA):
+        try:
+            _soft, _hard = resource.getrlimit(_rlimit)
+            resource.setrlimit(
+                _rlimit,
+                (_MEMORY_CAP_BYTES, max(_hard, _MEMORY_CAP_BYTES)),
+            )
+        except (ValueError, OSError):
+            pass
 
 # pytest-httpx provides httpx_mock fixture automatically via its plugin.
 # tests.fixtures.httpx_mock re-exports HTTPXMock type + response builders for
