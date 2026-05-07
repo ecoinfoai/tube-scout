@@ -314,7 +314,14 @@ def load_registry(tokens_path: Path | None = None) -> dict[str, ChannelRegistrat
 
     raw = channels_file.read_text(encoding="utf-8")
     data = json.loads(raw)
-    return {alias: ChannelRegistration(**entry) for alias, entry in data.items()}
+    result: dict[str, ChannelRegistration] = {}
+    for alias, entry in data.items():
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"channels.json: entry for alias {alias!r} is not a JSON object"
+            )
+        result[alias] = ChannelRegistration(**entry)
+    return result
 
 
 def save_registry(
