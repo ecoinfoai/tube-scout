@@ -76,6 +76,11 @@ class DeviceFlow:
                 next_command=f"tube-scout auth --channel {self.alias}",
             ) from exc
 
+        if resp.status_code == 401:
+            from tube_scout.cli.errors import ClientTypeNotSupportedForDeviceFlow  # noqa: PLC0415
+
+            raise ClientTypeNotSupportedForDeviceFlow(alias=self.alias)
+
         if resp.status_code != 200:
             raise UserFacingError(
                 message=(

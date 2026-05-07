@@ -227,11 +227,16 @@ def _revoke_channel(alias: str) -> None:
         raise typer.Exit(code=1)
 
 
-def _register_channel_device_flow(alias: str) -> None:
+def _register_channel_device_flow(alias: str, *, _browser_fallback: bool = False) -> None:
     """Register a channel using RFC 8628 device-code flow.
+
+    When the OAuth client type does not support device authorization
+    (HTTP 401 invalid_client), falls back to browser-redirect flow once.
+    The ``_browser_fallback`` guard prevents recursive re-entry.
 
     Args:
         alias: Department alias for the channel.
+        _browser_fallback: Internal guard — True when already in fallback path.
     """
     import json  # noqa: PLC0415
     from datetime import UTC, datetime  # noqa: PLC0415
@@ -284,6 +289,13 @@ def _register_channel_device_flow(alias: str) -> None:
             token_path=token_file,
         )
     except UserFacingError as e:
+        from tube_scout.cli.errors import ClientTypeNotSupportedForDeviceFlow  # noqa: PLC0415
+
+        if isinstance(e, ClientTypeNotSupportedForDeviceFlow) and not _browser_fallback:
+            console.print(f"[yellow]Warning: {e.message}[/yellow]")
+            console.print("[dim]Falling back to browser-redirect flow...[/dim]")
+            run_browser_redirect_with_timeout(alias=alias)
+            return
         console.print(f"[red]Error: {e.message}[/red]")
         console.print(f"  Try: {e.next_command}")
         raise typer.Exit(code=1)
