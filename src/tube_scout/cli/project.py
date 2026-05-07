@@ -6,27 +6,58 @@ import typer
 
 from tube_scout.output.manager import ProjectManager
 
+PRODUCER_COMMANDS: frozenset[str] = frozenset({"collect.videos"})
+
+
+def is_producer(command_id: str) -> bool:
+    """Return True iff command_id is a producer command.
+
+    Args:
+        command_id: Dot-separated CLI command identifier (e.g. "collect.videos").
+
+    Returns:
+        True if the command may create a new project; False otherwise.
+    """
+    return command_id in PRODUCER_COMMANDS
+
 
 def resolve_project(
     project_dir: str,
     project: str | None,
+    producer: bool = False,
 ) -> ProjectManager:
     """Resolve or create a project from CLI options.
 
+    When ``project`` is None and ``producer=False`` (consumer), opens the
+    existing latest project. Raises ``LatestProjectMissing`` if none exists.
+    When ``project`` is None and ``producer=True``, creates a new project.
+
     Args:
         project_dir: Root directory for projects.
-        project: None (new project), "latest", or explicit path.
+        project: None (default), "latest", or explicit path.
+        producer: If True, create a new project when project is None.
+            Only producer commands (see PRODUCER_COMMANDS) should pass True.
 
     Returns:
         Configured ProjectManager with active project.
 
     Raises:
-        typer.Exit: If latest has no symlink or path does not exist.
+        LatestProjectMissing: If consumer mode and no latest project exists.
+        typer.Exit: If "latest" has no symlink or explicit path does not exist.
     """
+    from tube_scout.cli.errors import LatestProjectMissing
+
     mgr = ProjectManager(projects_root=Path(project_dir))
 
     if project is None:
-        mgr.create_project()
+        if producer:
+            mgr.create_project()
+            return mgr
+        # Consumer: open latest or raise
+        latest = mgr.resolve_latest()
+        if latest is None:
+            raise LatestProjectMissing()
+        mgr.open_project(latest)
         return mgr
 
     if project == "latest":
