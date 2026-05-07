@@ -21,6 +21,7 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import stat
 import tempfile
 import time
 from pathlib import Path
@@ -31,6 +32,12 @@ LOCK_FILE_NAME = ".migration.lock"
 CACHE_FILE_NAME = ".legacy_token_channel_id_cache.json"
 CHANNELS_FILE_RELATIVE = ("tokens", "channels.json")
 TOKENS_DIR_NAME = "tokens"
+
+# Hard upper bound on legacy token file size. Real OAuth tokens are ~2 KB;
+# anything past 64 KiB is malformed or hostile (e.g. a symlink chained to
+# /dev/zero, a multi-GB log file, or a denial-of-service plant). Reading
+# unboundedly via Path.read_bytes() on /dev/zero allocates until killed.
+_MAX_LEGACY_TOKEN_BYTES = 64 * 1024
 
 _PROCESSED: set[Path] = set()
 
@@ -94,14 +101,26 @@ def _atomic_replace(src: Path, dst: Path, mode: int = 0o600) -> None:
         mode: POSIX permission bits to apply before the rename. Default 0o600.
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
+    # Defense in depth: even though _process_legacy_path validates `src` before
+    # calling us, refuse non-regular sources or oversized files to keep this
+    # helper safe for any future direct caller. Mirrors the cap in
+    # _process_legacy_path.
+    src_st = src.stat()
+    if not stat.S_ISREG(src_st.st_mode):
+        raise OSError(f"refusing to copy non-regular source: {src}")
+    if src_st.st_size > _MAX_LEGACY_TOKEN_BYTES:
+        raise OSError(
+            f"source exceeds {_MAX_LEGACY_TOKEN_BYTES}-byte cap: {src} "
+            f"({src_st.st_size} bytes)"
+        )
     # Remove an existing symlink so os.rename replaces the path entry, not the
     # symlink's target.  A regular file at dst is handled by os.rename itself.
     if dst.is_symlink():
         dst.unlink()
     fd, tmp_path = tempfile.mkstemp(dir=dst.parent, suffix=".tmp", prefix=".migrating_")
     try:
-        with open(fd, "wb") as out:
-            out.write(src.read_bytes())
+        with open(fd, "wb") as out, src.open("rb") as src_fh:
+            out.write(src_fh.read(_MAX_LEGACY_TOKEN_BYTES + 1))
         os.chmod(tmp_path, mode)
         os.rename(tmp_path, dst)
     except Exception:
@@ -169,7 +188,46 @@ def _process_legacy_path(
     if not legacy_path.exists():
         return
 
-    raw = legacy_path.read_bytes()
+    # Refuse symlinks that resolve to anything other than a regular file.
+    # Catches /dev/zero, /dev/random, FIFOs, sockets, block devices — all of
+    # which would either DOS read_bytes() or feed garbage into json.loads.
+    try:
+        st = legacy_path.stat()
+    except OSError as exc:
+        legacy_path.unlink(missing_ok=True)
+        raise LegacyTokenCorrupt(
+            token_path=str(legacy_path),
+            reason=f"stat() failed: {exc.__class__.__name__}",
+        ) from exc
+    if not stat.S_ISREG(st.st_mode):
+        legacy_path.unlink(missing_ok=True)
+        raise LegacyTokenCorrupt(
+            token_path=str(legacy_path),
+            reason="legacy token path does not resolve to a regular file",
+        )
+    if st.st_size > _MAX_LEGACY_TOKEN_BYTES:
+        legacy_path.unlink(missing_ok=True)
+        raise LegacyTokenCorrupt(
+            token_path=str(legacy_path),
+            reason=(
+                f"legacy token exceeds {_MAX_LEGACY_TOKEN_BYTES}-byte cap "
+                f"(actual: {st.st_size})"
+            ),
+        )
+
+    # Bounded read: even after S_ISREG passes, a hostile file could grow
+    # between stat() and read. Open with explicit byte cap.
+    with legacy_path.open("rb") as _fh:
+        raw = _fh.read(_MAX_LEGACY_TOKEN_BYTES + 1)
+    if len(raw) > _MAX_LEGACY_TOKEN_BYTES:
+        legacy_path.unlink(missing_ok=True)
+        raise LegacyTokenCorrupt(
+            token_path=str(legacy_path),
+            reason=(
+                f"legacy token grew past {_MAX_LEGACY_TOKEN_BYTES}-byte cap "
+                "during read"
+            ),
+        )
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
