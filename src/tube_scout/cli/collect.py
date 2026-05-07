@@ -1002,6 +1002,11 @@ def collect_bulk_command(
         "--project",
         help="Existing project path or 'latest'.",
     ),
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias (registered via 'tube-scout auth --channel ...').",
+    ),
 ) -> None:
     """Create or check bulk reporting jobs via YouTube Reporting API.
 
@@ -1011,13 +1016,25 @@ def collect_bulk_command(
         data_dir: User data directory path.
         project_dir: Projects root directory path.
         project: Existing project path or 'latest'.
+        channel: Channel alias to authenticate (auto-selected if only one is registered).
     """
+    from tube_scout.cli.errors import UserFacingError, render_error
+    from tube_scout.services.auth import (
+        build_reporting_client,
+        load_registry,
+        resolve_channel_alias,
+    )
+
+    try:
+        alias = resolve_channel_alias(channel, load_registry())
+    except UserFacingError as e:
+        render_error(e)
+        raise typer.Exit(code=1)
+
     mgr = resolve_project(project_dir, project)
 
     try:
-        from tube_scout.services.auth import build_reporting_client
-
-        client = build_reporting_client()
+        client = build_reporting_client(alias=alias)
     except FileNotFoundError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(code=1)
