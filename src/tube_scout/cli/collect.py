@@ -241,6 +241,11 @@ def collect_retention_command(
         "--video-id",
         help="Specific video ID to collect retention for.",
     ),
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias (uses multi-channel token).",
+    ),
 ) -> None:
     """Collect audience retention data from YouTube Analytics API.
 
@@ -249,20 +254,29 @@ def collect_retention_command(
         project_dir: Projects root directory path.
         project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
+        channel: Channel alias for multi-channel auth routing.
     """
+    # INTEGRATION: orchestrator preflight — alias resolution then auth routing
     import polars as pl
+
+    from tube_scout.cli.errors import UserFacingError, render_error
+    from tube_scout.services.auth import (
+        build_analytics_client,
+        load_registry,
+        resolve_channel_alias,
+    )
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
     mgr = resolve_project(project_dir, project)
 
     try:
-        from tube_scout.services.auth import build_analytics_client
-
-        client = build_analytics_client()
+        registry = load_registry()
+        alias = resolve_channel_alias(channel, registry)
+        client = build_analytics_client(alias)
         service = YouTubeAnalyticsService(client=client)
-    except FileNotFoundError as e:
-        console.print(f"[red]{e}[/red]")
+    except UserFacingError as e:
+        render_error(e)
         raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[red]OAuth authentication failed: {e}[/red]")
@@ -637,30 +651,29 @@ def collect_analytics_command(
         incremental: Whether to use incremental sync.
         channel: Optional channel alias for multi-channel auth.
     """
+    # INTEGRATION: orchestrator preflight — alias resolution then auth routing
     import polars as pl
 
     from tube_scout.storage.parquet_store import write_parquet
+
+    from tube_scout.cli.errors import UserFacingError, render_error
+    from tube_scout.services.auth import (
+        build_analytics_client,
+        load_registry,
+        resolve_channel_alias,
+    )
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
     mgr = resolve_project(project_dir, project)
 
     try:
-        if channel:
-            from tube_scout.services.auth import authenticate_channel
-
-            creds = authenticate_channel(channel)
-            from googleapiclient.discovery import build as build_api
-
-            client = build_api("youtubeAnalytics", "v2", credentials=creds)
-            service = YouTubeAnalyticsService(client=client)
-        else:
-            from tube_scout.services.auth import build_analytics_client
-
-            client = build_analytics_client()
-            service = YouTubeAnalyticsService(client=client)
-    except FileNotFoundError as e:
-        console.print(f"[red]{e}[/red]")
+        registry = load_registry()
+        alias = resolve_channel_alias(channel, registry)
+        client = build_analytics_client(alias)
+        service = YouTubeAnalyticsService(client=client)
+    except UserFacingError as e:
+        render_error(e)
         raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[red]OAuth authentication failed: {e}[/red]")
@@ -867,6 +880,7 @@ def collect_all_command(
             kwargs["video_id"] = None
         elif stage_name == "retention":
             kwargs["video_id"] = None
+            kwargs["channel"] = channel
         elif stage_name == "analytics":
             kwargs["channel"] = channel
             kwargs["start_date"] = None
