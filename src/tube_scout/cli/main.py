@@ -198,9 +198,9 @@ def status(
 
     checkpoint_dir = None
     if project is not None:
-        from tube_scout.cli.project import resolve_project
+        from tube_scout.cli.project import is_producer, resolve_project
 
-        mgr = resolve_project(project_dir, project)
+        mgr = resolve_project(project_dir, project, producer=is_producer("status"))
         checkpoint_dir = mgr.checkpoint_dir
 
     show_status(Path(data_dir), checkpoint_dir=checkpoint_dir)
@@ -239,9 +239,9 @@ def list_videos(
 
     collect_dir = None
     if project is not None:
-        from tube_scout.cli.project import resolve_project
+        from tube_scout.cli.project import is_producer, resolve_project
 
-        mgr = resolve_project(project_dir, project)
+        mgr = resolve_project(project_dir, project, producer=is_producer("list"))
         collect_dir = mgr.collect_dir
 
     show_list(Path(data_dir), collect_dir=collect_dir, sort=sort, limit=limit)

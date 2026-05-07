@@ -12,7 +12,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from tube_scout.cli.project import resolve_project
+from tube_scout.cli.project import is_producer, resolve_project
 from tube_scout.services.auth import load_registry
 from tube_scout.storage.content_db import ContentDB
 from tube_scout.storage.json_store import read_json
@@ -179,7 +179,7 @@ def content_fingerprint_command(
     from tube_scout.services.fingerprint import FingerprintService
 
     channel_id = _resolve_channel_id(channel)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("content"))
     db = _get_db(mgr.project_dir)
     fp_service = FingerprintService()
 
@@ -277,7 +277,7 @@ def content_compare_command(
     from tube_scout.services.fingerprint import FingerprintService
 
     channel_id = _resolve_channel_id(channel)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("content"))
     db = _get_db(mgr.project_dir)
 
     # Load parsed titles for pair matching
@@ -413,7 +413,7 @@ def content_quality_command(
     from tube_scout.services.quality_checker import QualityChecker
 
     channel_id = _resolve_channel_id(channel)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("content"))
     db = _get_db(mgr.project_dir)
 
     transcripts = _load_transcripts(mgr.collect_dir, channel_id)
@@ -508,7 +508,7 @@ def content_review_command(
         grade: Grade filter.
         mark: Mark comparison with new status.
     """
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("content"))
     db = _get_db(mgr.project_dir)
 
     # Mark mode

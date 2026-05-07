@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 
 from tube_scout.cli.progress import create_progress
-from tube_scout.cli.project import resolve_project
+from tube_scout.cli.project import is_producer, resolve_project
 from tube_scout.models.config import AppConfig
 from tube_scout.models.video_filter import VideoFilter
 from tube_scout.reporting.channel_report import ChannelReportGenerator
@@ -189,7 +189,7 @@ def report_video_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("report"))
     out_dir = Path(output_dir) if output_dir else mgr.report_dir / "video"
     use_filter = _has_filter_options(
         keyword, published_after, published_before, video_ids_csv
@@ -345,7 +345,7 @@ def report_comment_insight_command(
     from tube_scout.reporting.comment_report import CommentReportGenerator
 
     data_path = Path(data_dir)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("report"))
     out_dir = Path(output_dir) if output_dir else mgr.report_dir / "comment_insight"
 
     # Load topic clusters
@@ -456,7 +456,7 @@ def report_department_command(
     from tube_scout.reporting.department_report import DepartmentReportGenerator
     from tube_scout.reporting.excel_export import ExcelExporter
 
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("report"))
 
     # Load parsed titles
     parsed_path = mgr.analyze_dir / "parsed" / channel / "parsed_titles.json"
@@ -664,7 +664,7 @@ def report_bundle_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("report"))
 
     video_filter = VideoFilter(
         keyword=keyword,
@@ -788,7 +788,7 @@ def report_channel_command(
     """
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("report"))
     out_dir = Path(output_dir) if output_dir else mgr.report_dir / "channel"
 
     generator = ChannelReportGenerator(
@@ -869,7 +869,7 @@ def report_content_command(
         raise typer.Exit(code=1)
 
     channel_id = registry[channel].channel_id
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("report"))
     db_path = mgr.project_dir / "tube_scout.db"
 
     if not db_path.exists():

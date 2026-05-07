@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from tube_scout.cli.progress import create_progress
-from tube_scout.cli.project import resolve_project
+from tube_scout.cli.project import is_producer, resolve_project
 from tube_scout.storage.json_store import read_json, write_json
 from tube_scout.storage.parquet_store import read_parquet, write_parquet
 
@@ -53,7 +53,7 @@ def analyze_retention_command(
     )
 
     Path(data_dir)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("analyze"))
     retention_dir = mgr.collect_dir / "retention"
 
     if not retention_dir.exists():
@@ -181,7 +181,7 @@ def analyze_sentiment_command(
     from tube_scout.services.sentiment import SentimentService
 
     Path(data_dir)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("analyze"))
     comments_dir = mgr.collect_dir / "comments"
 
     if not comments_dir.exists():
@@ -277,7 +277,7 @@ def analyze_topic_command(
     from tube_scout.services.topic_extractor import TopicExtractorService
 
     Path(data_dir)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("analyze"))
     comments_dir = mgr.collect_dir / "comments"
 
     if not comments_dir.exists():
@@ -414,7 +414,7 @@ def analyze_transcript_command(
     from tube_scout.services.segmenter import SegmenterService
 
     Path(data_dir)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("analyze"))
     transcripts_dir = mgr.collect_dir / "transcripts"
 
     if not transcripts_dir.exists():
@@ -526,7 +526,7 @@ def analyze_eqs_command(
     from tube_scout.services.eqs import EQSService
 
     Path(data_dir)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("analyze"))
     transcripts_dir = mgr.collect_dir / "transcripts"
 
     if not transcripts_dir.exists():
@@ -643,7 +643,7 @@ def analyze_forecast_command(
     from tube_scout.services.forecaster import ForecasterService
 
     data_path = Path(data_dir)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("analyze"))
     config_data = read_json(data_path / "config.json")
     if config_data is None:
         console.print("[red]No configuration found.[/red]")
@@ -820,7 +820,7 @@ def analyze_all_command(
         project: Existing project path or 'latest'.
         sentiment_backend: Sentiment analysis backend.
     """
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("analyze"))
     project_path = str(mgr.project_dir)
 
     console.print("[bold]Running full analysis pipeline...[/bold]\n")
