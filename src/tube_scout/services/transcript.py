@@ -106,6 +106,7 @@ class TranscriptService:
                 result = {
                     "video_id": video_id,
                     "transcript_type": "manual",
+                    "source": "manual",
                     "segments": self._to_segments(fetched),
                 }
                 self._notify_status(video_id, "collected", "transcript_api")
@@ -120,6 +121,7 @@ class TranscriptService:
                 result = {
                     "video_id": video_id,
                     "transcript_type": "auto_generated",
+                    "source": "auto_generated",
                     "segments": self._to_segments(fetched),
                 }
                 self._notify_status(video_id, "collected", "transcript_api")
@@ -135,6 +137,7 @@ class TranscriptService:
                 return {
                     "video_id": video_id,
                     "transcript_type": "captions_api",
+                    "source": "captions_api",
                     "segments": segments,
                 }
 
