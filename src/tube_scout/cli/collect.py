@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 
 from tube_scout.cli.progress import create_progress
-from tube_scout.cli.project import resolve_project
+from tube_scout.cli.project import is_producer, resolve_project
 from tube_scout.models.config import AppConfig, CollectionState
 from tube_scout.services.youtube_analytics import YouTubeAnalyticsService
 from tube_scout.services.youtube_data import YouTubeDataService
@@ -75,7 +75,7 @@ def collect_videos_command(
     """
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("collect.videos"))
 
     try:
         if channel:
@@ -219,6 +219,8 @@ def collect_videos_command(
                 console.print(f"[red]Error: {e}[/red]")
                 raise typer.Exit(code=1)
 
+    mgr.commit_latest()
+
 
 def collect_retention_command(
     data_dir: str = typer.Option(
@@ -282,7 +284,7 @@ def collect_retention_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("collect.retention"))
 
     video_ids_to_collect: list[str] = []
 
@@ -376,7 +378,7 @@ def collect_comments_command(
     """
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("collect.comments"))
 
     try:
         from tube_scout.services.auth import build_data_client
@@ -476,7 +478,7 @@ def collect_transcripts_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("collect.transcripts"))
 
     rate_limiter = RateLimiter(
         config.settings.rate_limit_transcript,
@@ -667,7 +669,7 @@ def collect_analytics_command(
 
     data_path = Path(data_dir)
     config = _load_config(data_path)
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("collect.analytics"))
 
     try:
         registry = load_registry()
@@ -843,7 +845,7 @@ def collect_all_command(
 
     from tube_scout.models.config import StageResult
 
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("collect.all"))
     proj_path = str(mgr.project_dir)
 
     stages = [
@@ -1031,7 +1033,7 @@ def collect_bulk_command(
         render_error(e)
         raise typer.Exit(code=1)
 
-    mgr = resolve_project(project_dir, project)
+    mgr = resolve_project(project_dir, project, producer=is_producer("collect.bulk"))
 
     try:
         client = build_reporting_client(alias=alias)
