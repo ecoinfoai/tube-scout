@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -598,11 +599,32 @@ def collect_transcripts_command(
         )
         raise typer.Exit(code=1)
 
+    from tube_scout.services.transcripts_audit import (
+        classify_miss,
+        write_audit_csv,
+    )
+
+    # Build a lookup of video metadata for audit classification.
+    video_meta_by_id: dict[str, dict[str, Any]] = {}
+    for cc in channels_to_scan:
+        meta_path = mgr.collect_dir / "channels" / cc.channel_id / "videos_meta.json"
+        meta_data = read_json(meta_path)
+        if not meta_data:
+            continue
+        videos = (
+            meta_data if isinstance(meta_data, list) else meta_data.get("videos", [])
+        )
+        for v in videos:
+            video_meta_by_id[v["video_id"]] = v
+
+    audit_rows: list[dict[str, Any]] = []
+
     with create_progress() as progress:
         task = progress.add_task(
             "Collecting transcripts", total=len(video_ids_to_collect)
         )
         for vid_id in video_ids_to_collect:
+            primary_error: BaseException | None = None
             try:
                 result = service.fetch_transcript(vid_id)
                 if result:
@@ -611,15 +633,57 @@ def collect_transcripts_command(
                     write_json(output_path, result)
                     progress.console.print(
                         f"  [green]{vid_id}: {len(result['segments'])} segments "
-                        f"({result['transcript_type']})[/green]"
+                        f"({result.get('source', result['transcript_type'])})[/green]"
                     )
                 else:
+                    # FR-015: collapse the no-transcript miss to one dim line.
                     progress.console.print(
-                        f"  [yellow]{vid_id}: no transcript available[/yellow]"
+                        f"  [dim]{vid_id}: no transcript available[/dim]"
+                    )
+                    classification, hint = classify_miss(
+                        primary_error,
+                        None,
+                        video_meta_by_id.get(vid_id, {"video_id": vid_id}),
+                    )
+                    meta = video_meta_by_id.get(vid_id, {})
+                    audit_rows.append(
+                        {
+                            "video_id": vid_id,
+                            "title": meta.get("title", ""),
+                            "published_at": meta.get("published_at", ""),
+                            "privacy_status": meta.get("privacy_status", ""),
+                            "classification": classification,
+                            "hint": hint,
+                        }
                     )
             except Exception as e:
+                primary_error = e
                 progress.console.print(f"  [red]{vid_id}: {e}[/red]")
+                classification, hint = classify_miss(
+                    primary_error,
+                    None,
+                    video_meta_by_id.get(vid_id, {"video_id": vid_id}),
+                )
+                meta = video_meta_by_id.get(vid_id, {})
+                audit_rows.append(
+                    {
+                        "video_id": vid_id,
+                        "title": meta.get("title", ""),
+                        "published_at": meta.get("published_at", ""),
+                        "privacy_status": meta.get("privacy_status", ""),
+                        "classification": classification,
+                        "hint": hint,
+                    }
+                )
             progress.advance(task)
+
+    # FR-016: emit per-channel transcripts_audit.csv listing every miss.
+    if audit_rows:
+        audit_path = mgr.collect_dir / "transcripts_audit.csv"
+        write_audit_csv(audit_rows, audit_path)
+        console.print(
+            f"[dim]Wrote {len(audit_rows)} miss(es) to {audit_path}.[/dim]"
+        )
 
 
 def collect_analytics_command(
