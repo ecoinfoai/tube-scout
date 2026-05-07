@@ -32,13 +32,13 @@ def _mock_tokens_dir(tokens_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def sample_registry_with_token(tokens_dir: Path) -> Path:
     """Create a sample registry and token file."""
     registry = {
-        "간호학과": {
-            "alias": "간호학과",
+        "nursing": {
+            "alias": "nursing",
             "channel_id": "UCxxxxxxxxxxxxxxxxxxxxxx",
             "channel_name": "부산보건대 간호학과",
             "registered_at": "2026-04-04T12:00:00",
             "last_used_at": "2026-04-04T15:30:00",
-            "token_path": str(tokens_dir / "간호학과.json"),
+            "token_path": str(tokens_dir / "nursing.json"),
         },
     }
     channels_file = tokens_dir / "channels.json"
@@ -54,7 +54,7 @@ def sample_registry_with_token(tokens_dir: Path) -> Path:
             "https://www.googleapis.com/auth/youtube.readonly",
         ],
     }
-    token_file = tokens_dir / "간호학과.json"
+    token_file = tokens_dir / "nursing.json"
     token_file.write_text(json.dumps(token_data), encoding="utf-8")
     return channels_file
 
@@ -78,7 +78,7 @@ class TestExpiredTokenRefreshFailure:
             patch("tube_scout.services.auth.Request"),
         ):
             with pytest.raises(RefreshError):
-                authenticate_channel("간호학과")
+                authenticate_channel("nursing")
 
 
 class TestRevokedCredentials:
@@ -89,11 +89,11 @@ class TestRevokedCredentials:
         self, tokens_dir: Path, sample_registry_with_token: Path
     ) -> None:
         # Delete the token file but keep registry entry
-        token_file = tokens_dir / "간호학과.json"
+        token_file = tokens_dir / "nursing.json"
         token_file.unlink()
 
         with pytest.raises(FileNotFoundError, match="Token file"):
-            authenticate_channel("간호학과")
+            authenticate_channel("nursing")
 
 
 class TestMissingAlias:
@@ -102,12 +102,12 @@ class TestMissingAlias:
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_authenticate_missing_alias(self) -> None:
         with pytest.raises(KeyError, match="not registered"):
-            authenticate_channel("존재하지않는학과")
+            authenticate_channel("missing-alias")
 
     @pytest.mark.usefixtures("_mock_tokens_dir")
     def test_revoke_missing_alias(self) -> None:
         with pytest.raises(KeyError, match="not registered"):
-            revoke_channel("존재하지않는학과")
+            revoke_channel("missing-alias")
 
 
 class TestCorruptRegistry:
@@ -148,4 +148,4 @@ class TestTokenNoRefreshToken:
             return_value=mock_creds,
         ):
             with pytest.raises(ValueError, match="cannot be refreshed"):
-                authenticate_channel("간호학과")
+                authenticate_channel("nursing")
