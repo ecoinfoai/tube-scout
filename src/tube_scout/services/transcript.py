@@ -69,21 +69,51 @@ class TranscriptService:
         self,
         video_id: str,
         audio_path: str | None = None,
+        *,
+        prefer_captions_api: bool = False,
     ) -> dict[str, Any] | None:
         """Fetch transcript for a video.
 
-        Tries manual transcript first, then auto-generated, then
-        Captions API fallback for private videos, then optional Whisper STT.
+        Default order (``prefer_captions_api=False``): scraper first
+        (manual → auto-generated), then Captions API fallback for
+        private/unplayable videos, then optional Whisper STT.
+
+        Spec 010 FR-010-03 inverts the order when
+        ``prefer_captions_api=True``: Captions API is consulted first;
+        scraper runs only if Captions API returns ``None`` or ``[]``.
+        Operators with quota-extended OAuth on owned channels use this
+        path to bypass the IP-block-prone scraper entirely.
 
         Args:
             video_id: YouTube video ID.
             audio_path: Optional path to audio file for Whisper STT fallback.
+            prefer_captions_api: If True, consult Captions API before scraper.
 
         Returns:
             Dict with 'transcript_type' and 'segments', or None if unavailable.
         """
         if self._rate_limiter is not None:
             self._rate_limiter.wait()
+
+        # Spec 010 FR-010-03: Captions-API-first priority.
+        if prefer_captions_api:
+            if self._captions_client is None:
+                logger.warning(
+                    "prefer_captions_api set but no Captions API client available "
+                    "for %s; falling through to scraper.",
+                    video_id,
+                )
+            else:
+                segments = self._captions_client.fetch_segments(video_id)
+                if segments:
+                    self._notify_status(video_id, "collected", "captions_api")
+                    return {
+                        "video_id": video_id,
+                        "transcript_type": "captions_api",
+                        "source": "captions_api",
+                        "segments": segments,
+                    }
+                # None / empty → fall through to scraper.
 
         use_captions_api_fallback = False
 
@@ -129,8 +159,9 @@ class TranscriptService:
             except NoTranscriptFound:
                 pass
 
-        # Captions API fallback for private/unplayable videos
-        if self._captions_client is not None:
+        # Captions API fallback for private/unplayable videos.
+        # Skip this branch if prefer_captions_api was True (already consulted above).
+        if not prefer_captions_api and self._captions_client is not None:
             segments = self._captions_client.fetch_segments(video_id)
             if segments:
                 self._notify_status(video_id, "collected", "captions_api")
