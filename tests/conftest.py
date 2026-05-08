@@ -53,6 +53,43 @@ def pytest_collection_modifyitems(  # type: ignore[no-untyped-def]
             item.add_marker(skip_manual)
 
 
+@pytest.fixture(autouse=True)
+def _isolated_tokens_dir(
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """Auto-isolate the OAuth tokens directory per test.
+
+    Spec 009 introduced a hard registry check (resolve_channel_alias) on
+    every collect command. Without isolation, tests inherit the dev's
+    real ~/.config/tube-scout/tokens/channels.json — passing locally but
+    failing in CI where that file is empty. This fixture points
+    TUBE_SCOUT_TOKENS_DIR at a fresh tmp dir AND pre-registers a
+    "nursing" alias so existing tests that rely on a single registered
+    alias (auto-select branch) or on alias="nursing" continue to work.
+    """
+    import json
+    from datetime import UTC, datetime
+
+    tokens_dir = tmp_path_factory.mktemp("tube_scout_tokens")
+    monkeypatch.setenv("TUBE_SCOUT_TOKENS_DIR", str(tokens_dir))
+
+    now = datetime.now(UTC).isoformat()
+    registry = {
+        "nursing": {
+            "alias": "nursing",
+            "channel_id": "UCxxxxxxxxxxxxxxxxxxxxxx",
+            "channel_name": "Test Channel",
+            "registered_at": now,
+            "last_used_at": now,
+            "token_path": str(tokens_dir / "nursing.json"),
+        }
+    }
+    (tokens_dir / "channels.json").write_text(json.dumps(registry), encoding="utf-8")
+    (tokens_dir / "nursing.json").write_text("{}", encoding="utf-8")
+    return tokens_dir
+
+
 @pytest.fixture
 def tmp_data_dir(tmp_path: Path) -> Path:
     """Create a temporary data directory structure for tests."""

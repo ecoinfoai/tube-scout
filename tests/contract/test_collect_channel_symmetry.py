@@ -9,10 +9,26 @@ Spec 009 Phase 5 (US3) — T029.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from typer.testing import CliRunner
 
 from tube_scout.cli.main import app
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences so token matches survive rich coloring.
+
+    CI runners set FORCE_COLOR, which makes typer/rich split the literal
+    "--channel" into separate ANSI-wrapped dashes ("--" → "\\x1b[36m-\\x1b[0m\\x1b[36m-channel\\x1b[0m").
+    A plain substring match on result.output then fails even though the
+    option is rendered. Stripping ANSI codes before the assertion keeps
+    the test environment-agnostic.
+    """
+    return _ANSI_RE.sub("", text)
 
 
 @pytest.fixture
@@ -38,7 +54,7 @@ def test_subcommand_help_mentions_channel_option(
     """Every collect subcommand's --help text MUST mention --channel."""
     result = runner.invoke(app, ["collect", subcmd, "--help"])
     assert result.exit_code == 0, f"--help failed for collect {subcmd}: {result.output}"
-    assert "--channel" in result.output, (
+    assert "--channel" in _strip_ansi(result.output), (
         f"collect {subcmd} --help does not mention --channel option"
     )
 
