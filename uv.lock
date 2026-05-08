@@ -3499,7 +3499,7 @@ wheels = [
 
 [[package]]
 name = "tube-scout"
-version = "0.3.0"
+version = "0.3.3"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },

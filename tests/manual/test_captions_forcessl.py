@@ -4,14 +4,15 @@ Requires browser OAuth login (new scope).
 Token saved separately to avoid breaking existing auth.
 """
 
-import json
-import sys
+import base64
+import os
+import tempfile
 from pathlib import Path
 
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
 
 # force-ssl scope — required for Captions API
 SCOPES = [
@@ -25,10 +26,6 @@ PRIVATE_VIDEO_IDS = [
     "private_vid_002",  # 홍길동 2025 감염미생물학 11주차 2차시
 ]
 PUBLIC_VIDEO_ID = "public_vid_001"
-
-import base64
-import os
-import tempfile
 
 
 def _resolve_client_secret() -> str:
@@ -132,7 +129,7 @@ def test_video(youtube, video_id: str, label: str):
         text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
         lines = text.strip().split("\n")
         print(f"  OK — {len(lines)} lines, {len(text)} bytes")
-        print(f"  Preview:")
+        print("  Preview:")
         for line in lines[:8]:
             print(f"    | {line}")
 

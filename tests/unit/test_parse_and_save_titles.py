@@ -20,7 +20,6 @@ import pytest
 
 from tube_scout.output.manager import ProjectManager
 
-
 SAMPLE_VIDEOS = [
     {"video_id": "abc123", "title": "[1주차] 인체구조 - 홍길동"},
     {"video_id": "def456", "title": "Random title"},

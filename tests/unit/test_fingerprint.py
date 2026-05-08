@@ -1,8 +1,6 @@
 """Tests for fingerprint service (SHA-256 hash, embedding generation)."""
 
 import hashlib
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -58,7 +56,7 @@ class TestFingerprintServiceHash:
             {"text": "안녕하세요 여러분", "start": 0.0, "duration": 3.0},
         ]
         fp = service.generate_hash(segments)
-        assert fp.sha256_hash == hashlib.sha256("안녕하세요 여러분".encode("utf-8")).hexdigest()
+        assert fp.sha256_hash == hashlib.sha256("안녕하세요 여러분".encode()).hexdigest()
 
 
 class TestFingerprintServiceFullText:
