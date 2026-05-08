@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pytest
 
-
 SAMPLE_CLIENT_SECRET = {
     "installed": {
         "client_id": "abc.apps.googleusercontent.com",

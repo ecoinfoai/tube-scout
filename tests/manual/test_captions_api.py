@@ -6,13 +6,12 @@ Tests whether OAuth-authenticated Captions API can:
 3. Access ASR (auto-generated) captions
 """
 
-import json
 import sys
 from pathlib import Path
 
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
 
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.readonly",
@@ -95,7 +94,7 @@ def test_captions_download(youtube, caption_id: str, video_id: str) -> str | Non
         content = response.decode("utf-8") if isinstance(response, bytes) else response
         lines = content.strip().split("\n")
         print(f"  Download OK — {len(lines)} lines")
-        print(f"  First 5 lines:")
+        print("  First 5 lines:")
         for line in lines[:5]:
             print(f"    | {line}")
         return content

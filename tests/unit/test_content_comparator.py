@@ -3,7 +3,6 @@
 import pytest
 
 from tube_scout.services.content_comparator import (
-    ContentComparator,
     compute_change_rate,
     compute_cosine_similarity,
     compute_duration_diff,

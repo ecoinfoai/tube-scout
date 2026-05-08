@@ -1,6 +1,6 @@
 """Tests for content reuse detection Pydantic models."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -54,7 +54,7 @@ class TestProcessingStatus:
             ProcessingStatus(video_id="", channel_id="c1")
 
     def test_serialization_roundtrip(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         status = ProcessingStatus(
             video_id="v1",
             channel_id="c1",

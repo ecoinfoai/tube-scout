@@ -12,8 +12,8 @@ import json
 import time
 from pathlib import Path
 
-from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -158,7 +158,7 @@ def phase2_captions_api(results: dict, youtube) -> None:
     max_checks = quota_budget // QUOTA_PER_LIST
 
     print(f"\n{'='*60}")
-    print(f"PHASE 2: Captions API (quota cost)")
+    print("PHASE 2: Captions API (quota cost)")
     print(f"Failed videos: {len(failed_vids)}")
     print(f"Quota budget: {quota_budget} units → max {max_checks} checks")
     print(f"Will check: {min(len(failed_vids), max_checks)} videos")
@@ -225,7 +225,6 @@ def print_summary(results: dict) -> None:
 
     # Phase 2 results
     p2_checked = sum(1 for v in videos.values() if v.get("phase2_checked"))
-    p2_ok = sum(1 for v in videos.values() if v.get("phase2_status") == "ok")
     p2_has_caption = sum(1 for v in videos.values() if v.get("phase2_checked") and v.get("has_auto"))
 
     # Error breakdown
@@ -236,22 +235,22 @@ def print_summary(results: dict) -> None:
             errors[err] = errors.get(err, 0) + 1
 
     print(f"\n{'#'*60}")
-    print(f"CAPTION SURVEY SUMMARY")
+    print("CAPTION SURVEY SUMMARY")
     print(f"{'#'*60}")
     print(f"\nTotal videos: {total}")
-    print(f"\n--- Phase 1 (youtube-transcript-api, free) ---")
+    print("\n--- Phase 1 (youtube-transcript-api, free) ---")
     print(f"  Accessible: {p1_ok} ({p1_ok/total*100:.1f}%)")
     print(f"  Failed:     {p1_fail} ({p1_fail/total*100:.1f}%)")
-    print(f"\n--- Phase 2 (Captions API, OAuth) ---")
+    print("\n--- Phase 2 (Captions API, OAuth) ---")
     print(f"  Checked:    {p2_checked}")
     print(f"  Has caption: {p2_has_caption}")
-    print(f"\n--- Combined caption availability ---")
+    print("\n--- Combined caption availability ---")
     print(f"  Auto caption (ASR):  {has_auto} ({has_auto/total*100:.1f}%)")
     print(f"  Manual caption:      {has_manual} ({has_manual/total*100:.1f}%)")
     print(f"  No caption found:    {no_caption} ({no_caption/total*100:.1f}%)")
 
     if errors:
-        print(f"\n--- Unchecked errors (Phase 2 pending) ---")
+        print("\n--- Unchecked errors (Phase 2 pending) ---")
         for err, count in sorted(errors.items(), key=lambda x: -x[1]):
             print(f"  {err}: {count}")
 

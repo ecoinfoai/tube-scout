@@ -1,8 +1,6 @@
 """Tests for Captions API client."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from tube_scout.services.captions_api import CaptionsAPIClient, CaptionTrack
 

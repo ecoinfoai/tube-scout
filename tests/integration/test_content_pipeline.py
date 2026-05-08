@@ -6,7 +6,6 @@ import pytest
 
 from tube_scout.services.content_comparator import (
     ContentComparator,
-    compute_suspicion_score,
     match_comparison_pairs,
 )
 from tube_scout.services.fingerprint import FingerprintService
