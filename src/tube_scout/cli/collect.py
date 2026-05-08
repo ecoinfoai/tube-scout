@@ -1,5 +1,7 @@
 """Collect subcommands for tube-scout."""
 
+import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,72 @@ from tube_scout.storage.json_store import read_json, write_json
 from tube_scout.storage.parquet_store import write_parquet
 
 console = Console()
+
+
+def _is_valid_cached_transcript(path: Path) -> bool:
+    """Check whether a cached transcript JSON is reusable for resume.
+
+    Spec 010 FR-010-04 / EC-010-A/B/C/G: a cache file is reusable iff it
+    is a regular file, parses as JSON, has a ``segments`` key, and the
+    segments list is non-empty. Any deviation (corrupt JSON, directory,
+    empty list, missing key) returns ``False`` so the orchestrator
+    re-fetches transparently.
+
+    Args:
+        path: Absolute path to ``<project>/01_collect/transcripts/<vid>.json``.
+
+    Returns:
+        ``True`` only when the file is safe to skip.
+    """
+    if not path.is_file():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    segments = data.get("segments") if isinstance(data, dict) else None
+    return isinstance(segments, list) and len(segments) > 0
+
+
+def _read_cached_segment_count(path: Path) -> int:
+    """Return the segment count of a validated cached transcript JSON.
+
+    Caller is expected to have already passed :func:`_is_valid_cached_transcript`.
+    Returns ``0`` defensively on any unexpected read failure.
+
+    Args:
+        path: Path to a cached transcript JSON.
+
+    Returns:
+        Number of segments in the cached transcript, or 0 on read failure.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        segments = data.get("segments", []) if isinstance(data, dict) else []
+        return len(segments) if isinstance(segments, list) else 0
+    except (OSError, json.JSONDecodeError):
+        return 0
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Atomic JSON write using same-directory tmp + os.replace.
+
+    Spec 010 FR-010-08: a SIGINT/crash mid-write must not leave a
+    half-written file that future skip-existing checks could mistake for
+    valid cache. Writing to a sibling ``.tmp`` and replacing atomically
+    guarantees readers either see the old content or the new content,
+    never a torn write.
+
+    Args:
+        path: Final destination of the JSON.
+        payload: JSON-serialisable mapping.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    os.replace(tmp_path, path)
 
 
 def _load_config(data_dir: Path) -> AppConfig:
@@ -490,6 +558,24 @@ def collect_transcripts_command(
         "--channel",
         help="Channel alias (uses multi-channel token).",
     ),
+    prefer_captions_api: bool = typer.Option(
+        False,
+        "--prefer-captions-api",
+        help=(
+            "Spec 010 FR-010-01: consult Captions API before scraper. "
+            "Use this when youtube-transcript-api is IP-blocked and "
+            "the channel is owned (OAuth Captions API works)."
+        ),
+    ),
+    force_refresh: bool = typer.Option(
+        False,
+        "--force-refresh",
+        help=(
+            "Spec 010 FR-010-02: ignore cached transcripts and re-fetch "
+            "all videos. Without this flag, videos with an existing "
+            "non-empty transcript JSON are skipped (resume mode)."
+        ),
+    ),
 ) -> None:
     """Collect transcripts for videos using youtube-transcript-api.
 
@@ -499,6 +585,10 @@ def collect_transcripts_command(
         project: Existing project path or 'latest'.
         video_id: Optional specific video ID.
         channel: Optional channel alias for multi-channel auth.
+        prefer_captions_api: If True, Captions API is the primary path
+            (Spec 010 FR-010-01).
+        force_refresh: If True, ignore cached transcripts and re-fetch
+            (Spec 010 FR-010-02 / FR-010-05).
     """
     from tube_scout.cli.errors import UserFacingError, render_error
     from tube_scout.services.auth import (
@@ -619,12 +709,41 @@ def collect_transcripts_command(
         )
         for vid_id in video_ids_to_collect:
             primary_error: BaseException | None = None
+            output_path = mgr.collect_dir / "transcripts" / f"{vid_id}.json"
+
+            # Spec 010 FR-010-04: Skip-existing on resume.
+            if not force_refresh and _is_valid_cached_transcript(output_path):
+                cached_segments = _read_cached_segment_count(output_path)
+                progress.console.print(
+                    f"  [dim]{vid_id}: cached ({cached_segments} segments)[/dim]"
+                )
+                meta = video_meta_by_id.get(vid_id, {})
+                audit_rows.append(
+                    {
+                        "video_id": vid_id,
+                        "title": meta.get("title", ""),
+                        "published_at": meta.get("published_at", ""),
+                        "privacy_status": meta.get("privacy_status", ""),
+                        "classification": "skipped",
+                        "hint": (
+                            f"Existing transcript at {output_path} "
+                            f"({cached_segments} segments); pass "
+                            f"--force-refresh to override."
+                        ),
+                    }
+                )
+                progress.advance(task)
+                continue
+
             try:
-                result = service.fetch_transcript(vid_id)
+                result = service.fetch_transcript(
+                    vid_id,
+                    prefer_captions_api=prefer_captions_api,
+                )
                 if result:
-                    output_path = mgr.collect_dir / "transcripts" / f"{vid_id}.json"
                     output_path.parent.mkdir(parents=True, exist_ok=True)
-                    write_json(output_path, result)
+                    # Spec 010 FR-010-08: atomic write.
+                    _write_json_atomic(output_path, result)
                     progress.console.print(
                         f"  [green]{vid_id}: {len(result['segments'])} segments "
                         f"({result.get('source', result['transcript_type'])})[/green]"
