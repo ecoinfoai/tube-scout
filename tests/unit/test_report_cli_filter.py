@@ -654,7 +654,7 @@ class TestBundleAutoFilenameSanitize:
 
     def test_keyword_with_path_traversal_sanitized(self, tmp_path: Path) -> None:
         """--keyword with path traversal chars must not escape output dir."""
-        _setup_videos_meta(tmp_path)
+        proj_dir = _setup_videos_meta(tmp_path)
         app = _make_bundle_app()
 
         result = runner.invoke(
@@ -662,6 +662,10 @@ class TestBundleAutoFilenameSanitize:
             [
                 "--data-dir",
                 str(tmp_path),
+                "--project-dir",
+                str(proj_dir),
+                "--project",
+                str(proj_dir / "test_run"),
                 "--keyword",
                 "../../../etc/passwd",
             ],
