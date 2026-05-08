@@ -75,3 +75,6 @@ admin.db
 # Reports (generated)
 *.html
 !**/templates/*.html
+
+# Real-channel survey data (PII; kept locally only)
+tests/manual/caption_survey_results.json

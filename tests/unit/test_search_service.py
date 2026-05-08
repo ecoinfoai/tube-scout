@@ -166,9 +166,9 @@ class TestSearchServiceSingleFilter:
         assert len(results) == 6
 
     def test_partial_match_professor(self, sample_titles: list[ParsedTitle]) -> None:
-        query = SearchQuery(filters=SearchFilter(professor="정광"))
+        query = SearchQuery(filters=SearchFilter(professor="홍길"))
         results = SearchService.search(sample_titles, query)
-        assert len(results) == 7  # "홍길동" contains "정광"
+        assert len(results) == 7  # "홍길동" contains "홍길"
 
     def test_partial_match_course(self, sample_titles: list[ParsedTitle]) -> None:
         query = SearchQuery(filters=SearchFilter(course="감염"))
