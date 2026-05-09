@@ -45,6 +45,13 @@
             # Build tools
             pkg-config
 
+            # spec 012: yt-dlp audio download + chromaprint fingerprinting
+            yt-dlp
+            chromaprint
+            ffmpeg
+            zlib
+            stdenv.cc.cc.lib
+
             # agenix CLI for editing department/shared *.age files
             agenix.packages.${system}.default
           ];
@@ -58,7 +65,7 @@
               harfbuzz
               fontconfig
               freetype
-            ])}:''${LD_LIBRARY_PATH:-}"
+            ])}:${pkgs.chromaprint}/lib:${pkgs.zlib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:''${LD_LIBRARY_PATH}"
 
           '';
         };
