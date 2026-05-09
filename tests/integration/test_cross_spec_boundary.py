@@ -198,14 +198,14 @@ def test_b_x1_7_audio_temp_empty_after_dispatch(tmp_path: Path) -> None:
     audio_temp = tmp_path / "audio_temp"
     audio_temp.mkdir()
 
-    mp3_path = audio_temp / "test_vid0001.mp3"
+    mp3_path = audio_temp / "testvid0001.mp3"
     mp3_path.write_bytes(b"fake mp3")
 
     with patch("tube_scout.services.ytdlp_adapter.fetch_audio_via_ytdlp", return_value=mp3_path), \
          patch("tube_scout.services.audio_fingerprint.extract_chromaprint_fingerprint",
                return_value=(b"\x00" * 32, 90.0)):
         dispatch_audio_fingerprint(
-            video_ids=["test_vid0001"],
+            video_ids=["testvid0001"],
             audio_temp=audio_temp,
             db_path=None,
         )

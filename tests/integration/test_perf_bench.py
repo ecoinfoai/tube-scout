@@ -28,7 +28,7 @@ def test_single_video_under_60s(tmp_path: Path) -> None:
         conn.execute(
             "CREATE TABLE videos (video_id TEXT PRIMARY KEY, channel_id TEXT, duration_sec REAL)"
         )
-        conn.execute("INSERT INTO videos VALUES ('bench00001', 'UCbench', 300.0)")
+        conn.execute("INSERT INTO videos VALUES ('bench000001', 'UCbench', 300.0)")
         conn.execute("PRAGMA user_version = 2")
         conn.commit()
     migrate_to_v3(db_path)
@@ -36,7 +36,7 @@ def test_single_video_under_60s(tmp_path: Path) -> None:
     audio_temp = tmp_path / "audio_temp"
     audio_temp.mkdir()
 
-    mp3_path = audio_temp / "bench00001.mp3"
+    mp3_path = audio_temp / "bench000001.mp3"
     mp3_path.write_bytes(b"fake mp3 content")
 
     fake_fingerprint = b"\x42" * 64  # 64 bytes of valid-length fingerprint
@@ -48,7 +48,7 @@ def test_single_video_under_60s(tmp_path: Path) -> None:
                return_value=(fake_fingerprint, 300.0)), \
          patch("time.sleep"):
         dispatch_audio_fingerprint(
-            video_ids=["bench00001"],
+            video_ids=["bench000001"],
             audio_temp=audio_temp,
             db_path=db_path,
             sleep_seconds=(0.0, 0.0),
@@ -63,7 +63,7 @@ def test_single_video_under_60s(tmp_path: Path) -> None:
     # Verify DB row was inserted
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
-            "SELECT video_id, duration FROM audio_fingerprint WHERE video_id = 'bench00001'"
+            "SELECT video_id, duration FROM audio_fingerprint WHERE video_id = 'bench000001'"
         ).fetchone()
 
     assert row is not None, "Fingerprint row not inserted in DB"
