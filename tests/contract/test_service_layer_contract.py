@@ -68,3 +68,46 @@ def test_professor_resolver_signatures() -> None:
     sig = inspect.signature(map_professor)
     assert "professor_id" in sig.parameters
     assert "channel_alias" in sig.parameters
+
+
+def test_baseline_corpus_signatures() -> None:
+    """baseline_corpus functions match service_layer.md §4 signatures (T045)."""
+    from tube_scout.services.baseline_corpus import (
+        bootstrap_baseline,
+        add_baseline_phrase,
+        list_baseline,
+        remove_baseline_phrase,
+        subtract_baseline,
+    )
+
+    _assert_sig(
+        bootstrap_baseline,
+        ["professor_id", "db_path", "captions_dir", "earliest_n", "min_occurrences", "registered_by"],
+    )
+    _assert_sig(
+        add_baseline_phrase,
+        ["professor_id", "phrase_raw", "db_path", "source_video_ids", "registered_by"],
+    )
+    _assert_sig(list_baseline, ["professor_id", "db_path"])
+    _assert_sig(remove_baseline_phrase, ["professor_id", "phrase_raw", "db_path"])
+    _assert_sig(subtract_baseline, ["professor_id", "spans", "db_path"])
+
+
+def test_pattern_classifier_signature() -> None:
+    """pattern_classifier.classify_reuse_pattern matches service_layer.md §8 (T045)."""
+    from tube_scout.services.pattern_classifier import classify_reuse_pattern
+
+    _assert_sig(
+        classify_reuse_pattern,
+        ["comparison", "durations", "same_week", "policy"],
+    )
+
+
+def test_layer_defense_signature() -> None:
+    """layer_defense.apply_layers matches service_layer.md §3 (T046)."""
+    from tube_scout.services.layer_defense import apply_layers
+
+    _assert_sig(
+        apply_layers,
+        ["comparison", "spans", "professor_id", "db_path", "policy"],
+    )
