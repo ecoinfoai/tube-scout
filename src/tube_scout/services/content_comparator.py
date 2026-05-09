@@ -2,6 +2,11 @@
 
 Computes 5 independent indicators for each comparison pair and derives
 a composite suspicion score with priority grade assignment.
+
+spec 011 addendum (FR-008): compute_suspicion_score accepts optional
+i6/i7/i8 and a PolicyConfig for 8-indicator weighted scoring. When
+i6/i7/i8 are None (M-default mode), weights are renormalized over i1~i5
+only so M-default scores remain comparable within their own grade bands.
 """
 
 import logging
@@ -12,14 +17,14 @@ from tube_scout.models.content import SuspicionGrade, SuspicionScore
 
 logger = logging.getLogger(__name__)
 
-# Indicator weights (R-005 from research.md)
+# Indicator weights (R-005 from research.md) — used by spec 007 path
 WEIGHT_I1_HASH = 30.0
 WEIGHT_I2_COSINE = 25.0
 WEIGHT_I3_CHANGE = 20.0
 WEIGHT_I4_TERMS = 15.0
 WEIGHT_I5_DURATION = 10.0
 
-# Grade thresholds (R-005)
+# Grade thresholds (R-005 / spec 011 FR-008 — same boundaries)
 GRADE_CRITICAL = 80.0
 GRADE_HIGH = 60.0
 GRADE_MODERATE = 40.0
@@ -124,6 +129,24 @@ def grade_from_score(score: float) -> SuspicionGrade:
     return SuspicionGrade.NORMAL
 
 
+def _grade_from_score_8(score: float) -> str:
+    """Return grade string for an 8-indicator composite score.
+
+    Args:
+        score: Float in 0.0~100.0.
+
+    Returns:
+        One of 'critical', 'high', 'moderate', 'normal'.
+    """
+    if score >= GRADE_CRITICAL:
+        return "critical"
+    if score >= GRADE_HIGH:
+        return "high"
+    if score >= GRADE_MODERATE:
+        return "moderate"
+    return "normal"
+
+
 def compute_suspicion_score(
     *,
     i1_hash_match: bool,
@@ -131,11 +154,26 @@ def compute_suspicion_score(
     i3_change_rate: float,
     i4_new_term_count: int,
     i5_duration_diff_seconds: float,
-) -> SuspicionScore:
-    """Compute composite suspicion score from 5 indicators.
+    i6_longest_contiguous_seconds: float | None = None,
+    i7_distribution_dispersion: float | None = None,
+    i8_position_diversity: float | None = None,
+    policy: "Any | None" = None,
+) -> "SuspicionScore | tuple[float, str]":
+    """Compute composite suspicion score from 5 or 8 indicators.
 
-    Normalizes each indicator to 0.0-1.0, applies weights,
-    and combines into a 0-100 composite score.
+    When i6/i7/i8 and policy are provided, uses 8-indicator weighted scoring
+    (FR-008). When i6/i7/i8 are None (M-default mode), renormalizes weights
+    over i1~i5 only to preserve grade-band semantics.
+
+    Indicator normalization to 0~1 (higher = more suspicious):
+    - i1 (hash_match): 1.0 if True else 0.0
+    - i2 (cosine): already 0~1
+    - i3 (change_rate): 1.0 - change_rate (lower change = more suspicious)
+    - i4 (new_term_count): max(0, 1 - count/100) capped
+    - i5 (duration_diff_seconds): max(0, 1 - diff/600) capped
+    - i6 (longest_contiguous_seconds): min(1, seconds/1200) capped
+    - i7 (distribution_dispersion): max(0, 1 - stdev/300) inverted
+    - i8 (position_diversity): already 0~1
 
     Args:
         i1_hash_match: Whether SHA-256 hashes are identical.
@@ -143,26 +181,78 @@ def compute_suspicion_score(
         i3_change_rate: Text change rate (0.0-1.0, 0=identical).
         i4_new_term_count: Number of new terms in target.
         i5_duration_diff_seconds: Absolute duration difference.
+        i6_longest_contiguous_seconds: I-6 value; None → M-default mode.
+        i7_distribution_dispersion: I-7 value; None → M-default mode.
+        i8_position_diversity: I-8 value; None → M-default mode.
+        policy: PolicyConfig with composite_weights; None → use spec 007 weights.
 
     Returns:
-        SuspicionScore with composite score, grade, and per-indicator contributions.
+        If policy is provided (spec 011 path): tuple[float, str] = (score, grade).
+        If policy is None (spec 007 path): SuspicionScore for backward compat.
     """
-    # Normalize indicators to 0.0-1.0 (higher = more suspicious)
+    # spec 011 path: policy provided → return (score, grade) tuple
+    if policy is not None:
+        weights = policy.composite_weights
+
+        # Normalize all indicators
+        n1 = 1.0 if i1_hash_match else 0.0
+        n2 = float(i2_cosine_similarity)
+        n3 = max(0.0, 1.0 - float(i3_change_rate))
+        n4 = max(0.0, 1.0 - float(i4_new_term_count) / 100.0)
+        n5 = max(0.0, 1.0 - abs(float(i5_duration_diff_seconds)) / 600.0)
+
+        use_time_axis = (
+            i6_longest_contiguous_seconds is not None
+            and i7_distribution_dispersion is not None
+            and i8_position_diversity is not None
+        )
+
+        if use_time_axis:
+            n6 = min(1.0, float(i6_longest_contiguous_seconds) / 1200.0)
+            n7 = max(0.0, 1.0 - float(i7_distribution_dispersion) / 300.0)
+            n8 = float(i8_position_diversity)
+
+            score = (
+                n1 * weights.get("i1", 0.0) * 100.0
+                + n2 * weights.get("i2", 0.0) * 100.0
+                + n3 * weights.get("i3", 0.0) * 100.0
+                + n4 * weights.get("i4", 0.0) * 100.0
+                + n5 * weights.get("i5", 0.0) * 100.0
+                + n6 * weights.get("i6", 0.0) * 100.0
+                + n7 * weights.get("i7", 0.0) * 100.0
+                + n8 * weights.get("i8", 0.0) * 100.0
+            )
+        else:
+            # M-default renormalization: use only i1~i5 weights, renorm to sum=1
+            w_slice = {k: weights.get(k, 0.0) for k in ("i1", "i2", "i3", "i4", "i5")}
+            w_total = sum(w_slice.values())
+            if w_total <= 0:
+                w_total = 1.0
+            score = (
+                n1 * w_slice["i1"] / w_total * 100.0
+                + n2 * w_slice["i2"] / w_total * 100.0
+                + n3 * w_slice["i3"] / w_total * 100.0
+                + n4 * w_slice["i4"] / w_total * 100.0
+                + n5 * w_slice["i5"] / w_total * 100.0
+            )
+
+        score = max(0.0, min(100.0, score))
+        return round(score, 2), _grade_from_score_8(score)
+
+    # spec 007 backward-compat path: return SuspicionScore
     n1 = 1.0 if i1_hash_match else 0.0
     n2 = i2_cosine_similarity
-    n3 = 1.0 - i3_change_rate  # Low change = high suspicion
-    n4 = 1.0 / (1.0 + i4_new_term_count)  # 0 new terms = 1.0
-    n5 = max(0.0, 1.0 - abs(i5_duration_diff_seconds) / 60.0)  # <=10s similar
+    n3 = 1.0 - i3_change_rate
+    n4 = 1.0 / (1.0 + i4_new_term_count)
+    n5 = max(0.0, 1.0 - abs(i5_duration_diff_seconds) / 60.0)
 
-    # Apply weights
     c1 = n1 * WEIGHT_I1_HASH
     c2 = n2 * WEIGHT_I2_COSINE
     c3 = n3 * WEIGHT_I3_CHANGE
     c4 = n4 * WEIGHT_I4_TERMS
     c5 = n5 * WEIGHT_I5_DURATION
 
-    score = c1 + c2 + c3 + c4 + c5
-    score = max(0.0, min(100.0, score))
+    score = max(0.0, min(100.0, c1 + c2 + c3 + c4 + c5))
 
     return SuspicionScore(
         score=round(score, 2),
