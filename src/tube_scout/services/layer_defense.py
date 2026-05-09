@@ -9,9 +9,51 @@ import sqlite3
 from pathlib import Path
 
 from tube_scout.models.content import ComparisonResult
-from tube_scout.models.reuse_v2 import LayerAttribution, MatchSpan, PolicyConfig
+from tube_scout.models.reuse_v2 import CandidatePair, LayerAttribution, MatchSpan, PolicyConfig
 from tube_scout.services.baseline_corpus import subtract_baseline
 from tube_scout.services.phrase_whitelist import normalize_phrase
+
+
+def filter_pair_whitelisted(
+    candidates: list[CandidatePair],
+    db_path: Path,
+) -> list[CandidatePair]:
+    """Remove candidate pairs whose comparison_results row has review_status='FALSE_POSITIVE'.
+
+    Layer D pair-whitelist pre-filter: called before start_run so that
+    already-dismissed pairs are never processed in nC2 mode.
+
+    Args:
+        candidates: CandidatePair list from generate_nc2_pairs.
+        db_path: SQLite content_reuse.db path.
+
+    Returns:
+        Filtered list with FALSE_POSITIVE pairs removed.
+
+    Raises:
+        TypeError: If db_path is not a Path.
+    """
+    if not isinstance(db_path, Path):
+        raise TypeError(f"db_path must be a Path, got {type(db_path).__name__}")
+
+    if not candidates:
+        return []
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        rows = conn.execute(
+            "SELECT source_video_id, target_video_id FROM comparison_results "
+            "WHERE review_status = 'FALSE_POSITIVE'"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    excluded: set[tuple[str, str]] = {(r[0], r[1]) for r in rows}
+    return [
+        c for c in candidates
+        if (c.source_video_id, c.target_video_id) not in excluded
+        and (c.target_video_id, c.source_video_id) not in excluded
+    ]
 
 
 def _subtract_phrase_whitelist(
