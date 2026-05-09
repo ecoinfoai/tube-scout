@@ -597,12 +597,7 @@ def migrate_to_v2(db_path: Path) -> None:
             row[1]
             for row in conn.execute("PRAGMA table_info(comparison_results)").fetchall()
         }
-        existing_tables = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        }
+        # existing_tables collected later via final_tables after DDL
 
         # Step 2 — ALTER missing columns
         for col_name, col_def in _V2_NEW_COLUMNS:
@@ -758,8 +753,7 @@ CREATE TABLE IF NOT EXISTS audio_fingerprint (
     fingerprint  BLOB NOT NULL,
     duration     REAL NOT NULL,
     extracted_at TEXT NOT NULL,
-    source       TEXT NOT NULL DEFAULT 'fpcalc:1.6.0',
-    FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+    source       TEXT NOT NULL DEFAULT 'fpcalc:1.6.0'
 );
 
 CREATE INDEX IF NOT EXISTS idx_audio_fp_extracted_at

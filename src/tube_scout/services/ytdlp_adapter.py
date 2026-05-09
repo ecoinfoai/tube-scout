@@ -128,7 +128,10 @@ def _build_cookies_args(source: CookiesSource) -> list[str]:
 def _parse_ytdlp_stderr(stderr: str, video_url: str) -> None:
     """Raise typed exception if yt-dlp stderr signals a known failure."""
     lower = stderr.lower()
-    if "failed to extract any cookies" in lower or "cookie" in lower and "error" in lower:
+    if (
+        "failed to extract any cookies" in lower
+        or ("cookie" in lower and "error" in lower)
+    ):
         raise YtdlpAuthError(
             "Brave keyring is locked. Run `tube-scout auth refresh-cookies` "
             "or set TUBE_SCOUT_COOKIES_FILE to a 0600 cookies.txt path."
@@ -136,7 +139,8 @@ def _parse_ytdlp_stderr(stderr: str, video_url: str) -> None:
     if "429" in stderr or "too many requests" in lower:
         raise YtdlpRateLimitError(
             f"YouTube rate limit hit on video {video_url}. Channel processing "
-            "terminated. Resume with `tube-scout collect transcripts --channel <alias>`."
+            "terminated. Resume with "
+            "`tube-scout collect transcripts --channel <alias>`."
         )
     if "live event" in lower or "premiere" in lower or "is a live stream" in lower:
         raise YtdlpLiveStreamError(
@@ -315,7 +319,11 @@ def fetch_audio_via_ytdlp(
 
     if result.returncode != 0:
         stderr_lower = result.stderr.lower()
-        if "ffmpeg" in stderr_lower and ("codec" in stderr_lower or "decode" in stderr_lower or "exited with code" in stderr_lower):
+        if "ffmpeg" in stderr_lower and (
+            "codec" in stderr_lower
+            or "decode" in stderr_lower
+            or "exited with code" in stderr_lower
+        ):
             raise YtdlpAudioDecodeError(
                 f"Audio decode failed for {video_url}. Codec not supported by ffmpeg."
             )
@@ -340,6 +348,7 @@ def fetch_audio_via_ytdlp(
         return candidates[0]
 
     raise YtdlpAudioDecodeError(
-        f"Audio decode failed for {video_url}: no {audio_format} file found in {output_dir}. "
+        f"Audio decode failed for {video_url}: "
+        f"no {audio_format} file found in {output_dir}. "
         "Codec not supported by ffmpeg."
     )
