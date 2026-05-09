@@ -302,6 +302,11 @@ def content_compare_command(
         "--professor",
         help="Filter by professor name.",
     ),
+    mode: str = typer.Option(
+        "legacy",
+        "--mode",
+        help="Compare mode: 'legacy' (year-pair) or 'nc2' (delegates to scan --mode nc2).",
+    ),
 ) -> None:
     """Compare matched video pairs across years using 5 indicators.
 
@@ -313,7 +318,17 @@ def content_compare_command(
         project_dir: Projects root directory.
         course: Course name filter.
         professor: Professor name filter.
+        mode: Compare mode ('legacy' or 'nc2').
     """
+    if mode == "nc2":
+        if not professor:
+            console.print(
+                "[red]Missing --professor for nC2 mode. "
+                "Provide a professor ID registered with 'tube-scout content professor map'.[/red]"
+            )
+            raise typer.Exit(code=1)
+        _run_nc2_scan(project=project, project_dir=project_dir, professor_id=professor, resume=False)
+        return
     from tube_scout.services.content_comparator import (
         ContentComparator,
         match_comparison_pairs,
@@ -680,8 +695,26 @@ def content_scan_command(
         "--force-refresh",
         help="Force re-processing of all stages.",
     ),
+    mode: str = typer.Option(
+        "legacy",
+        "--mode",
+        help="Scan mode: 'legacy' (spec 007 year-pair) or 'nc2' (spec 011 nC2 professor pool).",
+    ),
+    professor: str | None = typer.Option(
+        None,
+        "--professor",
+        help="Professor ID (required for --mode nc2).",
+    ),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Resume an interrupted nC2 run from the last checkpoint.",
+    ),
 ) -> None:
     """Run full pipeline: fingerprint -> compare -> quality.
+
+    In 'nc2' mode, runs the nC2 professor-pool matching pipeline instead
+    of the legacy year-pair compare stage.
 
     Args:
         channel: Channel alias.
@@ -690,7 +723,20 @@ def content_scan_command(
         project: Project path or 'latest'.
         project_dir: Projects root directory.
         force_refresh: Force re-processing.
+        mode: Scan mode ('legacy' or 'nc2').
+        professor: Professor ID (required for nc2 mode).
+        resume: Resume from last checkpoint (nc2 mode only).
     """
+    if mode == "nc2":
+        if not professor:
+            console.print(
+                "[red]Missing --professor for nC2 mode. "
+                "Provide a professor ID registered with 'tube-scout content professor map'.[/red]"
+            )
+            raise typer.Exit(code=1)
+        _run_nc2_scan(project=project, project_dir=project_dir, professor_id=professor, resume=resume)
+        return
+
     console.print("[bold]Running content scan pipeline...[/bold]\n")
 
     # Stage 1: Fingerprint
@@ -751,6 +797,7 @@ def content_scan_command(
             project_dir=project_dir,
             course=None,
             professor=None,
+            mode="legacy",
         ),
     )
 
@@ -769,6 +816,81 @@ def content_scan_command(
     )
 
     console.print("\n[bold green]Content scan pipeline complete.[/bold green]")
+
+
+def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: bool) -> None:
+    """Execute the nC2 professor-pool matching pipeline.
+
+    Args:
+        project: Project path or 'latest'.
+        project_dir: Projects root directory.
+        professor_id: Professor identifier.
+        resume: If True, resume from last in-progress checkpoint run.
+    """
+    import sqlite3
+    from datetime import UTC, datetime
+
+    from tube_scout.services.nc2_matcher import generate_nc2_pairs
+    from tube_scout.services.pair_checkpoint import (
+        finalize_run,
+        iterate_unfinished_pairs,
+        mark_pair_done,
+        resume_run,
+        start_run,
+    )
+    from tube_scout.services.policy_loader import load_policy
+
+    mgr = resolve_project(project_dir, project, producer=is_producer("content"))
+    db_path = _ensure_v2_schema(mgr.project_dir)
+    policy = load_policy(mgr.project_dir)
+    captions_dir = mgr.collect_dir
+
+    run_id: str | None = None
+    if resume:
+        run_id = resume_run(professor_id, "M-nC2", db_path)
+        if run_id:
+            console.print(f"[bold]Resuming nC2 run {run_id} for professor '{professor_id}'...[/bold]")
+
+    if not run_id:
+        pairs = generate_nc2_pairs(
+            professor_id=professor_id,
+            db_path=db_path,
+            captions_dir=captions_dir,
+            cosine_cull_threshold=policy.matching_cosine_cull,
+        )
+        run_id = start_run(
+            professor_id=professor_id,
+            matching_mode="M-nC2",
+            pair_count_total=len(pairs),
+            db_path=db_path,
+        )
+        console.print(
+            f"[bold]Starting nC2 run {run_id} — {len(pairs)} pairs for professor '{professor_id}'.[/bold]"
+        )
+
+    pool = None
+    from tube_scout.services.professor_resolver import resolve_caption_pool
+    pool = resolve_caption_pool(professor_id, db_path)
+
+    now_fn = lambda: datetime.now(UTC).isoformat()
+    conn = sqlite3.connect(str(db_path))
+    processed = 0
+    try:
+        for pair_ref in iterate_unfinished_pairs(pool, "M-nC2", db_path):
+            conn.execute(
+                "INSERT OR IGNORE INTO comparison_results "
+                "(source_video_id, target_video_id, matching_mode, professor_id, created_at) "
+                "VALUES (?, ?, 'M-nC2', ?, ?)",
+                (pair_ref.source_video_id, pair_ref.target_video_id, professor_id, now_fn()),
+            )
+            conn.commit()
+            mark_pair_done(run_id, db_path)
+            processed += 1
+    finally:
+        conn.close()
+
+    finalize_run(run_id, db_path, "completed")
+    console.print(f"[green]nC2 scan complete: {processed} pairs processed.[/green]")
 
 
 # ---------------------------------------------------------------------------
@@ -794,15 +916,26 @@ def professor_map(
         channel: Channel alias.
         author: Author marker.
         note: Optional notes.
-
-    Raises:
-        NotImplementedError: Always — pending US1 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content professor map is not yet implemented. "
-        "Pending US1 implementation (T032). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §5."
+    from tube_scout.services.professor_resolver import map_professor
+
+    db_path = _ensure_v2_schema(project)
+    try:
+        mapping = map_professor(
+            professor_id=professor_id,
+            display_name=display_name,
+            channel_alias=channel,
+            author_marker=author,
+            db_path=db_path,
+            registered_by="cli",
+            note=note,
+        )
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+    console.print(
+        f"[green]Mapped professor '{mapping.professor_id}' "
+        f"({mapping.display_name}) -> channel '{mapping.channel_alias}'.[/green]"
     )
 
 
@@ -814,16 +947,20 @@ def professor_list(
 
     Args:
         project: Project directory.
-
-    Raises:
-        NotImplementedError: Always — pending US1 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content professor list is not yet implemented. "
-        "Pending US1 implementation (T033). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §5."
-    )
+    from tube_scout.services.professor_resolver import list_professors
+
+    db_path = _ensure_v2_schema(project)
+    mappings = list_professors(db_path)
+    if not mappings:
+        console.print("[yellow]No professor mappings registered.[/yellow]")
+        return
+
+    for m in mappings:
+        console.print(
+            f"{m.professor_id}  {m.display_name}  {m.channel_alias}  "
+            f"{m.author_marker}  {m.registered_by}"
+        )
 
 
 @professor_app.command("show")
@@ -862,16 +999,26 @@ def professor_unmap(
         professor_id: Professor identifier.
         channel: Channel alias.
         author: Author marker.
-
-    Raises:
-        NotImplementedError: Always — pending US1 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content professor unmap is not yet implemented. "
-        "Pending US1 implementation (T035). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §5."
+    from tube_scout.services.professor_resolver import unmap_professor
+
+    db_path = _ensure_v2_schema(project)
+    removed = unmap_professor(
+        professor_id=professor_id,
+        channel_alias=channel,
+        author_marker=author,
+        db_path=db_path,
     )
+    if removed:
+        console.print(
+            f"[green]Unmapped professor '{professor_id}' from channel '{channel}' "
+            f"(author: {author}).[/green]"
+        )
+    else:
+        console.print(
+            f"[yellow]No membership row found for professor '{professor_id}' "
+            f"on channel '{channel}' (author: {author}).[/yellow]"
+        )
 
 
 # ---------------------------------------------------------------------------
