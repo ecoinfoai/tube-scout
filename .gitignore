@@ -37,6 +37,9 @@ venv/
 secrets/
 token.json
 client_secret*.json
+# spec 012: yt-dlp cookie files (may contain session credentials)
+cookies.txt
+**/cookies*.txt
 
 # IDE
 .vscode/
@@ -78,3 +81,7 @@ admin.db
 
 # Real-channel survey data (PII; kept locally only)
 tests/manual/caption_survey_results.json
+
+# spec 012: downloaded audio files (large binary, transient)
+_workspace/spike/*.mp3
+projects/*/01_collect/audio_temp/
