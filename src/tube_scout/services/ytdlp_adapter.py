@@ -15,6 +15,7 @@ from typing import Literal
 
 from tube_scout.services.ytdlp_errors import (
     CookiesSourceError,
+    YtdlpAudioDecodeError,
     YtdlpAuthError,
     YtdlpLiveStreamError,
     YtdlpNetworkError,
@@ -244,3 +245,101 @@ def fetch_caption_via_ytdlp(
                 manual_path = p
 
     return manual_path, auto_path
+
+
+def fetch_audio_via_ytdlp(
+    video_url: str,
+    output_dir: Path,
+    cookies_browser: str | None = "brave",
+    cookies_path: Path | None = None,
+    sample_rate: int = 22050,
+    audio_format: str = "mp3",
+    audio_quality: str = "128K",
+    sleep_seconds: tuple[float, float] = (30.0, 60.0),
+    timeout_seconds: float = 600.0,
+) -> Path:
+    """Download audio via yt-dlp + extract to mp3.
+
+    Args:
+        video_url: YouTube URL (full or short form).
+        output_dir: Directory to drop extracted audio file.
+        cookies_browser: Browser name for --cookies-from-browser. None to skip.
+        cookies_path: 0600 cookies.txt path; fallback when cookies_browser is None.
+        sample_rate: ffmpeg -ar parameter (Hz). chromaprint canonical 22050.
+        audio_format: yt-dlp --audio-format.
+        audio_quality: yt-dlp --audio-quality.
+        sleep_seconds: Random sleep range BEFORE the call (rate limit prevention).
+        timeout_seconds: subprocess timeout.
+
+    Returns:
+        Path to extracted audio file (e.g., <output_dir>/<video_id>.mp3).
+
+    Raises:
+        YtdlpAuthError: cookies decryption failed.
+        YtdlpRateLimitError: HTTP 429 after backoff.
+        YtdlpNetworkError: network failure.
+        YtdlpLiveStreamError: video is live or premiere.
+        YtdlpAudioDecodeError: ffmpeg postprocessor failed.
+        subprocess.TimeoutExpired: yt-dlp hung.
+    """
+    sleep_lo, sleep_hi = sleep_seconds
+    if sleep_hi > 0:
+        time.sleep(random.uniform(sleep_lo, sleep_hi))
+
+    source = resolve_cookies_source(
+        cookies_browser=cookies_browser,
+        cookies_path=cookies_path,
+    )
+    cookies_args = _build_cookies_args(source)
+
+    output_template = str(output_dir / "%(id)s.%(ext)s")
+    postprocessor_args = f"ffmpeg:-ar {sample_rate} -ac 1"
+
+    cmd = [
+        "yt-dlp",
+        "--extract-audio",
+        "--audio-format", audio_format,
+        "--audio-quality", audio_quality,
+        "--postprocessor-args", postprocessor_args,
+        "--output", output_template,
+        *cookies_args,
+        video_url,
+    ]
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout_seconds,
+    )
+
+    if result.returncode != 0:
+        stderr_lower = result.stderr.lower()
+        if "ffmpeg" in stderr_lower and ("codec" in stderr_lower or "decode" in stderr_lower or "exited with code" in stderr_lower):
+            raise YtdlpAudioDecodeError(
+                f"Audio decode failed for {video_url}. Codec not supported by ffmpeg."
+            )
+        _parse_ytdlp_stderr(result.stderr, video_url)
+        raise YtdlpNetworkError(
+            f"yt-dlp failed (exit {result.returncode}) fetching audio {video_url}. "
+            "Check connectivity."
+        )
+
+    # Find the extracted mp3 in output_dir
+    # Try stdout first
+    for line in result.stdout.splitlines():
+        if "[ExtractAudio] Destination:" in line:
+            raw = line.split("[ExtractAudio] Destination:", 1)[1].strip()
+            p = Path(raw)
+            if p.exists():
+                return p
+
+    # Fallback: scan for mp3
+    candidates = sorted(output_dir.glob(f"*.{audio_format}"))
+    if candidates:
+        return candidates[0]
+
+    raise YtdlpAudioDecodeError(
+        f"Audio decode failed for {video_url}: no {audio_format} file found in {output_dir}. "
+        "Codec not supported by ffmpeg."
+    )
