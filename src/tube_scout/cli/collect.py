@@ -1529,6 +1529,52 @@ def _collect_all_for_web(
 from collections.abc import Callable  # noqa: E402
 
 
+def build_signal_handler(
+    audio_temp: Path,
+    audit_writer: object,
+    current_video_id_ref: list[str],
+) -> Callable:
+    """Build a SIGINT/SIGTERM handler for audio collect commands.
+
+    Args:
+        audio_temp: Directory containing temporary mp3 files to clean up.
+        audit_writer: AuditWriter instance for appending interrupted rows.
+        current_video_id_ref: Single-element list holding the in-progress video_id
+            (mutable reference so handler sees the latest value).
+
+    Returns:
+        Signal handler callable(signum, frame) that cleans audio_temp,
+        writes interrupted audit row, and raises SystemExit(130).
+    """
+    import signal as _signal
+    from datetime import UTC, datetime
+
+    def _handler(signum: int, frame: object) -> None:
+        # Remove all temp mp3 files (SC-004)
+        for mp3 in audio_temp.glob("*.mp3"):
+            mp3.unlink(missing_ok=True)
+
+        # Write interrupted audit row for in-progress video
+        video_id = current_video_id_ref[0] if current_video_id_ref else "unknown"
+        ts = datetime.now(tz=UTC).isoformat()
+        if hasattr(audit_writer, "append_fingerprint_row"):
+            try:
+                audit_writer.append_fingerprint_row({  # type: ignore[union-attr]
+                    "video_id": video_id,
+                    "result": "fail",
+                    "reason": "interrupted",
+                    "duration_sec": None,
+                    "timestamp": ts,
+                    "cookies_source": "brave",
+                })
+            except Exception:
+                pass
+
+        raise SystemExit(130)
+
+    return _handler
+
+
 def collect_audio_command(
     channel: str | None = typer.Option(
         None,
@@ -1580,6 +1626,16 @@ def collect_audio_command(
             console.print(
                 f"[red]Error: Channel alias '{channel}' is not registered. "
                 "Run `tube-scout auth --channel <alias>` to register.[/red]"
+            )
+            raise typer.Exit(code=5)
+
+    if all_channels is True:
+        from tube_scout.services.auth import load_registry
+        registry = load_registry()
+        if not registry:
+            console.print(
+                "[red]Error: No registered channels found. "
+                "Register a channel with `tube-scout auth --channel <alias>`.[/red]"
             )
             raise typer.Exit(code=5)
 
@@ -1643,6 +1699,16 @@ def collect_fingerprint_command(
             console.print(
                 f"[red]Error: Channel alias '{channel}' is not registered. "
                 "Run `tube-scout auth --channel <alias>` to register.[/red]"
+            )
+            raise typer.Exit(code=5)
+
+    if all_channels is True:
+        from tube_scout.services.auth import load_registry
+        registry = load_registry()
+        if not registry:
+            console.print(
+                "[red]Error: No registered channels found. "
+                "Register a channel with `tube-scout auth --channel <alias>`.[/red]"
             )
             raise typer.Exit(code=5)
 
