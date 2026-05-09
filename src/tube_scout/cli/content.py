@@ -821,15 +821,21 @@ def content_scan_command(
 def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: bool) -> None:
     """Execute the nC2 professor-pool matching pipeline.
 
+    INTEGRATION: time_axis_indicators + compute_suspicion_score + insert_match_spans
+    호출됨 (orchestrator: cli/content.py, task: T039).
+
     Args:
         project: Project path or 'latest'.
         project_dir: Projects root directory.
         professor_id: Professor identifier.
         resume: If True, resume from last in-progress checkpoint run.
     """
+    import json
     import sqlite3
     from datetime import UTC, datetime
 
+    from tube_scout.models.reuse_v2 import CandidatePair
+    from tube_scout.services.content_comparator import compute_suspicion_score
     from tube_scout.services.nc2_matcher import generate_nc2_pairs
     from tube_scout.services.pair_checkpoint import (
         finalize_run,
@@ -839,6 +845,9 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
         start_run,
     )
     from tube_scout.services.policy_loader import load_policy
+    from tube_scout.services.professor_resolver import resolve_caption_pool
+    from tube_scout.services.time_axis_indicators import compute_time_axis
+    from tube_scout.storage.content_db import insert_match_spans
 
     mgr = resolve_project(project_dir, project, producer=is_producer("content"))
     db_path = _ensure_v2_schema(mgr.project_dir)
@@ -868,8 +877,6 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
             f"[bold]Starting nC2 run {run_id} — {len(pairs)} pairs for professor '{professor_id}'.[/bold]"
         )
 
-    pool = None
-    from tube_scout.services.professor_resolver import resolve_caption_pool
     pool = resolve_caption_pool(professor_id, db_path)
 
     now_fn = lambda: datetime.now(UTC).isoformat()
@@ -877,13 +884,67 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
     processed = 0
     try:
         for pair_ref in iterate_unfinished_pairs(pool, "M-nC2", db_path):
-            conn.execute(
+            # ① Load caption segments for both videos
+            segs_a: list[dict] = []
+            segs_b: list[dict] = []
+            for vid, target_list in [
+                (pair_ref.source_video_id, segs_a),
+                (pair_ref.target_video_id, segs_b),
+            ]:
+                caption_path = captions_dir / f"{vid}.json"
+                if caption_path.exists():
+                    data = json.loads(caption_path.read_text(encoding="utf-8"))
+                    target_list.extend(data.get("segments", []))
+
+            # ② Compute time-axis indicators (I-6/I-7/I-8) if captions available
+            i6: float | None = None
+            i7: float | None = None
+            i8: float | None = None
+            spans = []
+            if segs_a and segs_b:
+                cp = CandidatePair(
+                    source_video_id=pair_ref.source_video_id,
+                    target_video_id=pair_ref.target_video_id,
+                    cosine=0.0,
+                    professor_id=professor_id,
+                )
+                ta = compute_time_axis(cp, segs_a, segs_b)
+                i6 = ta.i6_longest_contiguous_seconds
+                i7 = ta.i7_distribution_dispersion
+                i8 = ta.i8_position_diversity
+                spans = ta.spans
+
+            # ③ Compute 8-indicator composite score
+            score, grade = compute_suspicion_score(
+                i1_hash_match=False,
+                i2_cosine_similarity=0.0,
+                i3_change_rate=1.0,
+                i4_new_term_count=0,
+                i5_duration_diff_seconds=0.0,
+                i6_longest_contiguous_seconds=i6,
+                i7_distribution_dispersion=i7,
+                i8_position_diversity=i8,
+                policy=policy,
+            )
+
+            cursor = conn.execute(
                 "INSERT OR IGNORE INTO comparison_results "
-                "(source_video_id, target_video_id, matching_mode, professor_id, created_at) "
-                "VALUES (?, ?, 'M-nC2', ?, ?)",
-                (pair_ref.source_video_id, pair_ref.target_video_id, professor_id, now_fn()),
+                "(source_video_id, target_video_id, matching_mode, professor_id, "
+                "i6_longest_contiguous_seconds, i7_distribution_dispersion, "
+                "i8_position_diversity, suspicion_score, grade, created_at) "
+                "VALUES (?, ?, 'M-nC2', ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    pair_ref.source_video_id, pair_ref.target_video_id, professor_id,
+                    i6, i7, i8, score, grade, now_fn(),
+                ),
             )
             conn.commit()
+
+            # ④ Persist match_spans using lastrowid
+            comparison_id = cursor.lastrowid
+            if comparison_id and comparison_id > 0 and spans:
+                insert_match_spans(comparison_id, spans, db_path)
+
             mark_pair_done(run_id, db_path)
             processed += 1
     finally:
