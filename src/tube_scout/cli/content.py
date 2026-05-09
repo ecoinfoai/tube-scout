@@ -566,6 +566,16 @@ def content_review_command(
         "--mark",
         help="Mark comparison: '<id> <CONFIRMED_DUPLICATE|FALSE_POSITIVE>'.",
     ),
+    pattern: str | None = typer.Option(
+        None,
+        "--pattern",
+        help="Filter by reuse pattern (WHOLE_DUPLICATE, SCATTERED_DUPLICATE, etc.).",
+    ),
+    professor: str | None = typer.Option(
+        None,
+        "--professor",
+        help="Filter by professor identifier.",
+    ),
 ) -> None:
     """View and update review status for comparison results.
 
@@ -575,12 +585,17 @@ def content_review_command(
         project_dir: Projects root directory.
         status: Review status filter.
         grade: Grade filter.
-        mark: Mark comparison with new status.
+        mark: Mark comparison with new status (uses advisory lock).
+        pattern: Reuse pattern filter.
+        professor: Professor identifier filter.
     """
+    from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+
     mgr = resolve_project(project_dir, project, producer=is_producer("content"))
     db = _get_db(mgr.project_dir)
+    db_path = mgr.project_dir / "02_analyze" / "content" / "content_reuse.db"
 
-    # Mark mode
+    # Mark mode — advisory lock required (FR-033)
     if mark:
         parts = mark.split(maxsplit=1)
         if len(parts) != 2:
@@ -605,10 +620,22 @@ def content_review_command(
             raise typer.Exit(code=1)
 
         try:
-            db.update_review_status(comp_id, new_status, reviewed_by="cli")
+            from datetime import UTC, datetime as _dt
+            now = _dt.now(UTC).isoformat()
+            with layer_d_write_lock(db_path) as lock_conn:
+                cur = lock_conn.execute(
+                    "UPDATE comparison_results SET review_status = ?, "
+                    "reviewed_at = ?, reviewed_by = ? WHERE id = ?",
+                    (new_status, now, "cli", comp_id),
+                )
+                if cur.rowcount == 0:
+                    raise ValueError(f"Comparison ID {comp_id} not found")
             console.print(
                 f"[green]Comparison {comp_id} marked as {new_status}.[/green]"
             )
+        except ConcurrentWriteRejected as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=3)
         except ValueError as e:
             console.print(f"[red]{e}[/red]")
             raise typer.Exit(code=1)
@@ -620,6 +647,12 @@ def content_review_command(
         grade=grade,
         order_by_suspicion=True,
     )
+
+    # Apply pattern and professor filters post-query
+    if pattern is not None:
+        results = [r for r in results if r.get("reuse_pattern") == pattern]
+    if professor is not None:
+        results = [r for r in results if r.get("professor") == professor or r.get("professor_id") == professor]
 
     if not results:
         console.print("[yellow]No comparison results found.[/yellow]")
@@ -1305,32 +1338,48 @@ def baseline_remove(
 
 
 # ---------------------------------------------------------------------------
-# spec 011 placeholder commands — whitelist group
+# spec 011 whitelist commands (T059)
 # ---------------------------------------------------------------------------
 
 
 @whitelist_app.command("add-pair")
 def whitelist_add_pair(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    pair_id: str | None = typer.Option(None, "--pair-id", help="Comparison result ID."),
+    source_video_id: str = typer.Option(..., "--source-video-id", help="Source video ID."),
+    target_video_id: str = typer.Option(..., "--target-video-id", help="Target video ID."),
     reason: str = typer.Option(..., "--reason", help="Reason for whitelisting."),
+    registered_by: str = typer.Option("cli", "--registered-by", help="Admin identifier."),
 ) -> None:
     """Whitelist a comparison pair (mark as FALSE_POSITIVE).
 
     Args:
         project: Project directory.
-        pair_id: Comparison result ID.
+        source_video_id: Source video identifier.
+        target_video_id: Target video identifier.
         reason: Reason text.
-
-    Raises:
-        NotImplementedError: Always — pending US3 implementation.
+        registered_by: Admin identifier.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content whitelist add-pair is not yet implemented. "
-        "Pending US3 implementation (T050). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
-    )
+    from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+    from tube_scout.services.phrase_whitelist import add_pair_whitelist
+
+    db_path = _ensure_v2_schema(project)
+    try:
+        with layer_d_write_lock(db_path) as lock_conn:
+            affected_id = add_pair_whitelist(
+                source_video_id=source_video_id,
+                target_video_id=target_video_id,
+                reason=reason,
+                db_path=db_path,
+                registered_by=registered_by,
+                _conn=lock_conn,
+            )
+        console.print(f"[green]Pair whitelisted (comparison id={affected_id}).[/green]")
+    except ConcurrentWriteRejected as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=3)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
 
 
 @whitelist_app.command("add-phrase")
@@ -1339,6 +1388,7 @@ def whitelist_add_phrase(
     professor: str = typer.Option(..., "--professor", help="Professor identifier."),
     phrase: str = typer.Option(..., "--phrase", help="Phrase text."),
     reason: str = typer.Option(..., "--reason", help="Reason for whitelisting."),
+    registered_by: str = typer.Option("cli", "--registered-by", help="Admin identifier."),
 ) -> None:
     """Add a phrase to the per-professor whitelist.
 
@@ -1347,88 +1397,143 @@ def whitelist_add_phrase(
         professor: Professor identifier.
         phrase: Phrase text.
         reason: Reason text.
-
-    Raises:
-        NotImplementedError: Always — pending US3 implementation.
+        registered_by: Admin identifier.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content whitelist add-phrase is not yet implemented. "
-        "Pending US3 implementation (T051). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
-    )
+    from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+    from tube_scout.services.phrase_whitelist import add_phrase_whitelist
+
+    db_path = _ensure_v2_schema(project)
+    try:
+        with layer_d_write_lock(db_path) as lock_conn:
+            entry = add_phrase_whitelist(
+                professor_id=professor,
+                phrase_raw=phrase,
+                reason=reason,
+                db_path=db_path,
+                registered_by=registered_by,
+                _conn=lock_conn,
+            )
+        console.print(f"[green]Phrase whitelisted for {entry.professor_id}.[/green]")
+    except ConcurrentWriteRejected as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=3)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
 
 
 @whitelist_app.command("list")
 def whitelist_list(
     project: Path = typer.Option(..., "--project", help="Project directory."),
     professor: str | None = typer.Option(None, "--professor", help="Professor identifier filter."),
-    type_filter: str | None = typer.Option(None, "--type", help="Filter by type: pair or phrase."),
+    kind: str | None = typer.Option(None, "--kind", help="Filter by kind: pair or phrase."),
 ) -> None:
     """List whitelist entries.
 
     Args:
         project: Project directory.
         professor: Optional professor filter.
-        type_filter: Optional type filter (pair|phrase).
-
-    Raises:
-        NotImplementedError: Always — pending US3 implementation.
+        kind: Optional kind filter (pair|phrase).
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content whitelist list is not yet implemented. "
-        "Pending US3 implementation (T052). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
-    )
+    from tube_scout.services.phrase_whitelist import list_whitelist
+
+    db_path = _ensure_v2_schema(project)
+    view = list_whitelist(db_path, professor_id=professor, kind=kind)
+
+    if not view.pair_entries and not view.phrase_entries:
+        console.print("[yellow]No whitelist entries found.[/yellow]")
+        return
+
+    if view.pair_entries:
+        table = Table(title="Pair Whitelist")
+        table.add_column("Source Video")
+        table.add_column("Target Video")
+        table.add_column("Reason")
+        table.add_column("Admin")
+        table.add_column("Registered At")
+        for e in view.pair_entries:
+            table.add_row(
+                e.source_video_id,
+                e.target_video_id,
+                e.reason,
+                e.admin,
+                e.registered_at.isoformat(),
+            )
+        console.print(table)
+
+    if view.phrase_entries:
+        table = Table(title="Phrase Whitelist")
+        table.add_column("Professor")
+        table.add_column("Phrase")
+        table.add_column("Reason")
+        table.add_column("Admin")
+        table.add_column("Registered At")
+        for e in view.phrase_entries:
+            table.add_row(
+                e.professor_id,
+                e.phrase_raw,
+                e.reason,
+                e.admin,
+                e.registered_at.isoformat(),
+            )
+        console.print(table)
 
 
 @whitelist_app.command("export")
 def whitelist_export(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    format: str = typer.Option(..., "--format", help="Export format: csv, xlsx, or markdown."),
+    fmt: str = typer.Option(..., "--fmt", help="Export format: csv, xlsx, or markdown."),
     output: Path = typer.Option(..., "--output", help="Output file path."),
 ) -> None:
     """Export whitelist to CSV, XLSX, or Markdown.
 
     Args:
         project: Project directory.
-        format: Export format (csv|xlsx|markdown).
+        fmt: Export format (csv|xlsx|markdown).
         output: Output file path.
-
-    Raises:
-        NotImplementedError: Always — pending US3 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content whitelist export is not yet implemented. "
-        "Pending US3 implementation (T053). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
-    )
+    from tube_scout.services.phrase_whitelist import export_whitelist
+
+    db_path = _ensure_v2_schema(project)
+    try:
+        result_path = export_whitelist(db_path, fmt=fmt, output_path=output)
+        console.print(f"[green]Whitelist exported to {result_path}.[/green]")
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
 
 
 @whitelist_app.command("remove")
 def whitelist_remove(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    type_filter: str = typer.Option(..., "--type", help="Entry type: pair or phrase."),
+    kind: str = typer.Option(..., "--kind", help="Entry kind: pair or phrase."),
     id: int = typer.Option(..., "--id", help="Entry ID to remove."),
 ) -> None:
-    """Remove a whitelist entry by ID.
+    """Remove a whitelist entry by kind and ID.
 
     Args:
         project: Project directory.
-        type_filter: Entry type (pair|phrase).
+        kind: Entry kind (pair|phrase).
         id: Entry ID.
-
-    Raises:
-        NotImplementedError: Always — pending US3 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content whitelist remove is not yet implemented. "
-        "Pending US3 implementation (T054). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
-    )
+    from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+    from tube_scout.services.phrase_whitelist import remove_whitelist
+
+    db_path = _ensure_v2_schema(project)
+    try:
+        with layer_d_write_lock(db_path) as lock_conn:
+            removed = remove_whitelist(db_path, kind=kind, entry_id=id, _conn=lock_conn)
+        if removed:
+            console.print(f"[green]Whitelist entry {id} ({kind}) removed.[/green]")
+        else:
+            console.print(f"[yellow]No whitelist entry found with id={id} kind={kind}.[/yellow]")
+            raise typer.Exit(code=1)
+    except ConcurrentWriteRejected as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=3)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
 
 
 # ---------------------------------------------------------------------------
