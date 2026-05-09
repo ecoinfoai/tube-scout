@@ -62,8 +62,8 @@ def test_policy_subcommand_exists() -> None:
     assert "validate" in output
 
 
-def test_placeholder_raises_not_implemented(tmp_path: Path) -> None:
-    """Invoking a placeholder command raises NotImplementedError with actionable message."""
+def test_placeholder_baseline_raises_not_implemented(tmp_path: Path) -> None:
+    """Invoking an unimplemented placeholder (baseline bootstrap) raises NotImplementedError."""
     db_dir = tmp_path / "02_analyze" / "content"
     db_dir.mkdir(parents=True)
     build_spec007_legacy_db(db_dir / "content_reuse.db")
@@ -71,23 +71,16 @@ def test_placeholder_raises_not_implemented(tmp_path: Path) -> None:
     result = runner.invoke(
         content_app,
         [
-            "professor",
-            "map",
+            "baseline",
+            "bootstrap",
             "--project",
             str(tmp_path),
-            "--professor-id",
+            "--professor",
             "prof-x",
-            "--display-name",
-            "Prof X",
-            "--channel",
-            "ch-test",
-            "--author",
-            "__channel_owner__",
         ],
         catch_exceptions=True,
     )
     assert result.exit_code != 0
-    # typer wraps NotImplementedError — check the exception directly
     assert isinstance(result.exception, NotImplementedError)
     msg = str(result.exception).lower()
     assert "not yet implemented" in msg or "pending" in msg
