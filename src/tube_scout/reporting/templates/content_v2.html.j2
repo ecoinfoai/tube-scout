@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>spec 011 nC2 reuse report — {{ professor.display_name }} ({{ professor.professor_id }})</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; color: #333; }
+    h1 { color: #1a73e8; }
+    h2 { color: #444; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+    header ul.counts { background: #f8f9fa; border-radius: 8px; padding: 12px 20px; list-style: none; }
+    header ul.counts li { margin: 4px 0; font-size: 0.9em; }
+    section.pattern { margin-top: 32px; }
+    details { border: 1px solid #ddd; border-radius: 6px; margin: 8px 0; }
+    details summary { padding: 10px 14px; cursor: pointer; font-weight: 500; background: #f5f5f5; border-radius: 6px; }
+    details summary:hover { background: #e8eaf6; }
+    details[open] summary { border-radius: 6px 6px 0 0; }
+    .pair-body { padding: 12px 16px; }
+    table.indicator { width: 100%; border-collapse: collapse; font-size: 0.85em; margin: 8px 0; }
+    table.indicator th, table.indicator td { padding: 4px 8px; border-bottom: 1px solid #eee; text-align: left; }
+    table.indicator th { background: #f5f5f5; }
+    ul.phrases { margin: 8px 0; padding-left: 18px; font-size: 0.85em; color: #555; }
+    .grade-critical { color: #dc3545; font-weight: bold; }
+    .grade-high { color: #fd7e14; font-weight: bold; }
+    .grade-moderate { color: #ffc107; }
+    .grade-normal { color: #28a745; }
+    .chart-container { margin: 8px 0; }
+    .chart-container img { max-width: 100%; border: 1px solid #eee; border-radius: 4px; }
+    .no-chart { font-size: 0.8em; color: #aaa; font-style: italic; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>spec 011 nC2 Reuse Report</h1>
+    <p><strong>Professor:</strong> {{ professor.display_name }} ({{ professor.professor_id }})</p>
+    <p><strong>Run:</strong> {{ run_id }} &mdash; {{ run_timestamp }}</p>
+    <ul class="counts">
+      <li>Total suspect pairs: <strong>{{ totals.total }}</strong></li>
+      <li>Per pattern:
+        whole-same-week <strong>{{ totals.whole_same }}</strong> /
+        scattered-same-week <strong>{{ totals.scattered_same }}</strong> /
+        whole-different-week <strong>{{ totals.whole_diff }}</strong> /
+        scattered-different-week <strong>{{ totals.scattered_diff }}</strong>
+      </li>
+      <li>Excluded by Layer A (length-cut): <strong>{{ totals.layer_a_excluded }}</strong></li>
+      <li>Demoted by Layer C (grade-cut): <strong>{{ totals.layer_c_demoted }}</strong></li>
+      <li>Excluded by Layer D pair-whitelist: <strong>{{ totals.layer_d_pair_excluded }}</strong></li>
+      <li>Layer D phrase-whitelist hits: <strong>{{ totals.layer_d_phrase_hits }}</strong></li>
+      <li>Layer B baseline subtraction events: <strong>{{ totals.layer_b_subtraction_events }}</strong></li>
+    </ul>
+  </header>
+
+  {% for pattern in pattern_order %}
+  {% set pairs = patterns.get(pattern, []) %}
+  <section class="pattern" id="{{ pattern }}">
+    <h2>{{ pattern_label[pattern] }} ({{ pairs|length }} pairs)</h2>
+    {% if pairs %}
+    {% for pair in pairs %}
+    <details>
+      <summary>
+        {{ pair.source_video_id }} ↔ {{ pair.target_video_id }}
+        &mdash; score <strong>{{ "%.1f"|format(pair.suspicion_score or 0) }}</strong>
+        / <span class="grade-{{ pair.grade or 'normal' }}">{{ pair.grade or 'normal' }}</span>
+      </summary>
+      <div class="pair-body">
+        <table class="indicator">
+          <tr><th>Indicator</th><th>Value</th></tr>
+          {% if pair.i1_hash_match is defined %}<tr><td>I-1 hash match</td><td>{{ pair.i1_hash_match }}</td></tr>{% endif %}
+          {% if pair.i2_cosine_similarity is defined and pair.i2_cosine_similarity is not none %}<tr><td>I-2 cosine similarity</td><td>{{ "%.3f"|format(pair.i2_cosine_similarity) }}</td></tr>{% endif %}
+          {% if pair.i3_change_rate is defined and pair.i3_change_rate is not none %}<tr><td>I-3 change rate</td><td>{{ "%.3f"|format(pair.i3_change_rate) }}</td></tr>{% endif %}
+          {% if pair.i4_new_term_count is defined and pair.i4_new_term_count is not none %}<tr><td>I-4 new term count</td><td>{{ pair.i4_new_term_count }}</td></tr>{% endif %}
+          {% if pair.i5_duration_diff_seconds is defined and pair.i5_duration_diff_seconds is not none %}<tr><td>I-5 duration diff (s)</td><td>{{ "%.1f"|format(pair.i5_duration_diff_seconds) }}</td></tr>{% endif %}
+          {% if pair.i6_longest_contiguous_seconds is defined and pair.i6_longest_contiguous_seconds is not none %}<tr><td>I-6 longest contiguous (s)</td><td>{{ "%.1f"|format(pair.i6_longest_contiguous_seconds) }}</td></tr>{% endif %}
+          {% if pair.i7_distribution_dispersion is defined and pair.i7_distribution_dispersion is not none %}<tr><td>I-7 distribution dispersion</td><td>{{ "%.3f"|format(pair.i7_distribution_dispersion) }}</td></tr>{% endif %}
+          {% if pair.i8_position_diversity is defined and pair.i8_position_diversity is not none %}<tr><td>I-8 position diversity</td><td>{{ "%.3f"|format(pair.i8_position_diversity) }}</td></tr>{% endif %}
+          <tr><td>Review status</td><td>{{ pair.review_status or 'UNREVIEWED' }}</td></tr>
+        </table>
+
+        <div class="chart-container">
+          {% if pair.time_axis_chart_html %}
+          {{ pair.time_axis_chart_html | safe }}
+          {% elif pair.time_axis_png_b64 %}
+          <img src="data:image/png;base64,{{ pair.time_axis_png_b64 }}" alt="time-axis chart">
+          {% else %}
+          <span class="no-chart">No time-axis chart available</span>
+          {% endif %}
+        </div>
+
+        {% if pair.matched_text_samples %}
+        <ul class="phrases">
+          {% for sample in pair.matched_text_samples[:5] %}
+          <li>{{ sample }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+    </details>
+    {% endfor %}
+    {% else %}
+    <p><em>No pairs with this pattern.</em></p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</body>
+</html>

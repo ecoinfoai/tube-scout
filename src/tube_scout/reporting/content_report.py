@@ -2,14 +2,19 @@
 
 Generates HTML, Excel, and JSON reports from comparison results
 and quality check data for administrator review.
+
+Also exposes generate_v2_report() for spec 011 nC2 4-pattern reports (US5).
 """
 
 import json
+import sqlite3
 from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import openpyxl
+from jinja2 import Environment, FileSystemLoader
 from openpyxl.styles import Font, PatternFill
 
 
@@ -368,3 +373,447 @@ class ContentReportGenerator:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         wb.save(str(output_path))
         wb.close()
+
+
+# ---------------------------------------------------------------------------
+# spec 011 US5: 4-pattern v2 report
+# ---------------------------------------------------------------------------
+
+_PATTERN_LABEL: dict[str, str] = {
+    "whole-same-week": "Whole Duplicate — Same Week",
+    "scattered-same-week": "Scattered Duplicate — Same Week",
+    "whole-different-week": "Whole Duplicate — Different Week",
+    "scattered-different-week": "Scattered Duplicate — Different Week",
+}
+
+_PATTERN_ORDER = [
+    "whole-same-week",
+    "scattered-same-week",
+    "whole-different-week",
+    "scattered-different-week",
+]
+
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+
+def _query_comparisons(db_path: Path, professor_id: str) -> list[dict[str, Any]]:
+    """Fetch M-nC2 comparison rows for a professor.
+
+    Args:
+        db_path: SQLite content_reuse.db path.
+        professor_id: Professor pool identifier.
+
+    Returns:
+        List of comparison result dicts.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM comparison_results "
+            "WHERE matching_mode = 'M-nC2' AND professor_id = ? "
+            "ORDER BY suspicion_score DESC",
+            (professor_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def _query_spans(db_path: Path, comparison_id: int) -> list[dict[str, Any]]:
+    """Fetch match_spans for a comparison row.
+
+    Args:
+        db_path: SQLite content_reuse.db path.
+        comparison_id: comparison_results.id.
+
+    Returns:
+        List of span dicts ordered by span_index.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM match_spans WHERE comparison_id = ? ORDER BY span_index",
+            (comparison_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def _query_professor(db_path: Path, professor_id: str) -> dict[str, Any] | None:
+    """Fetch professor_pool row.
+
+    Args:
+        db_path: SQLite content_reuse.db path.
+        professor_id: Professor pool identifier.
+
+    Returns:
+        Professor dict or None if not found.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            "SELECT * FROM professor_pool WHERE professor_id = ?",
+            (professor_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def _query_phrase_whitelist(db_path: Path, professor_id: str) -> list[dict[str, Any]]:
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM phrase_whitelist WHERE professor_id = ?", (professor_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def _query_pair_whitelist(db_path: Path) -> list[dict[str, Any]]:
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM comparison_results WHERE review_status = 'FALSE_POSITIVE'"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def _query_baseline(db_path: Path, professor_id: str) -> list[dict[str, Any]]:
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            "SELECT * FROM baseline_corpus WHERE professor_id = ?", (professor_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def _build_totals(comparisons: list[dict[str, Any]]) -> dict[str, int]:
+    """Compute totals for the report header."""
+    totals: dict[str, int] = {
+        "total": len(comparisons),
+        "whole_same": 0,
+        "scattered_same": 0,
+        "whole_diff": 0,
+        "scattered_diff": 0,
+        "layer_a_excluded": 0,
+        "layer_c_demoted": 0,
+        "layer_d_pair_excluded": 0,
+        "layer_d_phrase_hits": 0,
+        "layer_b_subtraction_events": 0,
+    }
+    pattern_map = {
+        "whole-same-week": "whole_same",
+        "scattered-same-week": "scattered_same",
+        "whole-different-week": "whole_diff",
+        "scattered-different-week": "scattered_diff",
+    }
+    for comp in comparisons:
+        pat = comp.get("reuse_pattern") or ""
+        if pat in pattern_map:
+            totals[pattern_map[pat]] += 1
+
+        attr_json = comp.get("layer_attribution") or "[]"
+        try:
+            attrs = json.loads(attr_json) if isinstance(attr_json, str) else attr_json
+        except (json.JSONDecodeError, TypeError):
+            attrs = []
+
+        for attr in attrs:
+            layer = attr.get("layer", "")
+            action = attr.get("action", "")
+            if layer == "A" and action == "excluded":
+                totals["layer_a_excluded"] += 1
+            elif layer == "C" and action == "demoted":
+                totals["layer_c_demoted"] += 1
+            elif layer == "D" and action == "subtracted":
+                totals["layer_d_phrase_hits"] += 1
+            elif layer == "B" and action == "subtracted":
+                totals["layer_b_subtraction_events"] += 1
+
+        if comp.get("review_status") == "FALSE_POSITIVE":
+            totals["layer_d_pair_excluded"] += 1
+
+    return totals
+
+
+def _build_pair_data(
+    comp: dict[str, Any],
+    spans: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Build per-pair template data including time-axis chart."""
+    from tube_scout.models.reuse_v2 import MatchSpan
+    from tube_scout.visualization.time_axis_chart import render, render_to_base64_png
+
+    match_spans = []
+    for s in spans:
+        try:
+            match_spans.append(MatchSpan(
+                start_a_seconds=float(s["start_a_seconds"]),
+                end_a_seconds=float(s["end_a_seconds"]),
+                start_b_seconds=float(s["start_b_seconds"]),
+                end_b_seconds=float(s["end_b_seconds"]),
+                length_seconds=float(s["length_seconds"]),
+                matched_text_sample=s.get("matched_text_sample") or "",
+                baseline_subtracted=bool(s.get("baseline_subtracted")),
+                whitelisted=bool(s.get("whitelisted")),
+            ))
+        except Exception:
+            pass
+
+    duration_a = float(comp.get("i5_duration_diff_seconds") or 0) or 600.0
+    duration_b = duration_a
+
+    time_axis_chart_html = None
+    time_axis_png_b64 = None
+
+    if match_spans:
+        try:
+            fig = render(match_spans, duration_a=duration_a, duration_b=duration_b)
+            time_axis_chart_html = fig.to_html(
+                full_html=False,
+                include_plotlyjs="cdn",
+                config={"displayModeBar": False},
+            )
+        except Exception:
+            pass
+
+        try:
+            time_axis_png_b64 = render_to_base64_png(
+                match_spans, duration_a=duration_a, duration_b=duration_b
+            )
+        except Exception:
+            pass
+
+    return {
+        **comp,
+        "time_axis_chart_html": time_axis_chart_html,
+        "time_axis_png_b64": time_axis_png_b64,
+        "matched_text_samples": [s.get("matched_text_sample") for s in spans if s.get("matched_text_sample")],
+    }
+
+
+def _generate_html(
+    comparisons: list[dict[str, Any]],
+    db_path: Path,
+    professor: dict[str, Any],
+    run_id: str,
+    run_timestamp: str,
+    output_path: Path,
+) -> None:
+    env = Environment(
+        loader=FileSystemLoader(str(_TEMPLATES_DIR)),
+        autoescape=True,
+    )
+    tmpl = env.get_template("content_v2.html.j2")
+
+    totals = _build_totals(comparisons)
+    patterns: dict[str, list[dict[str, Any]]] = {pat: [] for pat in _PATTERN_ORDER}
+
+    for comp in comparisons:
+        pat = comp.get("reuse_pattern") or "whole-same-week"
+        if pat not in patterns:
+            patterns[pat] = []
+        spans = _query_spans(db_path, comp["id"])
+        pair_data = _build_pair_data(comp, spans)
+        patterns[pat].append(pair_data)
+
+    html = tmpl.render(
+        professor=professor,
+        run_id=run_id,
+        run_timestamp=run_timestamp,
+        totals=totals,
+        patterns=patterns,
+        pattern_order=_PATTERN_ORDER,
+        pattern_label=_PATTERN_LABEL,
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(html, encoding="utf-8")
+
+
+def _generate_xlsx(
+    comparisons: list[dict[str, Any]],
+    db_path: Path,
+    professor_id: str,
+    output_path: Path,
+) -> None:
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    header_font = Font(bold=True)
+
+    # Sheet 1: Summary
+    ws_sum = wb.create_sheet("Summary")
+    totals = _build_totals(comparisons)
+    ws_sum.append(["Metric", "Value"])
+    ws_sum["A1"].font = header_font
+    ws_sum["B1"].font = header_font
+    for k, v in totals.items():
+        ws_sum.append([k, v])
+
+    grade_counts = Counter(c.get("grade", "unknown") for c in comparisons)
+    ws_sum.append([])
+    ws_sum.append(["Grade Distribution", ""])
+    for g, cnt in grade_counts.items():
+        ws_sum.append([g, cnt])
+
+    # Sheet 2: By Pattern
+    ws_pat = wb.create_sheet("By Pattern")
+    pat_headers = [
+        "pattern", "source_video_id", "target_video_id",
+        "suspicion_score", "grade", "review_status",
+        "i2_cosine_similarity", "i6_longest_contiguous_seconds",
+    ]
+    ws_pat.append(pat_headers)
+    for col, h in enumerate(pat_headers, 1):
+        ws_pat.cell(row=1, column=col).font = header_font
+    for comp in comparisons:
+        ws_pat.append([_sanitize_cell(str(comp.get(h, ""))) for h in pat_headers])
+
+    # Sheet 3: Whitelist
+    ws_wl = wb.create_sheet("Whitelist")
+    wl_headers = ["kind", "professor_id", "source_video_id", "target_video_id", "phrase_raw", "reason", "registered_by"]
+    ws_wl.append(wl_headers)
+    for col, h in enumerate(wl_headers, 1):
+        ws_wl.cell(row=1, column=col).font = header_font
+    for pair_wl in _query_pair_whitelist(db_path):
+        ws_wl.append(["pair", "", pair_wl.get("source_video_id", ""), pair_wl.get("target_video_id", ""), "", "", ""])
+    for phrase_wl in _query_phrase_whitelist(db_path, professor_id):
+        ws_wl.append(["phrase", professor_id, "", "", phrase_wl.get("phrase_raw", ""), phrase_wl.get("reason", ""), phrase_wl.get("registered_by", "")])
+
+    # Sheet 4: Baseline
+    ws_base = wb.create_sheet("Baseline")
+    base_headers = ["professor_id", "phrase_raw", "phrase_normalized", "occurrence_count", "registered_by"]
+    ws_base.append(base_headers)
+    for col, h in enumerate(base_headers, 1):
+        ws_base.cell(row=1, column=col).font = header_font
+    for row in _query_baseline(db_path, professor_id):
+        ws_base.append([_sanitize_cell(str(row.get(h, ""))) for h in base_headers])
+
+    # Sheet 5: Layer Attribution Audit
+    ws_attr = wb.create_sheet("Layer Attribution")
+    attr_headers = ["comparison_id", "source_video_id", "target_video_id", "layer", "action", "reason"]
+    ws_attr.append(attr_headers)
+    for col, h in enumerate(attr_headers, 1):
+        ws_attr.cell(row=1, column=col).font = header_font
+    for comp in comparisons:
+        attr_json = comp.get("layer_attribution") or "[]"
+        try:
+            attrs = json.loads(attr_json) if isinstance(attr_json, str) else (attr_json or [])
+        except (json.JSONDecodeError, TypeError):
+            attrs = []
+        if not attrs:
+            ws_attr.append([comp.get("id"), comp.get("source_video_id"), comp.get("target_video_id"), "", "", ""])
+        for attr in attrs:
+            ws_attr.append([
+                comp.get("id"),
+                comp.get("source_video_id"),
+                comp.get("target_video_id"),
+                attr.get("layer", ""),
+                attr.get("action", ""),
+                attr.get("reason", ""),
+            ])
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(str(output_path))
+    wb.close()
+
+
+def _generate_json(
+    comparisons: list[dict[str, Any]],
+    db_path: Path,
+    professor_id: str,
+    run_id: str,
+    run_timestamp: str,
+    output_path: Path,
+) -> None:
+    pairs_with_spans = []
+    for comp in comparisons:
+        spans = _query_spans(db_path, comp["id"])
+        pairs_with_spans.append({**comp, "match_spans": spans})
+
+    report = {
+        "run_id": run_id,
+        "run_timestamp": run_timestamp,
+        "professor_id": professor_id,
+        "totals": _build_totals(comparisons),
+        "comparisons": pairs_with_spans,
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2, default=str),
+        encoding="utf-8",
+    )
+
+
+def generate_v2_report(
+    project_dir: Path,
+    professor_id: str,
+    fmt: Literal["html", "xlsx", "json", "all"] = "html",
+) -> dict[str, Path]:
+    """Generate spec 011 v2 report(s) for one professor.
+
+    Queries comparison_results filtered by matching_mode='M-nC2' AND
+    professor_id, joins match_spans, computes totals (per pattern + Layer
+    A/B/C/D counts).
+
+    Output paths: 03_report/content/v2/{date}-{professor_id}-nc2.{ext}.
+
+    Args:
+        project_dir: Project root directory.
+        professor_id: Professor pool identifier.
+        fmt: Output format — 'html', 'xlsx', 'json', or 'all'.
+
+    Returns:
+        Dict mapping format extension to output Path.
+
+    Raises:
+        ValueError: If professor_id is not found in professor_pool or fmt is invalid.
+        TypeError: If project_dir is not a Path.
+    """
+    if not isinstance(project_dir, Path):
+        raise TypeError(f"project_dir must be a Path, got {type(project_dir).__name__}")
+    if fmt not in ("html", "xlsx", "json", "all"):
+        raise ValueError(f"fmt must be 'html', 'xlsx', 'json', or 'all', got {fmt!r}")
+
+    db_path = project_dir / "02_analyze" / "content" / "content_reuse.db"
+    professor = _query_professor(db_path, professor_id)
+    if professor is None:
+        raise ValueError(
+            f"Professor '{professor_id}' not found in professor_pool. "
+            "Register with 'tube-scout content professor map' first."
+        )
+
+    comparisons = _query_comparisons(db_path, professor_id)
+    run_id = f"nc2-{professor_id}-{datetime.now(UTC).strftime('%Y%m%d-%H%M')}"
+    run_timestamp = datetime.now(UTC).isoformat()
+    date_str = datetime.now(UTC).strftime("%Y%m%d")
+
+    out_dir = project_dir / "03_report" / "content" / "v2"
+    stem = f"{date_str}-{professor_id}-nc2"
+
+    result: dict[str, Path] = {}
+    fmts = ["html", "xlsx", "json"] if fmt == "all" else [fmt]
+
+    for f in fmts:
+        path = out_dir / f"{stem}.{f}"
+        if f == "html":
+            _generate_html(comparisons, db_path, professor, run_id, run_timestamp, path)
+        elif f == "xlsx":
+            _generate_xlsx(comparisons, db_path, professor_id, path)
+        elif f == "json":
+            _generate_json(comparisons, db_path, professor_id, run_id, run_timestamp, path)
+        result[f] = path
+
+    return result
