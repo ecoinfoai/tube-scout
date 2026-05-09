@@ -34,10 +34,10 @@ def _insert_comparison(db: Path, source: str, target: str, mode: str = "M-nC2") 
         "(source_video_id, target_video_id, professor, course, week, session, "
         "year_from, year_to, i1_hash_match, i2_cosine_similarity, i3_change_rate, "
         "i4_new_term_count, i5_duration_diff_seconds, suspicion_score, grade, "
-        "matching_mode) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "matching_mode, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (source, target, "prof-x", "CS101", 1, 1, 2024, 2025,
-         0, 0.7, 0.1, 2, 30, 50.0, "moderate", mode),
+         0, 0.7, 0.1, 2, 30, 50.0, "moderate", mode, "2026-01-01T00:00:00+00:00"),
     )
     conn.commit()
     conn.close()
