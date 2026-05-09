@@ -748,3 +748,124 @@ def insert_match_spans(
         conn.commit()
     finally:
         conn.close()
+
+
+# ─── spec 012 v3 migration ───
+
+_V3_AUDIO_FINGERPRINT_SQL = """
+CREATE TABLE IF NOT EXISTS audio_fingerprint (
+    video_id     TEXT PRIMARY KEY,
+    fingerprint  BLOB NOT NULL,
+    duration     REAL NOT NULL,
+    extracted_at TEXT NOT NULL,
+    source       TEXT NOT NULL DEFAULT 'fpcalc:1.6.0',
+    FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_audio_fp_extracted_at
+    ON audio_fingerprint(extracted_at);
+"""
+
+
+def migrate_to_v3(db_path: Path) -> None:
+    """Add audio_fingerprint table and bump user_version to 3.
+
+    Idempotent: safe to call multiple times (CREATE TABLE IF NOT EXISTS).
+    Pre-condition: db at version 2 (spec 011 schema).
+    Post-condition: user_version == 3, audio_fingerprint table exists.
+
+    Args:
+        db_path: Path to the SQLite database file.
+
+    Raises:
+        TypeError: If db_path is not a Path instance.
+    """
+    if not isinstance(db_path, Path):
+        raise TypeError(f"db_path must be a Path, got {type(db_path).__name__}")
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        conn.executescript(_V3_AUDIO_FINGERPRINT_SQL)
+        conn.execute("PRAGMA user_version = 3")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def insert_audio_fingerprint(
+    db_path: Path,
+    video_id: str,
+    fingerprint: bytes,
+    duration: float,
+    extracted_at: str,
+    source: str = "fpcalc:1.6.0",
+) -> None:
+    """Insert or replace an audio fingerprint record.
+
+    Args:
+        db_path: Path to the SQLite database file.
+        video_id: YouTube video ID (11 chars).
+        fingerprint: Chromaprint base64 ASCII bytes.
+        duration: Audio duration in seconds (ffprobe-verified).
+        extracted_at: ISO 8601 timezone-aware timestamp.
+        source: Algorithm and version identifier.
+    """
+    conn = sqlite3.connect(str(db_path))
+    try:
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO audio_fingerprint
+                (video_id, fingerprint, duration, extracted_at, source)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (video_id, fingerprint, duration, extracted_at, source),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_audio_fingerprint(
+    db_path: Path, video_id: str
+) -> tuple[bytes, float, str, str] | None:
+    """Retrieve an audio fingerprint record.
+
+    Args:
+        db_path: Path to the SQLite database file.
+        video_id: YouTube video ID.
+
+    Returns:
+        Tuple of (fingerprint, duration, extracted_at, source) or None.
+    """
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT fingerprint, duration, extracted_at, source "
+            "FROM audio_fingerprint WHERE video_id = ?",
+            (video_id,),
+        ).fetchone()
+        return tuple(row) if row else None  # type: ignore[return-value]
+    finally:
+        conn.close()
+
+
+def audio_fingerprint_exists(db_path: Path, video_id: str) -> bool:
+    """Check whether an audio fingerprint row exists for a video.
+
+    Args:
+        db_path: Path to the SQLite database file.
+        video_id: YouTube video ID.
+
+    Returns:
+        True if a row exists, False otherwise.
+    """
+    conn = sqlite3.connect(str(db_path))
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM audio_fingerprint WHERE video_id = ? LIMIT 1",
+            (video_id,),
+        ).fetchone()
+        return row is not None
+    finally:
+        conn.close()
