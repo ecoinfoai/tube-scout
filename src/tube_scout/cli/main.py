@@ -19,8 +19,10 @@ from tube_scout.cli.auth_cli import auth_command
 from tube_scout.cli.collect import (
     collect_all_command,
     collect_analytics_command,
+    collect_audio_command,
     collect_bulk_command,
     collect_comments_command,
+    collect_fingerprint_command,
     collect_retention_command,
     collect_transcripts_command,
     collect_videos_command,
@@ -80,6 +82,8 @@ collect_app.command(name="transcripts")(collect_transcripts_command)
 collect_app.command(name="analytics")(collect_analytics_command)
 collect_app.command(name="bulk")(collect_bulk_command)
 collect_app.command(name="all")(collect_all_command)
+collect_app.command(name="audio")(collect_audio_command)
+collect_app.command(name="fingerprint")(collect_fingerprint_command)
 
 # Register analyze subcommands
 analyze_app.command(name="retention")(analyze_retention_command)
