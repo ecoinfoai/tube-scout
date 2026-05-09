@@ -649,7 +649,7 @@ def collect_transcripts_command(
             (Spec 010 FR-010-02 / FR-010-05).
     """
     # Mutually exclusive: --channel and --all-channels
-    if channel and all_channels:
+    if channel and all_channels is True:
         console.print(
             "[red]Error: --channel and --all-channels are mutually exclusive.[/red]",
             )
