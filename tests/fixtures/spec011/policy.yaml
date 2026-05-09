@@ -1,0 +1,13 @@
+layer_a_min_seconds: 60
+layer_c_evolution_band: [0.60, 0.75]
+matching_cosine_cull: 0.55
+pattern_whole_threshold_ratio: 0.50
+composite_weights:
+  i1: 0.20
+  i2: 0.20
+  i3: 0.10
+  i4: 0.05
+  i5: 0.05
+  i6: 0.20
+  i7: 0.10
+  i8: 0.10
