@@ -130,6 +130,10 @@ handler = build_signal_handler(audio_temp=audio_temp, audit_writer=MagicMock(), 
 signal.signal(signal.SIGINT, handler)
 signal.signal(signal.SIGTERM, handler)
 
+# Signal readiness to parent process
+sys.stdout.write("READY\\n")
+sys.stdout.flush()
+
 # Simulate mid-run work
 time.sleep(10)  # Will be interrupted
 """,
@@ -141,8 +145,9 @@ time.sleep(10)  # Will be interrupted
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    import time
-    time.sleep(0.3)  # Let process start
+    # Wait for "READY" line instead of fixed sleep — avoids import-time flakiness
+    ready_line = proc.stdout.readline()
+    assert ready_line.strip() == b"READY", f"subprocess did not signal readiness: {ready_line!r}"
     proc.send_signal(__import__("signal").SIGINT)
     proc.wait(timeout=5)
 

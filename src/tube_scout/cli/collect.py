@@ -289,7 +289,16 @@ def dispatch_audio_fingerprint(
 
     cookies_src = "file" if cookies_path else "brave"
 
+    from tube_scout.services.ytdlp_adapter import validate_video_id
+
     for video_id in video_ids:
+        # FIX-11 (AT-11.3): path injection prevention — validate before any filesystem op
+        try:
+            validate_video_id(video_id)
+        except ValueError as _ve:
+            console.print(f"[yellow]Skipping invalid video_id {video_id!r}: {_ve}[/yellow]")
+            continue
+
         # FIX-4 + AT-NEW-6: slice assignment handles both empty list (G-4 [] init)
         # and pre-populated list — IndexError-free.
         if current_video_id_ref is not None:
@@ -1862,6 +1871,11 @@ def collect_audio_command(
 
     from tube_scout.services.audit_writer import AuditWriter
 
+    # FIX-10 (AT-5.3): reject explicitly-empty channel alias before falsy `if channel:` check
+    if channel is not None and not channel.strip():
+        console.print("[red]Error: --channel value must not be empty.[/red]")
+        raise typer.Exit(code=2)
+
     if channel and all_channels is True:
         console.print(
             "[red]Error: --channel and --all-channels are mutually exclusive.[/red]"
@@ -2024,6 +2038,11 @@ def collect_fingerprint_command(
     import signal as _signal
 
     from tube_scout.services.audit_writer import AuditWriter
+
+    # FIX-10 (AT-5.3): reject explicitly-empty channel alias before falsy `if channel:` check
+    if channel is not None and not channel.strip():
+        console.print("[red]Error: --channel value must not be empty.[/red]")
+        raise typer.Exit(code=2)
 
     if channel and all_channels is True:
         console.print(
