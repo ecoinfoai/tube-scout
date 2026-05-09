@@ -45,8 +45,10 @@
             # Build tools
             pkg-config
 
-            # spec 012: yt-dlp audio download + chromaprint fingerprinting
-            yt-dlp
+            # spec 012: chromaprint fingerprinting + ffmpeg audio decode
+            # NOTE: yt-dlp is installed via uv (PyPI) — pkgs.yt-dlp would leak
+            # Python 3.13 site-packages into PYTHONPATH, breaking the Python 3.11
+            # venv (cryptography ABI mismatch). Subprocess calls use .venv/bin/yt-dlp.
             chromaprint
             ffmpeg
             zlib
