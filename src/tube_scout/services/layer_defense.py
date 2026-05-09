@@ -11,7 +11,7 @@ from pathlib import Path
 from tube_scout.models.content import ComparisonResult
 from tube_scout.models.reuse_v2 import CandidatePair, LayerAttribution, MatchSpan, PolicyConfig
 from tube_scout.services.baseline_corpus import subtract_baseline
-from tube_scout.services.phrase_whitelist import normalize_phrase
+from tube_scout.services.phrase_whitelist import subtract_phrase_whitelist
 
 
 def filter_pair_whitelisted(
@@ -55,43 +55,6 @@ def filter_pair_whitelisted(
         and (c.target_video_id, c.source_video_id) not in excluded
     ]
 
-
-def _subtract_phrase_whitelist(
-    professor_id: str,
-    spans: list[MatchSpan],
-    db_path: Path,
-) -> tuple[list[MatchSpan], float]:
-    """Remove spans matching phrase whitelist entries for this professor.
-
-    Args:
-        professor_id: Professor pool identifier.
-        spans: Current match spans after Layer B.
-        db_path: SQLite content_reuse.db path.
-
-    Returns:
-        (remaining spans, subtracted seconds)
-    """
-    conn = sqlite3.connect(str(db_path))
-    try:
-        rows = conn.execute(
-            "SELECT phrase_normalized FROM phrase_whitelist WHERE professor_id = ?",
-            (professor_id,),
-        ).fetchall()
-    finally:
-        conn.close()
-
-    whitelist_norms: set[str] = {row[0] for row in rows}
-    remaining: list[MatchSpan] = []
-    subtracted_seconds = 0.0
-
-    for span in spans:
-        norm = normalize_phrase(span.matched_text_sample)
-        if norm in whitelist_norms:
-            subtracted_seconds += span.length_seconds
-        else:
-            remaining.append(span)
-
-    return remaining, subtracted_seconds
 
 
 def apply_layers(
@@ -175,16 +138,14 @@ def apply_layers(
 
     # Layer D-phrase: whitelist phrase subtraction
     if not excluded and current_spans:
-        try:
-            remaining_d, sub_d = _subtract_phrase_whitelist(professor_id, current_spans, db_path)
-        except Exception:
-            remaining_d, sub_d = current_spans, 0.0
-
-        if sub_d > 0.0:
+        remaining_d, removed_count = subtract_phrase_whitelist(
+            professor_id, current_spans, db_path
+        )
+        if removed_count > 0:
             attributions.append(LayerAttribution(
                 layer="D",
                 action="subtracted",
-                reason=f"Subtracted {sub_d:.1f}s matching phrase whitelist entries for {professor_id}",
+                reason=f"Removed {removed_count} span(s) matching phrase whitelist for {professor_id}",
             ))
             current_spans = remaining_d
         else:
