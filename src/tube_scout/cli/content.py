@@ -822,7 +822,8 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
     """Execute the nC2 professor-pool matching pipeline.
 
     INTEGRATION: time_axis_indicators + compute_suspicion_score + insert_match_spans
-    호출됨 (orchestrator: cli/content.py, task: T039).
+    + layer_defense.apply_layers + pattern_classifier.classify_reuse_pattern
+    + filter_pair_whitelisted 호출됨 (orchestrator: cli/content.py, task: T039+T050+T051).
 
     Args:
         project: Project path or 'latest'.
@@ -834,8 +835,10 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
     import sqlite3
     from datetime import UTC, datetime
 
-    from tube_scout.models.reuse_v2 import CandidatePair
+    from tube_scout.models.reuse_v2 import CandidatePair, ComparisonResult as _CR
+    from tube_scout.models.content import ComparisonResult
     from tube_scout.services.content_comparator import compute_suspicion_score
+    from tube_scout.services.layer_defense import apply_layers, filter_pair_whitelisted
     from tube_scout.services.nc2_matcher import generate_nc2_pairs
     from tube_scout.services.pair_checkpoint import (
         finalize_run,
@@ -844,6 +847,7 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
         resume_run,
         start_run,
     )
+    from tube_scout.services.pattern_classifier import classify_reuse_pattern
     from tube_scout.services.policy_loader import load_policy
     from tube_scout.services.professor_resolver import resolve_caption_pool
     from tube_scout.services.time_axis_indicators import compute_time_axis
@@ -860,22 +864,30 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
         if run_id:
             console.print(f"[bold]Resuming nC2 run {run_id} for professor '{professor_id}'...[/bold]")
 
+    whitelisted_count = 0
     if not run_id:
-        pairs = generate_nc2_pairs(
+        candidates = generate_nc2_pairs(
             professor_id=professor_id,
             db_path=db_path,
             captions_dir=captions_dir,
             cosine_cull_threshold=policy.matching_cosine_cull,
         )
+        # T051: Layer D pair-whitelist pre-filter
+        pre_filter_count = len(candidates)
+        candidates = filter_pair_whitelisted(candidates, db_path)
+        whitelisted_count = pre_filter_count - len(candidates)
+
         run_id = start_run(
             professor_id=professor_id,
             matching_mode="M-nC2",
-            pair_count_total=len(pairs),
+            pair_count_total=len(candidates),
             db_path=db_path,
         )
         console.print(
-            f"[bold]Starting nC2 run {run_id} — {len(pairs)} pairs for professor '{professor_id}'.[/bold]"
+            f"[bold]Starting nC2 run {run_id} — {len(candidates)} pairs for professor '{professor_id}'.[/bold]"
         )
+        if whitelisted_count > 0:
+            console.print(f"[dim]excluded by Layer D pair-whitelist: {whitelisted_count}[/dim]")
 
     pool = resolve_caption_pool(professor_id, db_path)
 
@@ -900,7 +912,7 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
             i6: float | None = None
             i7: float | None = None
             i8: float | None = None
-            spans = []
+            spans: list = []
             if segs_a and segs_b:
                 cp = CandidatePair(
                     source_video_id=pair_ref.source_video_id,
@@ -912,9 +924,9 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
                 i6 = ta.i6_longest_contiguous_seconds
                 i7 = ta.i7_distribution_dispersion
                 i8 = ta.i8_position_diversity
-                spans = ta.spans
+                spans = list(ta.spans)
 
-            # ③ Compute 8-indicator composite score
+            # ③ Compute initial 8-indicator composite score
             score, grade = compute_suspicion_score(
                 i1_hash_match=False,
                 i2_cosine_similarity=0.0,
@@ -927,15 +939,83 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
                 policy=policy,
             )
 
+            # Build a ComparisonResult for layer_defense + pattern_classifier
+            cr = ComparisonResult(
+                source_video_id=pair_ref.source_video_id,
+                target_video_id=pair_ref.target_video_id,
+                professor=professor_id,
+                course="",
+                week=0,
+                session=0,
+                year_from=0,
+                year_to=0,
+                matching_mode="M-nC2",
+                professor_id=professor_id,
+                i6_longest_contiguous_seconds=i6,
+                i7_distribution_dispersion=i7,
+                i8_position_diversity=i8,
+                suspicion_score=score,
+                grade=grade,
+            )
+
+            # T050: Apply 4-layer defense A→B→D-phrase→C
+            cr, spans = apply_layers(cr, spans, professor_id, db_path, policy)
+
+            # Layer A excluded → skip DB persistence
+            if any(
+                la.layer == "A" and la.action == "excluded"
+                for la in cr.layer_attribution
+            ):
+                mark_pair_done(run_id, db_path)
+                continue
+
+            # Recompute score+grade after Layer B/D subtraction (updated i6)
+            updated_i6 = max(
+                (s.length_seconds for s in spans), default=0.0
+            ) if spans else i6
+            score, grade = compute_suspicion_score(
+                i1_hash_match=False,
+                i2_cosine_similarity=0.0,
+                i3_change_rate=1.0,
+                i4_new_term_count=0,
+                i5_duration_diff_seconds=0.0,
+                i6_longest_contiguous_seconds=updated_i6,
+                i7_distribution_dispersion=i7,
+                i8_position_diversity=i8,
+                policy=policy,
+            )
+            # Layer C may have already demoted grade
+            if cr.grade is not None:
+                grade = cr.grade
+
+            # 4-pattern classification (same_week=False for nc2 cross-year pairs)
+            reuse_pattern: str | None = None
+            if i6 is not None and i6 > 0.0:
+                try:
+                    pattern_label = classify_reuse_pattern(
+                        cr, (2400.0, 2400.0), same_week=False, policy=policy
+                    )
+                    reuse_pattern = pattern_label.value
+                except (ValueError, ZeroDivisionError):
+                    reuse_pattern = None
+
+            import json as _json
+            layer_attr_json = _json.dumps([
+                {"layer": la.layer, "action": la.action, "reason": la.reason}
+                for la in cr.layer_attribution
+            ])
+
             cursor = conn.execute(
                 "INSERT OR IGNORE INTO comparison_results "
                 "(source_video_id, target_video_id, matching_mode, professor_id, "
                 "i6_longest_contiguous_seconds, i7_distribution_dispersion, "
-                "i8_position_diversity, suspicion_score, grade, created_at) "
-                "VALUES (?, ?, 'M-nC2', ?, ?, ?, ?, ?, ?, ?)",
+                "i8_position_diversity, suspicion_score, grade, reuse_pattern, "
+                "layer_attribution, created_at) "
+                "VALUES (?, ?, 'M-nC2', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     pair_ref.source_video_id, pair_ref.target_video_id, professor_id,
-                    i6, i7, i8, score, grade, now_fn(),
+                    i6, i7, i8, score, grade, reuse_pattern,
+                    layer_attr_json, now_fn(),
                 ),
             )
             conn.commit()
@@ -1101,16 +1181,34 @@ def baseline_bootstrap(
         professor: Professor identifier.
         earliest_n: Number of earliest videos to use.
         min_occurrences: Minimum occurrences threshold.
-
-    Raises:
-        NotImplementedError: Always — pending US2 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content baseline bootstrap is not yet implemented. "
-        "Pending US2 implementation (T040). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §6."
+    from tube_scout.services.baseline_corpus import bootstrap_baseline
+
+    db_path = _ensure_v2_schema(project)
+    captions_dir = project / "01_collect" / "transcripts"
+    if not captions_dir.exists():
+        console.print(
+            f"[red]Captions directory not found: {captions_dir}. "
+            "Run 'tube-scout collect transcripts' first.[/red]"
+        )
+        raise typer.Exit(code=2)
+
+    report = bootstrap_baseline(
+        professor_id=professor,
+        db_path=db_path,
+        captions_dir=captions_dir,
+        earliest_n=earliest_n,
+        min_occurrences=min_occurrences,
+        registered_by="admin",
     )
+    console.print(
+        f"[green]Bootstrap complete for professor '{professor}': "
+        f"{report.phrases_added} phrases added, {report.phrases_skipped} skipped.[/green]"
+    )
+    if report.sample_phrases:
+        console.print("[dim]Sample phrases:[/dim]")
+        for phrase in report.sample_phrases:
+            console.print(f"  {phrase}")
 
 
 @baseline_app.command("add")
@@ -1129,15 +1227,25 @@ def baseline_add(
         phrase: Phrase text.
         source_video: Source video IDs.
         reason: Reason for addition.
-
-    Raises:
-        NotImplementedError: Always — pending US2 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content baseline add is not yet implemented. "
-        "Pending US2 implementation (T041). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §6."
+    from tube_scout.services.baseline_corpus import add_baseline_phrase
+
+    db_path = _ensure_v2_schema(project)
+    try:
+        result = add_baseline_phrase(
+            professor_id=professor,
+            phrase_raw=phrase,
+            db_path=db_path,
+            source_video_ids=list(source_video) if source_video else None,
+            registered_by="admin",
+        )
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(code=1)
+
+    console.print(
+        f"[green]Added phrase for professor '{professor}': {result.phrase_raw!r} "
+        f"(occurrences: {result.occurrences})[/green]"
     )
 
 
@@ -1151,16 +1259,19 @@ def baseline_list(
     Args:
         project: Project directory.
         professor: Optional professor filter.
-
-    Raises:
-        NotImplementedError: Always — pending US2 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content baseline list is not yet implemented. "
-        "Pending US2 implementation (T042). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §6."
-    )
+    from tube_scout.services.baseline_corpus import list_baseline
+
+    db_path = _ensure_v2_schema(project)
+    phrases = list_baseline(professor, db_path)
+    if not phrases:
+        console.print("[yellow]No baseline phrases found.[/yellow]")
+        return
+
+    for p in phrases:
+        console.print(
+            f"{p.professor_id}  {p.phrase_raw!r}  occurrences={p.occurrences}  seeded={p.seeded}"
+        )
 
 
 @baseline_app.command("remove")
@@ -1175,16 +1286,22 @@ def baseline_remove(
         project: Project directory.
         professor: Professor identifier.
         phrase: Phrase text to remove.
-
-    Raises:
-        NotImplementedError: Always — pending US2 implementation.
     """
-    _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content baseline remove is not yet implemented. "
-        "Pending US2 implementation (T043). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §6."
+    from tube_scout.services.baseline_corpus import remove_baseline_phrase
+
+    db_path = _ensure_v2_schema(project)
+    removed = remove_baseline_phrase(
+        professor_id=professor,
+        phrase_raw=phrase,
+        db_path=db_path,
     )
+
+    if removed:
+        console.print(f"[green]Removed phrase from professor '{professor}': {phrase!r}[/green]")
+    else:
+        console.print(
+            f"[yellow]Phrase not found in baseline corpus for professor '{professor}': {phrase!r}[/yellow]"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1323,20 +1440,32 @@ def whitelist_remove(
 def policy_show(
     project: Path = typer.Option(..., "--project", help="Project directory."),
 ) -> None:
-    """Display the current policy.yaml contents.
+    """Display the current policy.yaml contents (or default if not found).
 
     Args:
         project: Project directory.
-
-    Raises:
-        NotImplementedError: Always — pending US4 implementation.
     """
+    import yaml
+    from tube_scout.models.reuse_v2 import PolicyConfig
+
     _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content policy show is not yet implemented. "
-        "Pending US4 implementation (T058). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §8."
-    )
+    policy_path = project / "02_analyze" / "content" / "policy.yaml"
+    if policy_path.exists():
+        typer.echo(policy_path.read_text(encoding="utf-8"))
+    else:
+        defaults = PolicyConfig()
+        output = yaml.safe_dump(
+            {
+                "layer_a_min_seconds": defaults.layer_a_min_seconds,
+                "layer_c_evolution_band": list(defaults.layer_c_evolution_band),
+                "matching_cosine_cull": defaults.matching_cosine_cull,
+                "pattern_whole_threshold_ratio": defaults.pattern_whole_threshold_ratio,
+                "composite_weights": defaults.composite_weights,
+            },
+            default_flow_style=False,
+            allow_unicode=True,
+        )
+        typer.echo(output)
 
 
 @policy_app.command("validate")
@@ -1347,13 +1476,26 @@ def policy_validate(
 
     Args:
         project: Project directory.
-
-    Raises:
-        NotImplementedError: Always — pending US4 implementation.
     """
+    from tube_scout.services.policy_loader import load_policy
+
     _ensure_v2_schema(project)
-    raise NotImplementedError(
-        "tube-scout content policy validate is not yet implemented. "
-        "Pending US4 implementation (T059). "
-        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §8."
-    )
+    try:
+        policy = load_policy(project)
+        weight_sum = sum(policy.composite_weights.values())
+        typer.echo(
+            f"Policy OK. composite_weights sum={weight_sum:.3f}, "
+            f"layer_a_min_seconds={policy.layer_a_min_seconds}, "
+            f"layer_c_evolution_band={list(policy.layer_c_evolution_band)}, "
+            f"all bands within [0,1]."
+        )
+    except FileNotFoundError as e:
+        typer.echo(
+            f"Policy file not found at {project / '02_analyze' / 'content' / 'policy.yaml'}. "
+            "Create from template: 'tube-scout content policy show > policy.yaml'.",
+            err=True,
+        )
+        raise typer.Exit(code=4)
+    except (ValueError, Exception) as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(code=4)

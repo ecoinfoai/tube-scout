@@ -62,8 +62,8 @@ def test_policy_subcommand_exists() -> None:
     assert "validate" in output
 
 
-def test_placeholder_baseline_raises_not_implemented(tmp_path: Path) -> None:
-    """Invoking an unimplemented placeholder (baseline bootstrap) raises NotImplementedError."""
+def test_placeholder_whitelist_add_pair_raises_not_implemented(tmp_path: Path) -> None:
+    """Invoking an unimplemented placeholder (whitelist add-pair) raises NotImplementedError."""
     db_dir = tmp_path / "02_analyze" / "content"
     db_dir.mkdir(parents=True)
     build_spec007_legacy_db(db_dir / "content_reuse.db")
@@ -71,12 +71,12 @@ def test_placeholder_baseline_raises_not_implemented(tmp_path: Path) -> None:
     result = runner.invoke(
         content_app,
         [
-            "baseline",
-            "bootstrap",
+            "whitelist",
+            "add-pair",
             "--project",
             str(tmp_path),
-            "--professor",
-            "prof-x",
+            "--reason",
+            "test reason",
         ],
         catch_exceptions=True,
     )
@@ -311,3 +311,318 @@ def test_professor_unmap_removes_db_row(tmp_path: Path) -> None:
     ).fetchone()
     conn.close()
     assert row is None, "professor_pool_membership row not removed by 'professor unmap' command"
+
+
+# ---------------------------------------------------------------------------
+# T052: baseline CLI real impl contract tests (RED)
+# ---------------------------------------------------------------------------
+
+
+def test_baseline_bootstrap_real_impl_inserts_db_rows(tmp_path: Path) -> None:
+    """'content baseline bootstrap' with real impl inserts rows into baseline_corpus."""
+    import tube_scout.cli.content as _content_mod
+
+    db_dir = tmp_path / "02_analyze" / "content"
+    db_dir.mkdir(parents=True)
+    db_path = db_dir / "content_reuse.db"
+    build_clean_v2_db(db_path)
+
+    # Create a professor pool entry + captions dir with fixture data
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "INSERT OR IGNORE INTO professor_pool (professor_id, display_name, created_at, created_by) "
+        "VALUES ('prof-bootstrap', 'Bootstrap Prof', '2026-01-01T00:00:00', 'system')"
+    )
+    conn.commit()
+    conn.close()
+
+    # Create a captions dir with two caption files containing repeated phrases
+    cap_dir = tmp_path / "01_collect" / "transcripts"
+    cap_dir.mkdir(parents=True)
+    import json
+    for i in range(1, 3):
+        segments = [
+            {"start": 0.0, "end": 5.0, "text": "안녕하세요 여러분"},
+            {"start": 5.0, "end": 10.0, "text": "안녕하세요 여러분"},
+            {"start": 10.0, "end": 15.0, "text": "안녕하세요 여러분"},
+        ]
+        (cap_dir / f"vid{i:03d}.json").write_text(
+            json.dumps({"video_id": f"vid{i:03d}", "segments": segments}),
+            encoding="utf-8",
+        )
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            [
+                "baseline", "bootstrap",
+                "--project", str(tmp_path),
+                "--professor", "prof-bootstrap",
+                "--min-occurrences", "2",
+            ],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. "
+        f"Output: {result.output!r}  "
+        f"Exception: {result.exception!r}"
+    )
+    conn = sqlite3.connect(str(db_path))
+    count = conn.execute(
+        "SELECT COUNT(*) FROM baseline_corpus WHERE professor_id='prof-bootstrap'"
+    ).fetchone()[0]
+    conn.close()
+    assert count >= 1, "baseline_corpus: no rows inserted by 'baseline bootstrap'"
+
+
+def test_baseline_add_real_impl_inserts_phrase(tmp_path: Path) -> None:
+    """'content baseline add' with real impl inserts a phrase into baseline_corpus."""
+    import tube_scout.cli.content as _content_mod
+
+    db_dir = tmp_path / "02_analyze" / "content"
+    db_dir.mkdir(parents=True)
+    db_path = db_dir / "content_reuse.db"
+    build_clean_v2_db(db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "INSERT OR IGNORE INTO professor_pool (professor_id, display_name, created_at, created_by) "
+        "VALUES ('prof-add', 'Add Prof', '2026-01-01T00:00:00', 'system')"
+    )
+    conn.commit()
+    conn.close()
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            [
+                "baseline", "add",
+                "--project", str(tmp_path),
+                "--professor", "prof-add",
+                "--phrase", "반갑습니다 여러분",
+            ],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output: {result.output!r}"
+    )
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT phrase_raw FROM baseline_corpus WHERE professor_id='prof-add'"
+    ).fetchone()
+    conn.close()
+    assert row is not None, "baseline_corpus: phrase not inserted by 'baseline add'"
+
+
+def test_baseline_list_shows_phrases(tmp_path: Path) -> None:
+    """'content baseline list' outputs registered phrases."""
+    import tube_scout.cli.content as _content_mod
+
+    db_dir = tmp_path / "02_analyze" / "content"
+    db_dir.mkdir(parents=True)
+    db_path = db_dir / "content_reuse.db"
+    build_clean_v2_db(db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "INSERT OR IGNORE INTO professor_pool (professor_id, display_name, created_at, created_by) "
+        "VALUES ('prof-list', 'List Prof', '2026-01-01T00:00:00', 'system')"
+    )
+    conn.commit()
+    conn.close()
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        runner.invoke(
+            content_app,
+            [
+                "baseline", "add",
+                "--project", str(tmp_path),
+                "--professor", "prof-list",
+                "--phrase", "오늘 배울 내용",
+            ],
+            catch_exceptions=True,
+        )
+        result = runner.invoke(
+            content_app,
+            ["baseline", "list", "--project", str(tmp_path), "--professor", "prof-list"],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, f"Expected exit 0: {result.output}"
+    assert "오늘 배울 내용" in result.output or "prof-list" in result.output
+
+
+def test_baseline_remove_removes_phrase(tmp_path: Path) -> None:
+    """'content baseline remove' removes the phrase from baseline_corpus."""
+    import tube_scout.cli.content as _content_mod
+
+    db_dir = tmp_path / "02_analyze" / "content"
+    db_dir.mkdir(parents=True)
+    db_path = db_dir / "content_reuse.db"
+    build_clean_v2_db(db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "INSERT OR IGNORE INTO professor_pool (professor_id, display_name, created_at, created_by) "
+        "VALUES ('prof-remove', 'Remove Prof', '2026-01-01T00:00:00', 'system')"
+    )
+    conn.commit()
+    conn.close()
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        runner.invoke(
+            content_app,
+            [
+                "baseline", "add",
+                "--project", str(tmp_path),
+                "--professor", "prof-remove",
+                "--phrase", "삭제할 구문",
+            ],
+            catch_exceptions=True,
+        )
+        result = runner.invoke(
+            content_app,
+            [
+                "baseline", "remove",
+                "--project", str(tmp_path),
+                "--professor", "prof-remove",
+                "--phrase", "삭제할 구문",
+            ],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, f"Expected exit 0: {result.output}"
+    conn = sqlite3.connect(str(db_path))
+    count = conn.execute(
+        "SELECT COUNT(*) FROM baseline_corpus WHERE professor_id='prof-remove'"
+    ).fetchone()[0]
+    conn.close()
+    assert count == 0, "baseline_corpus: phrase not removed by 'baseline remove'"
+
+
+# ---------------------------------------------------------------------------
+# T053: policy CLI real impl contract tests (RED)
+# ---------------------------------------------------------------------------
+
+
+def test_policy_show_outputs_yaml_or_default(tmp_path: Path) -> None:
+    """'content policy show' exits 0 and outputs YAML or default policy."""
+    import tube_scout.cli.content as _content_mod
+    import yaml
+
+    db_dir = tmp_path / "02_analyze" / "content"
+    db_dir.mkdir(parents=True)
+    build_clean_v2_db(db_dir / "content_reuse.db")
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            ["policy", "show", "--project", str(tmp_path)],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output: {result.output!r}"
+    )
+    # Output should be valid YAML containing policy keys
+    assert "layer_a_min_seconds" in result.output or "composite_weights" in result.output
+
+
+def test_policy_validate_exits_0_with_valid_yaml(tmp_path: Path) -> None:
+    """'content policy validate' exits 0 when policy.yaml is valid."""
+    import tube_scout.cli.content as _content_mod
+
+    db_dir = tmp_path / "02_analyze" / "content"
+    db_dir.mkdir(parents=True)
+    build_clean_v2_db(db_dir / "content_reuse.db")
+
+    # Write a valid policy.yaml
+    policy_path = db_dir / "policy.yaml"
+    policy_path.write_text(
+        "layer_a_min_seconds: 60.0\n"
+        "layer_c_evolution_band: [0.60, 0.75]\n"
+        "matching_cosine_cull: 0.55\n"
+        "pattern_whole_threshold_ratio: 0.50\n"
+        "composite_weights:\n"
+        "  i1: 0.20\n"
+        "  i2: 0.20\n"
+        "  i3: 0.10\n"
+        "  i4: 0.05\n"
+        "  i5: 0.05\n"
+        "  i6: 0.20\n"
+        "  i7: 0.10\n"
+        "  i8: 0.10\n",
+        encoding="utf-8",
+    )
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            ["policy", "validate", "--project", str(tmp_path)],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, (
+        f"Expected exit 0 for valid policy, got {result.exit_code}. Output: {result.output!r}"
+    )
+
+
+def test_policy_validate_exits_4_with_invalid_yaml(tmp_path: Path) -> None:
+    """'content policy validate' exits 4 when policy.yaml has invalid weights."""
+    import tube_scout.cli.content as _content_mod
+
+    db_dir = tmp_path / "02_analyze" / "content"
+    db_dir.mkdir(parents=True)
+    build_clean_v2_db(db_dir / "content_reuse.db")
+
+    # Write an invalid policy.yaml (weights don't sum to 1.0)
+    policy_path = db_dir / "policy.yaml"
+    policy_path.write_text(
+        "layer_a_min_seconds: 60.0\n"
+        "layer_c_evolution_band: [0.60, 0.75]\n"
+        "composite_weights:\n"
+        "  i1: 0.99\n"
+        "  i2: 0.99\n",
+        encoding="utf-8",
+    )
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            ["policy", "validate", "--project", str(tmp_path)],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 4, (
+        f"Expected exit 4 for invalid policy, got {result.exit_code}. Output: {result.output!r}"
+    )
