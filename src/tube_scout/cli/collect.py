@@ -61,8 +61,166 @@ def dispatch_transcript_source(
         _dispatch_api_transcripts(**kwargs)
 
 
-def _dispatch_ytdlp_transcripts(**kwargs: object) -> None:
-    """yt-dlp transcript backend stub (Phase 3 wired implementation)."""
+def _dispatch_ytdlp_transcripts(  # noqa: C901
+    channel: str | None = None,
+    all_channels: object = False,
+    force: bool = False,
+    cookies_browser: str | None = "brave",
+    cookies_path: str | None = None,
+    sleep_seconds: tuple[float, float] = (30.0, 60.0),
+    audit_writer: object = None,
+    **kwargs: object,
+) -> None:
+    """Fetch captions via yt-dlp for a channel or all channels.
+
+    Pipeline per video:
+      fetch_caption_via_ytdlp → srv3_to_transcript_json → atomic JSON write
+      → audit_writer.append_transcript_row
+
+    Args:
+        channel: Channel alias to process.
+        all_channels: If True, process all registered channels.
+        force: If True, re-fetch even when transcript JSON exists.
+        cookies_browser: Browser for yt-dlp --cookies-from-browser.
+        cookies_path: Path to 0600 cookies.txt, overrides cookies_browser.
+        sleep_seconds: (min, max) sleep between yt-dlp calls.
+        audit_writer: AuditWriter for transcripts_audit.csv rows.
+        **kwargs: Ignored extra args from dispatch_transcript_source.
+    """
+    import datetime
+    import json
+    import os
+    import tempfile
+
+    from tube_scout.services.audit_writer import AuditWriter
+    from tube_scout.services.srv3_parser import Srv3ParseError, pick_priority_track, srv3_to_transcript_json
+    from tube_scout.services.ytdlp_adapter import fetch_caption_via_ytdlp
+    from tube_scout.services.ytdlp_errors import YtdlpError
+
+    mgr = resolve_project("./projects", None, producer=False)
+    project_dir = Path(mgr.project_dir)
+    transcript_dir = project_dir / "01_collect" / "transcripts"
+    transcript_dir.mkdir(parents=True, exist_ok=True)
+
+    _audit: AuditWriter = audit_writer if isinstance(audit_writer, AuditWriter) else AuditWriter(project_dir)  # type: ignore[assignment]
+
+    cookies_path_obj = Path(cookies_path) if cookies_path else None
+    cookies_src = f"file:{cookies_path}" if cookies_path else f"browser:{cookies_browser or 'brave'}"
+
+    def _process_channel(alias: str, channel_id: str) -> None:
+        channel_dir = project_dir / "01_collect" / "channels" / channel_id
+        meta_path = channel_dir / "videos_meta.json"
+        if not meta_path.exists():
+            console.print(
+                f"[yellow]No videos_meta.json for channel '{alias}'. "
+                "Run `tube-scout collect videos` first.[/yellow]"
+            )
+            return
+
+        videos_data = read_json(meta_path) or []
+        video_ids = [v["video_id"] for v in videos_data if "video_id" in v]
+
+        ts_now = datetime.datetime.now(tz=datetime.UTC).isoformat()
+
+        for video_id in video_ids:
+            json_path = transcript_dir / f"{video_id}.json"
+            if not force and json_path.exists():
+                _audit.append_transcript_row({
+                    "video_id": video_id,
+                    "result": "skip",
+                    "reason": "skip_existing",
+                    "source": "",
+                    "timestamp": ts_now,
+                    "cookies_source": cookies_src,
+                })
+                continue
+
+            try:
+                manual_path, auto_path = fetch_caption_via_ytdlp(
+                    video_url=f"https://youtu.be/{video_id}",
+                    output_dir=transcript_dir,
+                    cookies_browser=cookies_browser,
+                    cookies_path=cookies_path_obj,
+                    sleep_seconds=sleep_seconds,
+                )
+            except YtdlpError as exc:
+                _audit.append_transcript_row({
+                    "video_id": video_id,
+                    "result": "fail",
+                    "reason": type(exc).__name__,
+                    "source": "",
+                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
+                    "cookies_source": cookies_src,
+                })
+                console.print(f"  [red]yt-dlp error {video_id}: {exc}[/red]")
+                continue
+
+            track = pick_priority_track(manual_path, auto_path)
+            if track is None:
+                _audit.append_transcript_row({
+                    "video_id": video_id,
+                    "result": "skip",
+                    "reason": "no_captions_available",
+                    "source": "",
+                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
+                    "cookies_source": cookies_src,
+                })
+                continue
+
+            chosen_path, source_value = track
+            try:
+                transcript = srv3_to_transcript_json(
+                    chosen_path.read_text(encoding="utf-8"),
+                    video_id=video_id,
+                    source=source_value,
+                )
+            except Srv3ParseError as exc:
+                _audit.append_transcript_row({
+                    "video_id": video_id,
+                    "result": "fail",
+                    "reason": "srv3_parse_error",
+                    "source": source_value,
+                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
+                    "cookies_source": cookies_src,
+                })
+                console.print(f"  [yellow]srv3 parse error {video_id}: {exc}[/yellow]")
+                continue
+
+            # Atomic JSON write
+            fd, tmp_name = tempfile.mkstemp(dir=transcript_dir, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(transcript, f, ensure_ascii=False, indent=2)
+                os.replace(tmp_name, json_path)
+            except Exception:
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
+                raise
+
+            _audit.append_transcript_row({
+                "video_id": video_id,
+                "result": "ok",
+                "reason": "fetched",
+                "source": source_value,
+                "timestamp": transcript.get("fetched_at", datetime.datetime.now(tz=datetime.UTC).isoformat()),
+                "cookies_source": cookies_src,
+            })
+
+    if all_channels:
+        from tube_scout.services.auth import load_registry
+        registry = load_registry()
+        for alias, entry in registry.items():
+            channel_id = getattr(entry, "channel_id", None) or resolve_alias_to_channel_id(alias)
+            _process_channel(alias, channel_id)
+    elif channel:
+        channel_id = resolve_alias_to_channel_id(channel)
+        _process_channel(channel, channel_id)
+    else:
+        console.print(
+            "[yellow]_dispatch_ytdlp_transcripts: pass --channel or --all-channels.[/yellow]"
+        )
 
 
 def _dispatch_api_transcripts(**kwargs: object) -> None:
