@@ -1,6 +1,6 @@
 # tube-scout Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-07
+Auto-generated from all feature plans. Last updated: 2026-05-09
 
 ## Active Technologies
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, pydantic v2, nbformat, anthropic (new), openai (new), statsmodels (new — ARIMA), prophet (new), transformers + torch (new — KoBERT/KoELECTRA) (002-v2-analytics-expansion)
@@ -18,6 +18,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-07
 - Python 3.11 + starlette, uvicorn[standard], itsdangerous, bcrypt, python-multipart, pytest-asyncio, httpx, jinja2 (008-admin-web-ui)
 - Python 3.11 (pinned via flake.nix devShell + pyproject.toml). + typer, rich, google-api-python-client, (009-runtime-auth-fix)
 - JSON (atomic write) under `~/.config/tube-scout/tokens/` for (009-runtime-auth-fix)
+- Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, sentence-transformers (spec 007 인계), jinja2, plotly, openpyxl. **신규 0건** — 기존 의존성 surface 안에서 충분. (011-reuse-fullstack-subtitle)
+- 기존 spec 007 `02_analyze/content/content_reuse.db`(SQLite) + `embeddings.parquet`(polars) + caption JSON. 신규 테이블 5개 추가, 신규 storage 엔진 도입 없음. (011-reuse-fullstack-subtitle)
 
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, statsmodels/prophet (001-lecture-video-analytics)
 
@@ -58,10 +60,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 011-reuse-fullstack-subtitle: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, sentence-transformers (spec 007 인계), jinja2, plotly, openpyxl. **신규 0건** — 기존 의존성 surface 안에서 충분.
 - 2026-05-08 (deps hotfix): `transformers`, `torch`, `prophet`, `statsmodels`, `weasyprint` moved from hard `dependencies` into PEP 621 optional-extras (`ml-sentiment`, `ml-forecast`, `pdf`, aggregate `ml`/`all`). Default `uv sync` now installs ~1 GB of deps instead of ~5.4 GB and pytest collection no longer OOMs 13 GB dev hosts. Lazy-import error messages in `services/sentiment.py` and `services/forecaster.py` updated to point operators at the correct `uv sync --extra <name>` recipe; `tests/unit/test_forecaster_ext.py` gains a `prophet` `importorskip` guard. **Migration**: existing dev `.venv` may carry stale ML libs — run `uv sync` (no extras) to prune, or `uv sync --extra dev --extra ml` to keep ML on hand.
 - 009-runtime-auth-fix: OAuth device-code flow (RFC 8628) is now the default for `tube-scout auth --channel <alias>`; `--browser-redirect` opt-in retains the legacy local-server flow with a 5-minute timeout fallback. One-shot legacy `~/.config/tube-scout/token{,_forcessl}.json` migration into `tokens/<alias>.json` runs at the first `authenticate_channel()` call (atomic rename, fcntl.flock). `resolve_project()` now distinguishes producer vs consumer commands: only `collect.videos` advances `projects/latest`. `--channel` flag is symmetric across every `collect` subcommand (videos/transcripts/comments/retention/analytics/bulk) with a single centralized `resolve_channel_alias()` call. Diagnostic transcript audit CSV emitted at `<project>/01_collect/transcripts_audit.csv`. Adds `httpx` as a direct dependency.
-- 008-admin-web-ui: Added starlette, uvicorn[standard], itsdangerous, bcrypt, python-multipart, pytest-asyncio, httpx, jinja2 for the operator admin web UI (US1+US2+US3)
-- 007-content-reuse-detection: Added Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pydantic v2, sentence-transformers, polars, plotly, jinja2, openpyxl
 
 
 <!-- MANUAL ADDITIONS START -->
