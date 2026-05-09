@@ -1617,6 +1617,9 @@ def collect_audio_command(
     ),
 ) -> None:
     """Extract audio, compute fingerprint, delete audio (Constitution V — audio 영속 0)."""
+    import signal as _signal
+    from tube_scout.services.audit_writer import AuditWriter
+
     if channel and all_channels is True:
         console.print(
             "[red]Error: --channel and --all-channels are mutually exclusive.[/red]"
@@ -1643,12 +1646,21 @@ def collect_audio_command(
             )
             raise typer.Exit(code=5)
 
+    audio_temp_path = Path(".") / "audio_temp"
+    audio_temp_path.mkdir(parents=True, exist_ok=True)
+    audit = AuditWriter(Path("."))
+    current_video_id_ref: list[str] = [""]
+    _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref)
+    _signal.signal(_signal.SIGINT, _handler)
+    _signal.signal(_signal.SIGTERM, _handler)
+
     dispatch_audio_fingerprint(
         channel=channel,
         all_channels=all_channels is True,
         force=force,
         cookies_browser=cookies_browser,
         sleep_seconds=(sleep_min, sleep_max),
+        audio_temp=audio_temp_path,
     )
 
 
@@ -1690,6 +1702,9 @@ def collect_fingerprint_command(
     ),
 ) -> None:
     """Alias for collect audio — extract audio, compute fingerprint, delete audio."""
+    import signal as _signal
+    from tube_scout.services.audit_writer import AuditWriter
+
     if channel and all_channels is True:
         console.print(
             "[red]Error: --channel and --all-channels are mutually exclusive.[/red]"
@@ -1716,10 +1731,19 @@ def collect_fingerprint_command(
             )
             raise typer.Exit(code=5)
 
+    audio_temp_path = Path(".") / "audio_temp"
+    audio_temp_path.mkdir(parents=True, exist_ok=True)
+    audit = AuditWriter(Path("."))
+    current_video_id_ref: list[str] = [""]
+    _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref)
+    _signal.signal(_signal.SIGINT, _handler)
+    _signal.signal(_signal.SIGTERM, _handler)
+
     dispatch_audio_fingerprint(
         channel=channel,
         all_channels=all_channels is True,
         force=force,
         cookies_browser=cookies_browser,
         sleep_seconds=(sleep_min, sleep_max),
+        audio_temp=audio_temp_path,
     )
