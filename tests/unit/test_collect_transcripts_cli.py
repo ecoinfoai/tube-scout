@@ -22,12 +22,14 @@ def test_source_default_is_api(tmp_path) -> None:
     with patch(
         "tube_scout.cli.collect.dispatch_transcript_source",
         side_effect=fake_dispatch,
+    ), patch(
+        "tube_scout.cli.collect.resolve_alias_to_channel_id",
+        return_value="UC_TEST_CHANNEL_ID",
     ):
         result = runner.invoke(
             app,
             ["collect", "transcripts", "--channel", "test-alias"],
             env=env,
-            catch_exceptions=False,
         )
 
     assert captured.get("source") == "api"
@@ -45,12 +47,14 @@ def test_env_sets_ytdlp_source(tmp_path) -> None:
     with patch(
         "tube_scout.cli.collect.dispatch_transcript_source",
         side_effect=fake_dispatch,
+    ), patch(
+        "tube_scout.cli.collect.resolve_alias_to_channel_id",
+        return_value="UC_TEST_CHANNEL_ID",
     ):
         result = runner.invoke(
             app,
             ["collect", "transcripts", "--channel", "test-alias"],
             env=env,
-            catch_exceptions=False,
         )
 
     assert captured.get("source") == "ytdlp"
@@ -68,12 +72,14 @@ def test_flag_overrides_env(tmp_path) -> None:
     with patch(
         "tube_scout.cli.collect.dispatch_transcript_source",
         side_effect=fake_dispatch,
+    ), patch(
+        "tube_scout.cli.collect.resolve_alias_to_channel_id",
+        return_value="UC_TEST_CHANNEL_ID",
     ):
         result = runner.invoke(
             app,
             ["collect", "transcripts", "--source", "api", "--channel", "test-alias"],
             env=env,
-            catch_exceptions=False,
         )
 
     assert captured.get("source") == "api"
@@ -112,11 +118,13 @@ def test_ytdlp_source_invokes_fetch_caption(tmp_path) -> None:
     with patch(
         "tube_scout.cli.collect.dispatch_transcript_source",
         side_effect=fake_dispatch,
+    ), patch(
+        "tube_scout.cli.collect.resolve_alias_to_channel_id",
+        return_value="UC_TEST_CHANNEL_ID",
     ):
         result = runner.invoke(
             app,
             ["collect", "transcripts", "--source", "ytdlp", "--channel", "test-alias"],
-            catch_exceptions=False,
         )
 
     assert captured.get("source") == "ytdlp"

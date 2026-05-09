@@ -20,6 +20,54 @@ from tube_scout.storage.parquet_store import write_parquet
 
 console = Console()
 
+_ENV_TRANSCRIPT_SOURCE = "TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE"
+
+
+def resolve_alias_to_channel_id(alias: str) -> str:
+    """Resolve channel alias to channel ID via spec 003 registry.
+
+    Args:
+        alias: Channel alias string.
+
+    Returns:
+        YouTube channel ID string.
+
+    Raises:
+        KeyError: If alias is not registered.
+        SystemExit: With code 5 if called via CLI gate (caller must handle).
+    """
+    from tube_scout.services.auth import load_registry, resolve_channel_alias
+    from tube_scout.cli.errors import UserFacingError
+
+    try:
+        return resolve_channel_alias(alias, load_registry())
+    except (UserFacingError, KeyError, ValueError) as exc:
+        raise KeyError(f"Channel alias '{alias}' is not registered.") from exc
+
+
+def dispatch_transcript_source(
+    source: str,
+    **kwargs: object,
+) -> None:
+    """Dispatch transcript collection to api or ytdlp backend.
+
+    Args:
+        source: 'api' or 'ytdlp'.
+        **kwargs: Backend-specific arguments passed through.
+    """
+    if source == "ytdlp":
+        _dispatch_ytdlp_transcripts(**kwargs)
+    else:
+        _dispatch_api_transcripts(**kwargs)
+
+
+def _dispatch_ytdlp_transcripts(**kwargs: object) -> None:
+    """yt-dlp transcript backend stub (Phase 3 wired implementation)."""
+
+
+def _dispatch_api_transcripts(**kwargs: object) -> None:
+    """Data API transcript backend — delegates to existing spec 010 logic."""
+
 
 def _is_valid_cached_transcript(path: Path) -> bool:
     """Check whether a cached transcript JSON is reusable for resume.
@@ -558,6 +606,16 @@ def collect_transcripts_command(
         "--channel",
         help="Channel alias (uses multi-channel token).",
     ),
+    all_channels: bool = typer.Option(
+        False,
+        "--all-channels",
+        help="Process all registered self-channels (FR-011a).",
+    ),
+    source: str | None = typer.Option(
+        None,
+        "--source",
+        help="Transcript source: 'api' or 'ytdlp'. Default: env TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE or 'api'.",
+    ),
     prefer_captions_api: bool = typer.Option(
         False,
         "--prefer-captions-api",
@@ -590,6 +648,36 @@ def collect_transcripts_command(
         force_refresh: If True, ignore cached transcripts and re-fetch
             (Spec 010 FR-010-02 / FR-010-05).
     """
+    # Mutually exclusive: --channel and --all-channels
+    if channel and all_channels:
+        console.print(
+            "[red]Error: --channel and --all-channels are mutually exclusive.[/red]",
+            )
+
+        raise typer.Exit(code=2)
+
+    # Resolve --source flag > env > default 'api'
+    resolved_source = source or os.environ.get(_ENV_TRANSCRIPT_SOURCE) or "api"
+
+    # Channel alias gate for unknown aliases (exit 5) — before any backend call
+    if channel:
+        try:
+            resolve_alias_to_channel_id(channel)
+        except KeyError:
+            console.print(
+                f"[red]Error: Channel alias '{channel}' is not registered. "
+                "Run `tube-scout auth --channel <alias>` to register.[/red]"
+            )
+            raise typer.Exit(code=5)
+
+    # Dispatch to ytdlp backend — return early
+    if resolved_source == "ytdlp":
+        dispatch_transcript_source(resolved_source, channel=channel, all_channels=all_channels)
+        return
+
+    # Dispatch hook for api source (testable seam)
+    dispatch_transcript_source(resolved_source, channel=channel, all_channels=all_channels)
+
     from tube_scout.cli.errors import UserFacingError, render_error
     from tube_scout.services.auth import (
         authenticate_channel,
