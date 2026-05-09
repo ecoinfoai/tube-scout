@@ -810,10 +810,10 @@ def report_channel_command(
 
 
 def report_content_command(
-    channel: str = typer.Option(
-        ...,
+    channel: str | None = typer.Option(
+        None,
         "--channel",
-        help="Channel alias.",
+        help="Channel alias (required for spec 007 legacy report; omit for spec 011 v2).",
     ),
     project_dir: str = typer.Option(
         "./projects",
@@ -828,35 +828,73 @@ def report_content_command(
     format: str = typer.Option(
         "html",
         "--format",
-        help="Output format: html, xlsx, or json.",
+        help="Output format: html, xlsx, json, or all.",
+    ),
+    professor: str | None = typer.Option(
+        None,
+        "--professor",
+        help="Professor ID for spec 011 nC2 v2 report (omit for legacy report).",
     ),
     year: int | None = typer.Option(
         None,
         "--year",
-        help="Filter by academic year.",
+        help="Filter by academic year (legacy report only).",
     ),
     semester: int | None = typer.Option(
         None,
         "--semester",
-        help="Filter by semester (1 or 2).",
+        help="Filter by semester 1 or 2 (legacy report only).",
     ),
     output_dir: str | None = typer.Option(
         None,
         "--output-dir",
-        help="Output directory.",
+        help="Output directory (legacy report only).",
     ),
 ) -> None:
-    """Generate content quality report with suspicion and quality data.
+    """Generate content quality report.
+
+    With --professor: generates spec 011 nC2 v2 report (4-pattern HTML/Excel/JSON).
+    Without --professor: generates spec 007 legacy report (requires --channel).
 
     Args:
-        channel: Channel alias.
+        channel: Channel alias for legacy report.
         project_dir: Projects root directory.
         project: Existing project path or 'latest'.
         format: Output format.
-        year: Academic year filter.
-        semester: Semester filter.
-        output_dir: Custom output directory.
+        professor: Professor ID for v2 nC2 report.
+        year: Academic year filter (legacy).
+        semester: Semester filter (legacy).
+        output_dir: Custom output directory (legacy).
     """
+    # spec 011 v2 report path: --professor provided
+    if professor is not None:
+        from tube_scout.reporting.content_report import generate_v2_report
+
+        if project is None:
+            console.print("[red]--project is required for spec 011 v2 report.[/red]")
+            raise typer.Exit(code=2)
+
+        project_path = Path(project)
+        if not project_path.exists():
+            console.print(f"[red]Project directory not found: {project_path}[/red]")
+            raise typer.Exit(code=2)
+
+        try:
+            paths = generate_v2_report(project_path, professor_id=professor, fmt=format)
+            for ext, path in paths.items():
+                console.print(f"[green]v2 report ({ext}): {path}[/green]")
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=2)
+        return
+
+    # Legacy spec 007 report path: --channel required
+    if channel is None:
+        console.print(
+            "[red]--professor (spec 011 v2) or --channel (spec 007 legacy) is required.[/red]"
+        )
+        raise typer.Exit(code=2)
+
     from tube_scout.reporting.content_report import ContentReportGenerator
     from tube_scout.services.auth import load_registry
     from tube_scout.storage.content_db import ContentDB
@@ -880,7 +918,6 @@ def report_content_command(
     db = ContentDB(db_path)
     comparisons = db.list_comparisons(order_by_suspicion=True)
     quality_results = []
-    # Load all quality results manually
     import sqlite3
 
     conn = sqlite3.connect(str(db_path))
@@ -893,7 +930,6 @@ def report_content_command(
         console.print("[yellow]No data to report.[/yellow]")
         raise typer.Exit(code=2)
 
-    # Determine output path
     if output_dir:
         reports_dir = Path(output_dir)
     else:
