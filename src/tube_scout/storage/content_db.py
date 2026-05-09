@@ -455,3 +455,226 @@ class ContentDB:
         )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+
+# ─── spec 011 v2 migration ───
+
+_V2_NEW_COLUMNS: list[tuple[str, str]] = [
+    ("matching_mode", "TEXT NOT NULL DEFAULT 'M-default'"),
+    ("professor_id", "TEXT"),
+    ("i6_longest_contiguous_seconds", "REAL"),
+    ("i7_distribution_dispersion", "REAL"),
+    ("i8_position_diversity", "REAL"),
+    ("reuse_pattern", "TEXT"),
+    ("layer_attribution", "TEXT"),
+    ("baseline_subtracted_length_seconds", "REAL"),
+    ("pre_subtraction_i2", "REAL"),
+    ("pre_subtraction_i6", "REAL"),
+]
+
+_V2_NEW_TABLES_SQL = """
+CREATE TABLE IF NOT EXISTS professor_pool (
+    professor_id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS professor_pool_membership (
+    professor_id TEXT NOT NULL,
+    channel_alias TEXT NOT NULL,
+    author_marker TEXT NOT NULL,
+    registered_at TEXT NOT NULL,
+    registered_by TEXT NOT NULL,
+    PRIMARY KEY (professor_id, channel_alias, author_marker),
+    FOREIGN KEY (professor_id) REFERENCES professor_pool(professor_id)
+);
+
+CREATE TABLE IF NOT EXISTS baseline_corpus (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    professor_id TEXT NOT NULL,
+    phrase_normalized TEXT NOT NULL,
+    phrase_raw TEXT NOT NULL,
+    occurrences INTEGER NOT NULL DEFAULT 1,
+    source_video_ids TEXT,
+    seeded INTEGER NOT NULL DEFAULT 0,
+    registered_at TEXT NOT NULL,
+    registered_by TEXT NOT NULL,
+    UNIQUE(professor_id, phrase_normalized),
+    FOREIGN KEY (professor_id) REFERENCES professor_pool(professor_id)
+);
+
+CREATE TABLE IF NOT EXISTS phrase_whitelist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    professor_id TEXT NOT NULL,
+    phrase_normalized TEXT NOT NULL,
+    phrase_raw TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    registered_at TEXT NOT NULL,
+    registered_by TEXT NOT NULL,
+    UNIQUE(professor_id, phrase_normalized),
+    FOREIGN KEY (professor_id) REFERENCES professor_pool(professor_id)
+);
+
+CREATE TABLE IF NOT EXISTS pair_checkpoint (
+    run_id TEXT PRIMARY KEY,
+    professor_id TEXT NOT NULL,
+    matching_mode TEXT NOT NULL,
+    pair_count_total INTEGER NOT NULL,
+    pair_count_done INTEGER NOT NULL DEFAULT 0,
+    started_at TEXT NOT NULL,
+    last_pair_at TEXT,
+    status TEXT NOT NULL,
+    CHECK (status IN ('in_progress', 'completed', 'aborted'))
+);
+
+CREATE TABLE IF NOT EXISTS match_spans (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    comparison_id INTEGER NOT NULL,
+    span_index INTEGER NOT NULL,
+    start_a_seconds REAL NOT NULL,
+    end_a_seconds REAL NOT NULL,
+    start_b_seconds REAL NOT NULL,
+    end_b_seconds REAL NOT NULL,
+    length_seconds REAL NOT NULL CHECK (length_seconds >= 0),
+    matched_text_sample TEXT,
+    baseline_subtracted INTEGER NOT NULL DEFAULT 0,
+    whitelisted INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (comparison_id, span_index),
+    FOREIGN KEY (comparison_id) REFERENCES comparison_results(id)
+);
+
+CREATE TABLE IF NOT EXISTS _schema_version (
+    spec TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
+    applied_at TEXT NOT NULL
+);
+"""
+
+_V2_NEW_INDEXES_SQL = """
+CREATE INDEX IF NOT EXISTS idx_cr_mode ON comparison_results(matching_mode);
+CREATE INDEX IF NOT EXISTS idx_cr_prof ON comparison_results(professor_id);
+CREATE INDEX IF NOT EXISTS idx_cr_pattern ON comparison_results(reuse_pattern);
+CREATE INDEX IF NOT EXISTS idx_span_cmp ON match_spans(comparison_id);
+"""
+
+
+def migrate_to_v2(db_path: Path) -> None:
+    """Apply spec 011 v2 schema migration to an existing content_reuse.db.
+
+    Idempotent: safe to call multiple times. Skips columns and tables that
+    already exist. All DDL executes inside a single transaction; any failure
+    triggers a full rollback leaving the DB in its pre-migration state.
+
+    Migration order (per contracts/db_schema.md §1):
+      1. Read existing schema state.
+      2. ALTER comparison_results — add 10 new columns (missing only).
+      3. CREATE 6 new tables + _schema_version (IF NOT EXISTS).
+      4. CREATE 4 new indexes (IF NOT EXISTS).
+      5. Backfill matching_mode = 'M-default' for legacy NULL rows.
+      6. PRAGMA integrity_check.
+      7. Stamp _schema_version ('spec-011', 'v1').
+
+    Args:
+        db_path: Path to the SQLite database file.
+
+    Raises:
+        TypeError: If db_path is not a Path instance.
+        RuntimeError: If integrity_check fails or a required schema element
+            is missing after migration. Message includes actionable next step.
+    """
+    if not isinstance(db_path, Path):
+        raise TypeError(f"db_path must be a Path, got {type(db_path).__name__}")
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        conn.execute("BEGIN")
+
+        # Step 1 — read existing columns
+        existing_cols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(comparison_results)").fetchall()
+        }
+        existing_tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+
+        # Step 2 — ALTER missing columns
+        for col_name, col_def in _V2_NEW_COLUMNS:
+            if col_name not in existing_cols:
+                conn.execute(
+                    f"ALTER TABLE comparison_results ADD COLUMN {col_name} {col_def}"
+                )
+
+        # Step 3 — CREATE new tables (IF NOT EXISTS handles idempotency)
+        conn.executescript(_V2_NEW_TABLES_SQL)
+
+        # Step 4 — CREATE new indexes
+        conn.executescript(_V2_NEW_INDEXES_SQL)
+
+        # Step 5 — backfill matching_mode for legacy rows that predate DEFAULT
+        conn.execute(
+            "UPDATE comparison_results SET matching_mode = 'M-default' "
+            "WHERE matching_mode IS NULL"
+        )
+
+        conn.execute("COMMIT")
+
+        # Step 6 — integrity check (outside transaction, read-only check)
+        result = conn.execute("PRAGMA integrity_check").fetchone()
+        if result is None or result[0] != "ok":
+            raise RuntimeError(
+                f"SQLite integrity check failed for {db_path}. "
+                "Restore from backup or remove the file and re-collect."
+            )
+
+        # Step 7 — verify required schema elements exist
+        final_cols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(comparison_results)").fetchall()
+        }
+        for col_name, _ in _V2_NEW_COLUMNS:
+            if col_name not in final_cols:
+                raise RuntimeError(
+                    f"Migration verification failed: column '{col_name}' missing "
+                    f"from comparison_results in {db_path}. Re-run migrate_to_v2."
+                )
+
+        final_tables = {
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        for table in (
+            "professor_pool", "professor_pool_membership", "baseline_corpus",
+            "phrase_whitelist", "pair_checkpoint", "match_spans", "_schema_version",
+        ):
+            if table not in final_tables:
+                raise RuntimeError(
+                    f"Migration verification failed: table '{table}' missing "
+                    f"in {db_path}. Re-run migrate_to_v2."
+                )
+
+        # Stamp schema version
+        applied_at = datetime.now(UTC).isoformat()
+        conn.execute(
+            "INSERT OR REPLACE INTO _schema_version (spec, version, applied_at) "
+            "VALUES (?, ?, ?)",
+            ("spec-011", "v1", applied_at),
+        )
+        conn.commit()
+
+    except Exception:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
