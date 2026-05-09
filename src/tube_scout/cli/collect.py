@@ -290,9 +290,10 @@ def dispatch_audio_fingerprint(
     cookies_src = "file" if cookies_path else "brave"
 
     for video_id in video_ids:
-        # FIX-4: update current_video_id_ref so SIGINT handler writes correct video_id
+        # FIX-4 + AT-NEW-6: slice assignment handles both empty list (G-4 [] init)
+        # and pre-populated list — IndexError-free.
         if current_video_id_ref is not None:
-            current_video_id_ref[0] = video_id
+            current_video_id_ref[:] = [video_id]
 
         already_done = (
             db_path is not None and audio_fingerprint_exists(db_path, video_id)
