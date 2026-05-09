@@ -91,13 +91,25 @@ def test_extract_malformed_stdout_raises_fingerprint_extract_error(tmp_path: Pat
 
 
 def test_decode_fingerprint_to_uint32_array() -> None:
-    """Scenario 5: decode_fingerprint_to_array returns uint32 ndarray."""
+    """Scenario 5: decode_fingerprint_to_array returns uint32 ndarray.
+
+    Uses real chromaprint b64 from spike fixture (33-min lecture audio) — the
+    placeholder _FPCALC_FP is intentionally synthetic (not valid chromaprint
+    base64) for stdout-parsing tests, so we load the real one here.
+    """
     numpy = pytest.importorskip("numpy")
     pytest.importorskip("chromaprint")
 
     from tube_scout.services.audio_fingerprint import decode_fingerprint_to_array
 
-    fp_b64 = _FPCALC_FP.encode("ascii")
+    import re
+
+    fixture_path = Path(__file__).parent.parent / "fixtures" / "spec012" / "spike_fp_v1.txt"
+    fp_text = fixture_path.read_text()
+    match = re.search(r"^FINGERPRINT=(\S+)$", fp_text, re.MULTILINE)
+    assert match is not None, f"Spike fixture missing FINGERPRINT line: {fixture_path}"
+    fp_b64 = match.group(1).encode("ascii")
+
     arr = decode_fingerprint_to_array(fp_b64)
 
     assert arr.dtype == numpy.uint32

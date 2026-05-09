@@ -131,7 +131,7 @@ def decode_fingerprint_to_array(fp_b64: bytes) -> "np.ndarray":
             "Install via `nix develop` and ensure libchromaprint.so is in LD_LIBRARY_PATH."
         ) from exc
 
-    _version, raw_ints = chromaprint.decode_fingerprint(fp_b64)
+    raw_ints, _version = chromaprint.decode_fingerprint(fp_b64)
     if not raw_ints:
         raise FingerprintExtractError(
             "chromaprint decode produced empty array; b64 may be corrupt."
