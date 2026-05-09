@@ -1,0 +1,170 @@
+[
+  {
+    "video_a": "test_vid_wsw_a01",
+    "video_b": "test_vid_wsw_b01",
+    "ground_truth_pattern": "whole-same-week",
+    "expected_i6_min": 1200.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_wsw_a02",
+    "video_b": "test_vid_wsw_b02",
+    "ground_truth_pattern": "whole-same-week",
+    "expected_i6_min": 1260.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_wsw_a03",
+    "video_b": "test_vid_wsw_b03",
+    "ground_truth_pattern": "whole-same-week",
+    "expected_i6_min": 1320.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_wsw_a04",
+    "video_b": "test_vid_wsw_b04",
+    "ground_truth_pattern": "whole-same-week",
+    "expected_i6_min": 1380.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_wsw_a05",
+    "video_b": "test_vid_wsw_b05",
+    "ground_truth_pattern": "whole-same-week",
+    "expected_i6_min": 1440.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_ssw_a01",
+    "video_b": "test_vid_ssw_b01",
+    "ground_truth_pattern": "scattered-same-week",
+    "expected_i6_min": 270.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_ssw_a02",
+    "video_b": "test_vid_ssw_b02",
+    "ground_truth_pattern": "scattered-same-week",
+    "expected_i6_min": 280.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_ssw_a03",
+    "video_b": "test_vid_ssw_b03",
+    "ground_truth_pattern": "scattered-same-week",
+    "expected_i6_min": 290.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_ssw_a04",
+    "video_b": "test_vid_ssw_b04",
+    "ground_truth_pattern": "scattered-same-week",
+    "expected_i6_min": 300.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_ssw_a05",
+    "video_b": "test_vid_ssw_b05",
+    "ground_truth_pattern": "scattered-same-week",
+    "expected_i6_min": 310.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_ssw_a06",
+    "video_b": "test_vid_ssw_b06",
+    "ground_truth_pattern": "scattered-same-week",
+    "expected_i6_min": 320.0,
+    "expected_layer": "C",
+    "same_week": true
+  },
+  {
+    "video_a": "test_vid_wdw_a01",
+    "video_b": "test_vid_wdw_b01",
+    "ground_truth_pattern": "whole-different-week",
+    "expected_i6_min": 1500.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_wdw_a02",
+    "video_b": "test_vid_wdw_b02",
+    "ground_truth_pattern": "whole-different-week",
+    "expected_i6_min": 1560.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_wdw_a03",
+    "video_b": "test_vid_wdw_b03",
+    "ground_truth_pattern": "whole-different-week",
+    "expected_i6_min": 1620.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_wdw_a04",
+    "video_b": "test_vid_wdw_b04",
+    "ground_truth_pattern": "whole-different-week",
+    "expected_i6_min": 1680.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_wdw_a05",
+    "video_b": "test_vid_wdw_b05",
+    "ground_truth_pattern": "whole-different-week",
+    "expected_i6_min": 1740.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_sdw_a01",
+    "video_b": "test_vid_sdw_b01",
+    "ground_truth_pattern": "scattered-different-week",
+    "expected_i6_min": 280.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_sdw_a02",
+    "video_b": "test_vid_sdw_b02",
+    "ground_truth_pattern": "scattered-different-week",
+    "expected_i6_min": 290.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_sdw_a03",
+    "video_b": "test_vid_sdw_b03",
+    "ground_truth_pattern": "scattered-different-week",
+    "expected_i6_min": 300.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_sdw_a04",
+    "video_b": "test_vid_sdw_b04",
+    "ground_truth_pattern": "scattered-different-week",
+    "expected_i6_min": 310.0,
+    "expected_layer": "C",
+    "same_week": false
+  },
+  {
+    "video_a": "test_vid_sdw_a05",
+    "video_b": "test_vid_sdw_b05",
+    "ground_truth_pattern": "scattered-different-week",
+    "expected_i6_min": 320.0,
+    "expected_layer": "C",
+    "same_week": false
+  }
+]
