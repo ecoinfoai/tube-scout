@@ -2,8 +2,11 @@
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+from tube_scout.models.reuse_v2 import LayerAttribution, ReusePatternLabel
 
 
 class SuspicionGrade(StrEnum):
@@ -23,7 +26,7 @@ VALID_PROCESSING_STATUSES = frozenset({
 VALID_CAPTION_SOURCES = frozenset({"transcript_api", "captions_api", "whisper"})
 
 VALID_REVIEW_STATUSES = frozenset({
-    "UNREVIEWED", "CONFIRMED_DUPLICATE", "FALSE_POSITIVE",
+    "UNREVIEWED", "PENDING", "CONFIRMED_DUPLICATE", "FALSE_POSITIVE",
 })
 
 VALID_GRADES = frozenset({"critical", "high", "moderate", "normal"})
@@ -92,7 +95,10 @@ class CaptionFingerprint(BaseModel):
 
 
 class ComparisonResult(BaseModel):
-    """5-indicator analysis and review status for a comparison pair.
+    """5-indicator (spec 007) + time-axis (spec 011) analysis for a comparison pair.
+
+    Spec 007 fields are unchanged; spec 011 fields all have defaults so
+    existing callers are unaffected (backward-compatible extension).
 
     Attributes:
         id: Unique comparison ID.
@@ -115,6 +121,16 @@ class ComparisonResult(BaseModel):
         reviewed_at: When review status was set.
         reviewed_by: Reviewer identifier.
         created_at: When comparison was performed.
+        matching_mode: Analysis mode — M-default (spec 007) or M-nC2 (spec 011).
+        professor_id: Professor pool identifier (spec 011 nC2 runs only).
+        i6_longest_contiguous_seconds: I-6: Longest contiguous matching span (seconds).
+        i7_distribution_dispersion: I-7: Dispersion of matching span lengths.
+        i8_position_diversity: I-8: Spread of spans across timeline thirds (0-1).
+        reuse_pattern: 4-way pattern classification (spec 011 only).
+        layer_attribution: Defense-layer audit trail for this pair.
+        baseline_subtracted_length_seconds: Seconds removed by Layer B baseline.
+        pre_subtraction_i2: I-2 value before Layer B subtraction (audit).
+        pre_subtraction_i6: I-6 value before Layer B subtraction (audit).
     """
 
     id: int | None = None
@@ -137,6 +153,17 @@ class ComparisonResult(BaseModel):
     reviewed_at: datetime | None = None
     reviewed_by: str | None = None
     created_at: datetime | None = None
+    # spec 011 extension fields — all optional, default-safe for spec 007 callers
+    matching_mode: Literal["M-default", "M-nC2"] = "M-default"
+    professor_id: str | None = None
+    i6_longest_contiguous_seconds: float | None = None
+    i7_distribution_dispersion: float | None = None
+    i8_position_diversity: float | None = None
+    reuse_pattern: ReusePatternLabel | None = None
+    layer_attribution: list[LayerAttribution] = Field(default_factory=list)
+    baseline_subtracted_length_seconds: float | None = None
+    pre_subtraction_i2: float | None = None
+    pre_subtraction_i6: float | None = None
 
     @field_validator("grade")
     @classmethod
