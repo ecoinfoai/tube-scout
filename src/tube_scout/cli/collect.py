@@ -94,8 +94,12 @@ def _dispatch_ytdlp_transcripts(  # noqa: C901
 
     from tube_scout.services.audit_writer import AuditWriter
     from tube_scout.services.srv3_parser import Srv3ParseError, pick_priority_track, srv3_to_transcript_json
-    from tube_scout.services.ytdlp_adapter import fetch_caption_via_ytdlp
+    from tube_scout.services.ytdlp_adapter import fetch_caption_via_ytdlp, validate_video_id
     from tube_scout.services.ytdlp_errors import YtdlpError
+
+    # AT-5.3: empty string alias is same as unregistered (PS-A-12)
+    if channel is not None and not channel.strip():
+        raise KeyError("Channel alias must not be empty.")
 
     mgr = resolve_project("./projects", None, producer=False)
     project_dir = Path(mgr.project_dir)
@@ -123,6 +127,13 @@ def _dispatch_ytdlp_transcripts(  # noqa: C901
         ts_now = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
         for video_id in video_ids:
+            # AT-11.3: reject path-injection video_ids before building any paths
+            try:
+                validate_video_id(video_id)
+            except ValueError:
+                console.print(f"  [yellow]skip invalid video_id {video_id!r}[/yellow]")
+                continue
+
             json_path = transcript_dir / f"{video_id}.json"
             if not force and json_path.exists():
                 _audit.append_transcript_row({
@@ -1783,8 +1794,10 @@ def build_signal_handler(
                     "timestamp": ts,
                     "cookies_source": "brave",
                 })
-            except Exception:
-                pass
+            except Exception as _exc:
+                # AT-12.3: log to stderr so SS-5 is not silently swallowed
+                import sys
+                print(f"[signal handler] audit write failed: {_exc}", file=sys.stderr)
 
         raise SystemExit(130)
 
