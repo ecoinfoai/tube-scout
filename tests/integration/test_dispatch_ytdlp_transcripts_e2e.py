@@ -213,9 +213,14 @@ def test_dispatch_ytdlp_transcripts_all_channels(tmp_path: Path) -> None:
         "ch1": "UC_T055_A01",
         "ch2": "UC_T055_A02",
     }
+    # 11-char valid video IDs for each channel
+    channel_video_ids = {
+        "UC_T055_A01": "AAAAAAAAA01",
+        "UC_T055_A02": "AAAAAAAAA02",
+    }
     for alias, cid in channels.items():
         channel_dir = tmp_path / "01_collect" / "channels" / cid
-        _write_videos_meta(channel_dir, [f"VID_{cid}"])
+        _write_videos_meta(channel_dir, [channel_video_ids[cid]])
 
     registry_mock = {alias: MagicMock(channel_id=cid) for alias, cid in channels.items()}
 
@@ -245,6 +250,6 @@ def test_dispatch_ytdlp_transcripts_all_channels(tmp_path: Path) -> None:
     audit_path = tmp_path / "01_collect" / "transcripts_audit.csv"
     assert audit_path.exists()
     content = audit_path.read_text(encoding="utf-8")
-    # At least one channel processed
-    processed = [cid for cid in channels.values() if f"VID_{cid}" in content]
+    # At least one channel's video processed
+    processed = [vid for vid in channel_video_ids.values() if vid in content]
     assert len(processed) >= 1
