@@ -62,6 +62,7 @@ def add_pair_whitelist(
     reason: str,
     db_path: Path,
     registered_by: str,
+    _conn: sqlite3.Connection | None = None,
 ) -> int:
     """Mark a video pair as FALSE_POSITIVE in comparison_results.
 
@@ -71,6 +72,7 @@ def add_pair_whitelist(
         reason: Admin explanation for the exclusion.
         db_path: SQLite content_reuse.db path.
         registered_by: Admin identifier.
+        _conn: Optional pre-opened connection (used by CLI advisory lock).
 
     Returns:
         The comparison_results row id that was updated.
@@ -82,7 +84,8 @@ def add_pair_whitelist(
     if not isinstance(db_path, Path):
         raise TypeError(f"db_path must be a Path, got {type(db_path).__name__}")
 
-    conn = sqlite3.connect(str(db_path))
+    own_conn = _conn is None
+    conn = sqlite3.connect(str(db_path)) if own_conn else _conn
     try:
         row = conn.execute(
             "SELECT id FROM comparison_results "
@@ -99,9 +102,11 @@ def add_pair_whitelist(
             "reviewed_at = ?, reviewed_by = ? WHERE id = ?",
             (datetime.now(UTC).isoformat(), registered_by, comp_id),
         )
-        conn.commit()
+        if own_conn:
+            conn.commit()
     finally:
-        conn.close()
+        if own_conn:
+            conn.close()
 
     return comp_id
 
@@ -112,6 +117,7 @@ def add_phrase_whitelist(
     reason: str,
     db_path: Path,
     registered_by: str,
+    _conn: sqlite3.Connection | None = None,
 ) -> WhitelistPhraseEntry:
     """Insert a normalized phrase into phrase_whitelist for the given professor.
 
@@ -121,6 +127,7 @@ def add_phrase_whitelist(
         reason: Admin explanation for the whitelist entry.
         db_path: SQLite content_reuse.db path.
         registered_by: Admin identifier.
+        _conn: Optional pre-opened connection (used by CLI advisory lock).
 
     Returns:
         WhitelistPhraseEntry representing the inserted row.
@@ -135,7 +142,8 @@ def add_phrase_whitelist(
     phrase_normalized = normalize_phrase(phrase_raw)
     now = datetime.now(UTC).isoformat()
 
-    conn = sqlite3.connect(str(db_path))
+    own_conn = _conn is None
+    conn = sqlite3.connect(str(db_path)) if own_conn else _conn
     try:
         try:
             conn.execute(
@@ -144,13 +152,15 @@ def add_phrase_whitelist(
                 "VALUES (?, ?, ?, ?, ?, ?)",
                 (professor_id, phrase_normalized, phrase_raw, reason, registered_by, now),
             )
-            conn.commit()
+            if own_conn:
+                conn.commit()
         except sqlite3.IntegrityError as exc:
             raise ValueError(
                 f"already whitelisted: professor_id={professor_id!r} phrase={phrase_raw!r}"
             ) from exc
     finally:
-        conn.close()
+        if own_conn:
+            conn.close()
 
     return WhitelistPhraseEntry(
         professor_id=professor_id,
@@ -340,6 +350,7 @@ def remove_whitelist(
     db_path: Path,
     kind: str,
     entry_id: int,
+    _conn: sqlite3.Connection | None = None,
 ) -> bool:
     """Remove a whitelist entry by kind and id.
 
@@ -350,6 +361,7 @@ def remove_whitelist(
         db_path: SQLite content_reuse.db path.
         kind: 'pair' or 'phrase'.
         entry_id: Row id to remove.
+        _conn: Optional pre-opened connection (used by CLI advisory lock).
 
     Returns:
         True if an entry was removed/reset.
@@ -363,24 +375,25 @@ def remove_whitelist(
     if kind not in ("pair", "phrase"):
         raise ValueError(f"kind must be 'pair' or 'phrase', got {kind!r}")
 
-    conn = sqlite3.connect(str(db_path))
+    own_conn = _conn is None
+    conn = sqlite3.connect(str(db_path)) if own_conn else _conn
     try:
         if kind == "phrase":
             cur = conn.execute(
                 "DELETE FROM phrase_whitelist WHERE id = ?", (entry_id,)
             )
-            conn.commit()
-            return cur.rowcount > 0
         else:
             cur = conn.execute(
                 "UPDATE comparison_results SET review_status = 'UNREVIEWED', "
                 "reviewed_at = NULL, reviewed_by = NULL WHERE id = ?",
                 (entry_id,),
             )
+        if own_conn:
             conn.commit()
-            return cur.rowcount > 0
+        return cur.rowcount > 0
     finally:
-        conn.close()
+        if own_conn:
+            conn.close()
 
 
 def subtract_phrase_whitelist(
