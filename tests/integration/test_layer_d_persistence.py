@@ -82,8 +82,18 @@ def test_sc005_pair_whitelist_suppresses_next_run(tmp_path: Path) -> None:
 
     # Simulate re-run: candidate pair appears again
     candidates = [
-        CandidatePair(source_video_id="vid_a", target_video_id="vid_b"),
-        CandidatePair(source_video_id="vid_c", target_video_id="vid_d"),
+        CandidatePair(
+            source_video_id="vid_a",
+            target_video_id="vid_b",
+            cosine=0.95,
+            professor_id="prof-e2e",
+        ),
+        CandidatePair(
+            source_video_id="vid_c",
+            target_video_id="vid_d",
+            cosine=0.85,
+            professor_id="prof-e2e",
+        ),
     ]
 
     remaining = filter_pair_whitelisted(candidates, db)
