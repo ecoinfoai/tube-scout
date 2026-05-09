@@ -36,8 +36,8 @@ def resolve_alias_to_channel_id(alias: str) -> str:
         KeyError: If alias is not registered.
         SystemExit: With code 5 if called via CLI gate (caller must handle).
     """
-    from tube_scout.services.auth import load_registry, resolve_channel_alias
     from tube_scout.cli.errors import UserFacingError
+    from tube_scout.services.auth import load_registry, resolve_channel_alias
 
     try:
         return resolve_channel_alias(alias, load_registry())
@@ -109,7 +109,10 @@ def dispatch_audio_fingerprint(
         return
 
     for video_id in video_ids:
-        if not force and db_path is not None and audio_fingerprint_exists(db_path, video_id):
+        already_done = (
+            db_path is not None and audio_fingerprint_exists(db_path, video_id)
+        )
+        if not force and already_done:
             continue
 
         audio_path: Path | None = None
@@ -127,8 +130,10 @@ def dispatch_audio_fingerprint(
             except FingerprintExtractError:
                 continue
             if db_path is not None:
-                extracted_at = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
-                insert_audio_fingerprint(db_path, video_id, fp_bytes, duration, extracted_at)
+                extracted_at = datetime.datetime.now(tz=datetime.UTC).isoformat()
+                insert_audio_fingerprint(
+                    db_path, video_id, fp_bytes, duration, extracted_at
+                )
         finally:
             if audio_path is not None:
                 audio_path.unlink(missing_ok=True)
@@ -1546,7 +1551,6 @@ def build_signal_handler(
         Signal handler callable(signum, frame) that cleans audio_temp,
         writes interrupted audit row, and raises SystemExit(130).
     """
-    import signal as _signal
     from datetime import UTC, datetime
 
     def _handler(signum: int, frame: object) -> None:
