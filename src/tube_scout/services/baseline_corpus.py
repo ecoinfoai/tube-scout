@@ -6,11 +6,14 @@ span subtraction used by apply_layers Layer B.
 
 import json
 import sqlite3
-from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
-from tube_scout.models.reuse_v2 import BaselineBootstrapReport, BaselinePhrase, MatchSpan
+from tube_scout.models.reuse_v2 import (
+    BaselineBootstrapReport,
+    BaselinePhrase,
+    MatchSpan,
+)
 from tube_scout.services.phrase_whitelist import normalize_phrase
 
 

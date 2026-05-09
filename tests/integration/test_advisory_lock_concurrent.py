@@ -8,10 +8,11 @@ import sqlite3
 import threading
 from pathlib import Path
 
-import pytest
-
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db
-from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+from tube_scout.services.advisory_lock import (
+    ConcurrentWriteRejected,
+    layer_d_write_lock,
+)
 
 
 def _make_db(tmp_path: Path) -> Path:
@@ -127,8 +128,9 @@ def test_concurrent_write_rejected_message_is_actionable(tmp_path: Path) -> None
 def test_cli_review_mark_concurrent_exits_3(tmp_path: Path) -> None:
     """'content review --mark' under held lock exits with code 3 (FR-033 CLI surface)."""
     from typer.testing import CliRunner
-    from tube_scout.cli.content import content_app
+
     import tube_scout.cli.content as _content_mod
+    from tube_scout.cli.content import content_app
 
     db = _make_db(tmp_path)
     db_dir = tmp_path / "02_analyze" / "content"

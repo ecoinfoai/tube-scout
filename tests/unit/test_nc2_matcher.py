@@ -6,13 +6,12 @@ handling, and boundary B-2 (embeddings.parquet read-only, not recomputed).
 
 import sqlite3
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import polars as pl
 import pytest
 
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db
-from tube_scout.services.professor_resolver import map_professor
 
 
 def _setup_db_with_videos(

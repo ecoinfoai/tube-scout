@@ -3,12 +3,11 @@
 Tests classify_reuse_pattern with all 4 label outcomes.
 """
 
-from pathlib import Path
 
 import pytest
 
-from tube_scout.models.reuse_v2 import PolicyConfig, ReusePatternLabel
 from tube_scout.models.content import ComparisonResult
+from tube_scout.models.reuse_v2 import PolicyConfig, ReusePatternLabel
 
 
 def _make_comparison(**kwargs) -> ComparisonResult:

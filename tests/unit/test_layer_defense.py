@@ -6,10 +6,8 @@ Tests each layer's effect in isolation and the combined apply_layers pipeline.
 import sqlite3
 from pathlib import Path
 
-import pytest
-
-from tube_scout.models.reuse_v2 import MatchSpan, PolicyConfig, LayerAttribution
 from tube_scout.models.content import ComparisonResult
+from tube_scout.models.reuse_v2 import LayerAttribution, MatchSpan, PolicyConfig
 from tube_scout.storage.content_db import migrate_to_v2
 
 
@@ -149,8 +147,8 @@ class TestLayerB:
 
     def test_layer_b_subtracts_baseline_phrases(self, tmp_path: Path) -> None:
         """Spans matching baseline phrases are marked baseline_subtracted=True."""
-        from tube_scout.services.layer_defense import apply_layers
         from tube_scout.services.baseline_corpus import add_baseline_phrase
+        from tube_scout.services.layer_defense import apply_layers
 
         db = _make_db(tmp_path)
         add_baseline_phrase("prof-test", "안녕하세요", db, None, "system")

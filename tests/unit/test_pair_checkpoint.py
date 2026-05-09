@@ -7,8 +7,6 @@ mark done, finalize, and resume after simulated crash (FR-031).
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db
 from tube_scout.models.reuse_v2 import CaptionPool, VideoRef
 

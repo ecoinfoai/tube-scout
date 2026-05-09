@@ -10,7 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+from tube_scout.services.advisory_lock import (
+    ConcurrentWriteRejected,
+    layer_d_write_lock,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS test_table (

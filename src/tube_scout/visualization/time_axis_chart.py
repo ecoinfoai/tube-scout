@@ -9,7 +9,6 @@ Falls back to SVG bytes when kaleido is not installed.
 """
 
 import base64
-from typing import TYPE_CHECKING
 
 import plotly.graph_objects as go
 

@@ -9,7 +9,12 @@ import sqlite3
 from pathlib import Path
 
 from tube_scout.models.content import ComparisonResult
-from tube_scout.models.reuse_v2 import CandidatePair, LayerAttribution, MatchSpan, PolicyConfig
+from tube_scout.models.reuse_v2 import (
+    CandidatePair,
+    LayerAttribution,
+    MatchSpan,
+    PolicyConfig,
+)
 from tube_scout.services.baseline_corpus import subtract_baseline
 from tube_scout.services.phrase_whitelist import subtract_phrase_whitelist
 

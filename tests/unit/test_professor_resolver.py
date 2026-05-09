@@ -7,13 +7,12 @@ channels.json parsing).
 
 import sqlite3
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db
 from tube_scout.services.professor_resolver import (
-    list_professors,
     map_professor,
     resolve_caption_pool,
     unmap_professor,

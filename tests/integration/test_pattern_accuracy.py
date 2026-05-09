@@ -6,11 +6,8 @@ Requires >=95% accuracy over all 21 labelled pairs.
 import json
 from pathlib import Path
 
-import pytest
-
-from tube_scout.models.reuse_v2 import PolicyConfig, ReusePatternLabel
 from tube_scout.models.content import ComparisonResult
-
+from tube_scout.models.reuse_v2 import PolicyConfig, ReusePatternLabel
 
 _FIXTURE_PATH = Path(__file__).parent.parent / "fixtures" / "spec011" / "patterns" / "labelled_pairs.json"
 

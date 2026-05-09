@@ -6,7 +6,8 @@ a greedy segment-alignment algorithm (research.md R-2).
 """
 
 import math
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from tube_scout.models.reuse_v2 import CandidatePair, MatchSpan, TimeAxisResult
 from tube_scout.services.phrase_whitelist import normalize_phrase

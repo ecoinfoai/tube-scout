@@ -4,9 +4,7 @@ Tests render() and render_to_png_bytes() functions with color encoding,
 axis configuration, and empty span handling.
 """
 
-from pathlib import Path
 
-import pytest
 import plotly.graph_objects as go
 
 from tube_scout.models.reuse_v2 import MatchSpan

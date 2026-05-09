@@ -6,10 +6,6 @@ all functions carry a non-trivial Google docstring.
 """
 
 import inspect
-from pathlib import Path
-from typing import get_type_hints
-
-import pytest
 
 
 def _assert_sig(func, param_names: list[str], min_doc_len: int = 10) -> None:
@@ -55,10 +51,8 @@ def test_pair_checkpoint_signatures() -> None:
 def test_professor_resolver_signatures() -> None:
     """professor_resolver functions match service_layer.md §7 signatures."""
     from tube_scout.services.professor_resolver import (
-        list_professors,
         map_professor,
         resolve_caption_pool,
-        unmap_professor,
     )
 
     sig = inspect.signature(resolve_caption_pool)
@@ -73,8 +67,8 @@ def test_professor_resolver_signatures() -> None:
 def test_baseline_corpus_signatures() -> None:
     """baseline_corpus functions match service_layer.md §4 signatures (T045)."""
     from tube_scout.services.baseline_corpus import (
-        bootstrap_baseline,
         add_baseline_phrase,
+        bootstrap_baseline,
         list_baseline,
         remove_baseline_phrase,
         subtract_baseline,

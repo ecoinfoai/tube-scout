@@ -6,7 +6,6 @@ embeddings — reads embeddings.parquet produced by spec 007 fingerprint
 (boundary B-2).
 """
 
-import sqlite3
 from itertools import combinations
 from pathlib import Path
 

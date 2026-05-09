@@ -8,7 +8,6 @@ import sqlite3
 from pathlib import Path
 
 import polars as pl
-import pytest
 
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db
 from tube_scout.services.professor_resolver import map_professor
@@ -87,6 +86,8 @@ def test_nc2_with_time_axis(tmp_path: Path) -> None:
     """
     import json
 
+    from tube_scout.models.reuse_v2 import PolicyConfig
+    from tube_scout.services.content_comparator import compute_suspicion_score
     from tube_scout.services.nc2_matcher import generate_nc2_pairs
     from tube_scout.services.pair_checkpoint import (
         finalize_run,
@@ -99,8 +100,6 @@ def test_nc2_with_time_axis(tmp_path: Path) -> None:
         resolve_caption_pool,
     )
     from tube_scout.services.time_axis_indicators import compute_time_axis
-    from tube_scout.services.content_comparator import compute_suspicion_score
-    from tube_scout.models.reuse_v2 import PolicyConfig
     from tube_scout.storage.content_db import insert_match_spans
 
     FIXTURES = Path(__file__).parent.parent / "fixtures" / "spec011" / "captions"
