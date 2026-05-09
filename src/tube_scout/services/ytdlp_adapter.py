@@ -6,6 +6,7 @@ fingerprint → audio_fingerprint).
 
 import os
 import random
+import re
 import subprocess
 import time
 from collections.abc import Mapping
@@ -29,6 +30,23 @@ CookiesBrowser = Literal[
 _DEFAULT_COOKIES_PATH = Path.home() / ".config" / "tube-scout" / "cookies.txt"
 
 _BACKOFF_DELAYS: tuple[float, ...] = (60.0, 300.0, 1800.0)
+
+_VALID_VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def validate_video_id(video_id: str) -> None:
+    """Raise ValueError if video_id is not a safe 11-char YouTube ID (AT-11.3).
+
+    Args:
+        video_id: Candidate video ID string.
+
+    Raises:
+        ValueError: video_id fails regex or is empty.
+    """
+    if not _VALID_VIDEO_ID_RE.match(video_id):
+        raise ValueError(
+            f"Invalid video_id '{video_id}': must be exactly 11 alphanumeric/dash/underscore chars."
+        )
 
 
 @dataclass(frozen=True)
@@ -283,8 +301,14 @@ def fetch_caption_via_ytdlp(
                     manual_path = p
 
     # Fallback: scan output_dir for .srv3 files if stdout parsing yielded nothing
+    # AT-11.1: filter by video_id prefix extracted from video_url to avoid
+    # picking up srv3 files from concurrent calls on the same output_dir
     if manual_path is None and auto_path is None:
+        vid_match = re.search(r"([A-Za-z0-9_-]{11})$", video_url)
+        vid_prefix = vid_match.group(1) if vid_match else None
         for p in sorted(output_dir.glob("*.srv3")):
+            if vid_prefix and not p.name.startswith(vid_prefix):
+                continue
             stem = p.stem
             if stem.endswith(".ko-orig") or stem.endswith("-orig"):
                 auto_path = p
