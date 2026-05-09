@@ -97,6 +97,22 @@ class VideoRef(BaseModel):
     author_marker: str
 
 
+class VideoPairRef(BaseModel):
+    """A pair of video references yielded by the checkpoint iterator.
+
+    Attributes:
+        source_video_id: First video in the pair.
+        target_video_id: Second video in the pair.
+        professor_id: Professor pool this pair belongs to.
+    """
+
+    model_config = {"frozen": True}
+
+    source_video_id: str
+    target_video_id: str
+    professor_id: str
+
+
 class CaptionPool(BaseModel):
     """All videos belonging to one professor across potentially multiple channels.
 

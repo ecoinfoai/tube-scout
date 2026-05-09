@@ -27,14 +27,16 @@ def _insert_videos(db: Path, channel: str, video_ids: list[str]) -> None:
 
 
 def _write_embeddings(captions_dir: Path, video_ids: list[str], dim: int = 8) -> None:
-    import numpy as np
+    import random
 
     captions_dir.mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(1)
-    vecs = rng.random((len(video_ids), dim)).astype("float32")
-    norms = vecs.sum(axis=1, keepdims=True)
-    vecs = vecs / norms
-    df = pl.DataFrame({"video_id": video_ids, "embedding": vecs.tolist()})
+    rng = random.Random(1)
+    rows = []
+    for _ in video_ids:
+        v = [rng.gauss(0, 1) for _ in range(dim)]
+        norm = sum(x * x for x in v) ** 0.5 or 1.0
+        rows.append([x / norm for x in v])
+    df = pl.DataFrame({"video_id": video_ids, "embedding": rows})
     df.write_parquet(captions_dir / "embeddings.parquet")
 
 
