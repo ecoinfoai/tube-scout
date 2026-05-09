@@ -137,7 +137,8 @@ CREATE TABLE IF NOT EXISTS pair_checkpoint (
     pair_count_done INTEGER NOT NULL DEFAULT 0,
     started_at TEXT NOT NULL,
     last_pair_at TEXT,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    CHECK (status IN ('in_progress', 'completed', 'aborted'))
 );
 
 CREATE TABLE IF NOT EXISTS match_spans (
@@ -158,7 +159,8 @@ CREATE TABLE IF NOT EXISTS match_spans (
 CREATE INDEX IF NOT EXISTS idx_span_cmp ON match_spans(comparison_id);
 
 CREATE TABLE IF NOT EXISTS _schema_version (
-    version TEXT PRIMARY KEY,
+    spec TEXT PRIMARY KEY,
+    version TEXT NOT NULL,
     applied_at TEXT NOT NULL
 );
 """
@@ -254,7 +256,8 @@ def _apply_v2_migration(conn: sqlite3.Connection) -> None:
             pair_count_done INTEGER NOT NULL DEFAULT 0,
             started_at TEXT NOT NULL,
             last_pair_at TEXT,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            CHECK (status IN ('in_progress', 'completed', 'aborted'))
         );
 
         CREATE TABLE IF NOT EXISTS match_spans (
@@ -276,14 +279,15 @@ def _apply_v2_migration(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_span_cmp ON match_spans(comparison_id);
 
         CREATE TABLE IF NOT EXISTS _schema_version (
-            version TEXT PRIMARY KEY,
+            spec TEXT PRIMARY KEY,
+            version TEXT NOT NULL,
             applied_at TEXT NOT NULL
         );
     """)
 
     conn.execute(
-        "INSERT OR REPLACE INTO _schema_version (version, applied_at) VALUES (?, ?)",
-        ("spec-011/v1", _NOW),
+        "INSERT OR REPLACE INTO _schema_version (spec, version, applied_at) VALUES (?, ?, ?)",
+        ("spec-011", "v1", _NOW),
     )
     conn.commit()
 

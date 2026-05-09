@@ -123,20 +123,17 @@ def test_indexes_created(tmp_path: pytest.TempPathFactory) -> None:
 
 
 def test_check_constraints_reject_bad_enums(tmp_path: pytest.TempPathFactory) -> None:
-    """CHECK constraints must reject invalid enum values."""
-    db = build_clean_v2_db(tmp_path / "v2.db")
+    """CHECK constraints must reject invalid enum values after migration.
+
+    Note: SQLite ALTER TABLE cannot add CHECK constraints, so matching_mode
+    CHECK on comparison_results is enforced by the service layer (Pydantic),
+    not the DB. pair_checkpoint.status CHECK is verified here because
+    migrate_to_v2 creates that table with the constraint.
+    """
+    db = build_spec007_legacy_db(tmp_path / "legacy.db")
+    migrate_to_v2(db)
     conn = sqlite3.connect(str(db))
     conn.execute("PRAGMA foreign_keys = ON")
-
-    with pytest.raises(sqlite3.IntegrityError):
-        conn.execute(
-            """
-            INSERT INTO comparison_results
-                (source_video_id, target_video_id, professor, course, week, session,
-                 year_from, year_to, i1_hash_match, matching_mode, created_at)
-            VALUES ('va', 'vb', 'p', 'c', 1, 1, 2024, 2025, 0, 'M-invalid', '2026-01-01')
-            """
-        )
 
     with pytest.raises(sqlite3.IntegrityError):
         conn.execute(
@@ -147,6 +144,7 @@ def test_check_constraints_reject_bad_enums(tmp_path: pytest.TempPathFactory) ->
             VALUES ('run-x', 'prof-x', 'M-nC2', 10, 0, '2026-01-01', 'invalid_status')
             """
         )
+        conn.commit()
 
     conn.close()
 
