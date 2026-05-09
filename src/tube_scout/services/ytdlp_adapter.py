@@ -28,6 +28,8 @@ CookiesBrowser = Literal[
 
 _DEFAULT_COOKIES_PATH = Path.home() / ".config" / "tube-scout" / "cookies.txt"
 
+_BACKOFF_DELAYS: tuple[float, ...] = (60.0, 300.0, 1800.0)
+
 
 @dataclass(frozen=True)
 class CookiesSource:
@@ -153,6 +155,52 @@ def _parse_ytdlp_stderr(stderr: str, video_url: str) -> None:
         )
 
 
+def _is_rate_limit_stderr(stderr: str) -> bool:
+    """Return True if stderr indicates HTTP 429."""
+    lower = stderr.lower()
+    return "429" in stderr or "too many requests" in lower
+
+
+def _run_with_backoff(
+    cmd: list[str],
+    video_url: str,
+    timeout_seconds: float,
+) -> subprocess.CompletedProcess:  # type: ignore[type-arg]
+    """Run cmd, retrying on HTTP 429 with exponential backoff (60→300→1800s).
+
+    Args:
+        cmd: yt-dlp command list.
+        video_url: Video URL string, for error messages.
+        timeout_seconds: subprocess timeout per attempt.
+
+    Returns:
+        CompletedProcess from the first non-429 attempt.
+
+    Raises:
+        YtdlpRateLimitError: After 3 retries all hit 429.
+        subprocess.TimeoutExpired: Per-attempt timeout exceeded.
+    """
+    last_result: subprocess.CompletedProcess | None = None  # type: ignore[type-arg]
+    for attempt, delay in enumerate((*_BACKOFF_DELAYS, None)):
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        if result.returncode == 0 or not _is_rate_limit_stderr(result.stderr):
+            return result
+        last_result = result
+        if delay is None:
+            break
+        time.sleep(delay)
+
+    raise YtdlpRateLimitError(
+        f"YouTube rate limit hit on video {video_url} after {len(_BACKOFF_DELAYS)} retries. "
+        "Resume with `tube-scout collect transcripts --channel <alias>`."
+    )
+
+
 def fetch_caption_via_ytdlp(
     video_url: str,
     output_dir: Path,
@@ -208,12 +256,7 @@ def fetch_caption_via_ytdlp(
         video_url,
     ]
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout_seconds,
-    )
+    result = _run_with_backoff(cmd, video_url, timeout_seconds)
 
     if result.returncode != 0:
         _parse_ytdlp_stderr(result.stderr, video_url)
@@ -310,12 +353,7 @@ def fetch_audio_via_ytdlp(
         video_url,
     ]
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout_seconds,
-    )
+    result = _run_with_backoff(cmd, video_url, timeout_seconds)
 
     if result.returncode != 0:
         stderr_lower = result.stderr.lower()
