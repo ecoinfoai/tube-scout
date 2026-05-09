@@ -1,7 +1,8 @@
 """Content reuse detection CLI commands.
 
 Provides fingerprint, compare, quality, review, and scan subcommands
-under the 'tube-scout content' command group.
+under the 'tube-scout content' command group (spec 007), plus professor,
+baseline, whitelist, and policy subcommand groups (spec 011 placeholders).
 """
 
 import logging
@@ -24,6 +25,55 @@ content_app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+# --- spec 011 subcommand groups ---
+
+professor_app = typer.Typer(
+    name="professor",
+    help="Manage professor mappings (spec 011).",
+    no_args_is_help=True,
+)
+baseline_app = typer.Typer(
+    name="baseline",
+    help="Manage per-professor baseline corpus (spec 011).",
+    no_args_is_help=True,
+)
+whitelist_app = typer.Typer(
+    name="whitelist",
+    help="Manage Layer D pair/phrase whitelist (spec 011).",
+    no_args_is_help=True,
+)
+policy_app = typer.Typer(
+    name="policy",
+    help="Inspect policy.yaml (spec 011, read-only).",
+    no_args_is_help=True,
+)
+
+content_app.add_typer(professor_app, name="professor")
+content_app.add_typer(baseline_app, name="baseline")
+content_app.add_typer(whitelist_app, name="whitelist")
+content_app.add_typer(policy_app, name="policy")
+
+# Module-level flag: lazy migration runs at most once per process invocation.
+_SPEC011_MIGRATED: bool = False
+
+
+def _ensure_v2_schema(project: Path) -> Path:
+    """Lazy migration hook: run migrate_to_v2 once per process invocation.
+
+    Args:
+        project: Project root directory.
+
+    Returns:
+        Absolute path to the content_reuse.db file.
+    """
+    global _SPEC011_MIGRATED
+    db_path = project / "02_analyze" / "content" / "content_reuse.db"
+    if not _SPEC011_MIGRATED:
+        from tube_scout.storage.content_db import migrate_to_v2
+        migrate_to_v2(db_path)
+        _SPEC011_MIGRATED = True
+    return db_path
 
 
 def _resolve_channel_id(channel: str) -> str:
@@ -719,3 +769,383 @@ def content_scan_command(
     )
 
     console.print("\n[bold green]Content scan pipeline complete.[/bold green]")
+
+
+# ---------------------------------------------------------------------------
+# spec 011 placeholder commands — professor group
+# ---------------------------------------------------------------------------
+
+
+@professor_app.command("map")
+def professor_map(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor_id: str = typer.Option(..., "--professor-id", help="Professor identifier."),
+    display_name: str = typer.Option(..., "--display-name", help="Human-readable name."),
+    channel: str = typer.Option(..., "--channel", help="Channel alias."),
+    author: str = typer.Option(..., "--author", help="Author marker or __channel_owner__."),
+    note: str | None = typer.Option(None, "--note", help="Optional notes."),
+) -> None:
+    """Register or extend a professor pool mapping.
+
+    Args:
+        project: Project directory.
+        professor_id: Professor identifier.
+        display_name: Human-readable name.
+        channel: Channel alias.
+        author: Author marker.
+        note: Optional notes.
+
+    Raises:
+        NotImplementedError: Always — pending US1 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content professor map is not yet implemented. "
+        "Pending US1 implementation (T032). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §5."
+    )
+
+
+@professor_app.command("list")
+def professor_list(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+) -> None:
+    """List all registered professor mappings.
+
+    Args:
+        project: Project directory.
+
+    Raises:
+        NotImplementedError: Always — pending US1 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content professor list is not yet implemented. "
+        "Pending US1 implementation (T033). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §5."
+    )
+
+
+@professor_app.command("show")
+def professor_show(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor_id: str = typer.Option(..., "--professor-id", help="Professor identifier."),
+) -> None:
+    """Show a single professor's mappings.
+
+    Args:
+        project: Project directory.
+        professor_id: Professor identifier.
+
+    Raises:
+        NotImplementedError: Always — pending US1 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content professor show is not yet implemented. "
+        "Pending US1 implementation (T034). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §5."
+    )
+
+
+@professor_app.command("unmap")
+def professor_unmap(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor_id: str = typer.Option(..., "--professor-id", help="Professor identifier."),
+    channel: str = typer.Option(..., "--channel", help="Channel alias to remove."),
+    author: str = typer.Option(..., "--author", help="Author marker of the row."),
+) -> None:
+    """Remove a professor pool membership row.
+
+    Args:
+        project: Project directory.
+        professor_id: Professor identifier.
+        channel: Channel alias.
+        author: Author marker.
+
+    Raises:
+        NotImplementedError: Always — pending US1 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content professor unmap is not yet implemented. "
+        "Pending US1 implementation (T035). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §5."
+    )
+
+
+# ---------------------------------------------------------------------------
+# spec 011 placeholder commands — baseline group
+# ---------------------------------------------------------------------------
+
+
+@baseline_app.command("bootstrap")
+def baseline_bootstrap(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor: str = typer.Option(..., "--professor", help="Professor identifier."),
+    earliest_n: int = typer.Option(5, "--earliest-n", help="Number of earliest videos."),
+    min_occurrences: int = typer.Option(3, "--min-occurrences", help="Minimum video occurrences."),
+) -> None:
+    """Seed baseline corpus from earliest N videos.
+
+    Args:
+        project: Project directory.
+        professor: Professor identifier.
+        earliest_n: Number of earliest videos to use.
+        min_occurrences: Minimum occurrences threshold.
+
+    Raises:
+        NotImplementedError: Always — pending US2 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content baseline bootstrap is not yet implemented. "
+        "Pending US2 implementation (T040). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §6."
+    )
+
+
+@baseline_app.command("add")
+def baseline_add(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor: str = typer.Option(..., "--professor", help="Professor identifier."),
+    phrase: str = typer.Option(..., "--phrase", help="Phrase text to add."),
+    source_video: list[str] = typer.Option([], "--source-video", help="Source video IDs."),
+    reason: str | None = typer.Option(None, "--reason", help="Reason for addition."),
+) -> None:
+    """Add a single phrase to a professor's baseline corpus.
+
+    Args:
+        project: Project directory.
+        professor: Professor identifier.
+        phrase: Phrase text.
+        source_video: Source video IDs.
+        reason: Reason for addition.
+
+    Raises:
+        NotImplementedError: Always — pending US2 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content baseline add is not yet implemented. "
+        "Pending US2 implementation (T041). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §6."
+    )
+
+
+@baseline_app.command("list")
+def baseline_list(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor: str | None = typer.Option(None, "--professor", help="Professor identifier filter."),
+) -> None:
+    """List baseline corpus phrases.
+
+    Args:
+        project: Project directory.
+        professor: Optional professor filter.
+
+    Raises:
+        NotImplementedError: Always — pending US2 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content baseline list is not yet implemented. "
+        "Pending US2 implementation (T042). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §6."
+    )
+
+
+@baseline_app.command("remove")
+def baseline_remove(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor: str = typer.Option(..., "--professor", help="Professor identifier."),
+    phrase: str = typer.Option(..., "--phrase", help="Phrase text to remove."),
+) -> None:
+    """Remove a phrase from a professor's baseline corpus.
+
+    Args:
+        project: Project directory.
+        professor: Professor identifier.
+        phrase: Phrase text to remove.
+
+    Raises:
+        NotImplementedError: Always — pending US2 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content baseline remove is not yet implemented. "
+        "Pending US2 implementation (T043). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §6."
+    )
+
+
+# ---------------------------------------------------------------------------
+# spec 011 placeholder commands — whitelist group
+# ---------------------------------------------------------------------------
+
+
+@whitelist_app.command("add-pair")
+def whitelist_add_pair(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    pair_id: str | None = typer.Option(None, "--pair-id", help="Comparison result ID."),
+    reason: str = typer.Option(..., "--reason", help="Reason for whitelisting."),
+) -> None:
+    """Whitelist a comparison pair (mark as FALSE_POSITIVE).
+
+    Args:
+        project: Project directory.
+        pair_id: Comparison result ID.
+        reason: Reason text.
+
+    Raises:
+        NotImplementedError: Always — pending US3 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content whitelist add-pair is not yet implemented. "
+        "Pending US3 implementation (T050). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
+    )
+
+
+@whitelist_app.command("add-phrase")
+def whitelist_add_phrase(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor: str = typer.Option(..., "--professor", help="Professor identifier."),
+    phrase: str = typer.Option(..., "--phrase", help="Phrase text."),
+    reason: str = typer.Option(..., "--reason", help="Reason for whitelisting."),
+) -> None:
+    """Add a phrase to the per-professor whitelist.
+
+    Args:
+        project: Project directory.
+        professor: Professor identifier.
+        phrase: Phrase text.
+        reason: Reason text.
+
+    Raises:
+        NotImplementedError: Always — pending US3 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content whitelist add-phrase is not yet implemented. "
+        "Pending US3 implementation (T051). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
+    )
+
+
+@whitelist_app.command("list")
+def whitelist_list(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    professor: str | None = typer.Option(None, "--professor", help="Professor identifier filter."),
+    type_filter: str | None = typer.Option(None, "--type", help="Filter by type: pair or phrase."),
+) -> None:
+    """List whitelist entries.
+
+    Args:
+        project: Project directory.
+        professor: Optional professor filter.
+        type_filter: Optional type filter (pair|phrase).
+
+    Raises:
+        NotImplementedError: Always — pending US3 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content whitelist list is not yet implemented. "
+        "Pending US3 implementation (T052). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
+    )
+
+
+@whitelist_app.command("export")
+def whitelist_export(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    format: str = typer.Option(..., "--format", help="Export format: csv, xlsx, or markdown."),
+    output: Path = typer.Option(..., "--output", help="Output file path."),
+) -> None:
+    """Export whitelist to CSV, XLSX, or Markdown.
+
+    Args:
+        project: Project directory.
+        format: Export format (csv|xlsx|markdown).
+        output: Output file path.
+
+    Raises:
+        NotImplementedError: Always — pending US3 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content whitelist export is not yet implemented. "
+        "Pending US3 implementation (T053). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
+    )
+
+
+@whitelist_app.command("remove")
+def whitelist_remove(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+    type_filter: str = typer.Option(..., "--type", help="Entry type: pair or phrase."),
+    id: int = typer.Option(..., "--id", help="Entry ID to remove."),
+) -> None:
+    """Remove a whitelist entry by ID.
+
+    Args:
+        project: Project directory.
+        type_filter: Entry type (pair|phrase).
+        id: Entry ID.
+
+    Raises:
+        NotImplementedError: Always — pending US3 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content whitelist remove is not yet implemented. "
+        "Pending US3 implementation (T054). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §7."
+    )
+
+
+# ---------------------------------------------------------------------------
+# spec 011 placeholder commands — policy group
+# ---------------------------------------------------------------------------
+
+
+@policy_app.command("show")
+def policy_show(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+) -> None:
+    """Display the current policy.yaml contents.
+
+    Args:
+        project: Project directory.
+
+    Raises:
+        NotImplementedError: Always — pending US4 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content policy show is not yet implemented. "
+        "Pending US4 implementation (T058). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §8."
+    )
+
+
+@policy_app.command("validate")
+def policy_validate(
+    project: Path = typer.Option(..., "--project", help="Project directory."),
+) -> None:
+    """Validate policy.yaml against spec 011 schema rules.
+
+    Args:
+        project: Project directory.
+
+    Raises:
+        NotImplementedError: Always — pending US4 implementation.
+    """
+    _ensure_v2_schema(project)
+    raise NotImplementedError(
+        "tube-scout content policy validate is not yet implemented. "
+        "Pending US4 implementation (T059). "
+        "See specs/011-reuse-fullstack-subtitle/contracts/cli_content.md §8."
+    )
