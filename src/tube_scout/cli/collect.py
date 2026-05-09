@@ -69,6 +69,71 @@ def _dispatch_api_transcripts(**kwargs: object) -> None:
     """Data API transcript backend — delegates to existing spec 010 logic."""
 
 
+def dispatch_audio_fingerprint(
+    channel: str | None = None,
+    all_channels: object = False,
+    force: bool = False,
+    audio_temp: Path | None = None,
+    db_path: Path | None = None,
+    video_ids: list[str] | None = None,
+    cookies_browser: str = "brave",
+    cookies_path: str | None = None,
+    sleep_seconds: tuple[float, float] = (30.0, 60.0),
+    **kwargs: object,
+) -> None:
+    """Dispatch audio extraction + fingerprint + DB persist pipeline.
+
+    Args:
+        channel: Channel alias to process.
+        all_channels: If True, process all registered channels.
+        force: If True, overwrite existing fingerprint rows.
+        audio_temp: Directory for temporary audio files.
+        db_path: Path to content_reuse.db SQLite database.
+        video_ids: Explicit list of video IDs to process (overrides channel lookup).
+        cookies_browser: Browser name for yt-dlp cookie extraction.
+        cookies_path: Optional path to cookies.txt file.
+        sleep_seconds: (min, max) sleep range between yt-dlp calls.
+        **kwargs: Additional arguments (ignored).
+    """
+    import datetime
+
+    from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
+    from tube_scout.services.ytdlp_adapter import fetch_audio_via_ytdlp
+    from tube_scout.services.ytdlp_errors import FingerprintExtractError
+    from tube_scout.storage.content_db import (
+        audio_fingerprint_exists,
+        insert_audio_fingerprint,
+    )
+
+    if video_ids is None:
+        return
+
+    for video_id in video_ids:
+        if not force and db_path is not None and audio_fingerprint_exists(db_path, video_id):
+            continue
+
+        audio_path: Path | None = None
+        try:
+            temp_dir = audio_temp if audio_temp is not None else Path(".")
+            audio_path = fetch_audio_via_ytdlp(
+                video_url=f"https://youtu.be/{video_id}",
+                output_dir=temp_dir,
+                cookies_browser=cookies_browser,
+                cookies_path=Path(cookies_path) if cookies_path else None,
+                sleep_seconds=sleep_seconds,
+            )
+            try:
+                fp_bytes, duration = extract_chromaprint_fingerprint(audio_path)
+            except FingerprintExtractError:
+                continue
+            if db_path is not None:
+                extracted_at = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+                insert_audio_fingerprint(db_path, video_id, fp_bytes, duration, extracted_at)
+        finally:
+            if audio_path is not None:
+                audio_path.unlink(missing_ok=True)
+
+
 def _is_valid_cached_transcript(path: Path) -> bool:
     """Check whether a cached transcript JSON is reusable for resume.
 
@@ -1462,3 +1527,129 @@ def _collect_all_for_web(
 # Late import for the helper's type annotation only (avoids a hard module
 # dependency on collections.abc at module import time for downstream tools).
 from collections.abc import Callable  # noqa: E402
+
+
+def collect_audio_command(
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias.",
+    ),
+    all_channels: bool = typer.Option(
+        False,
+        "--all-channels",
+        help="Process all registered self-channels.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Re-extract even if fingerprint exists.",
+    ),
+    cookies_browser: str | None = typer.Option(
+        None,
+        "--cookies-browser",
+        help="Override cookies browser (default: brave).",
+    ),
+    cookies_file: str | None = typer.Option(
+        None,
+        "--cookies-file",
+        help="Override cookies.txt path.",
+    ),
+    sleep_min: float = typer.Option(
+        30.0,
+        "--sleep-min",
+        help="Min sleep between calls (seconds).",
+    ),
+    sleep_max: float = typer.Option(
+        60.0,
+        "--sleep-max",
+        help="Max sleep between calls (seconds).",
+    ),
+) -> None:
+    """Extract audio, compute fingerprint, delete audio (Constitution V — audio 영속 0)."""
+    if channel and all_channels is True:
+        console.print(
+            "[red]Error: --channel and --all-channels are mutually exclusive.[/red]"
+        )
+        raise typer.Exit(code=2)
+
+    if channel:
+        try:
+            resolve_alias_to_channel_id(channel)
+        except KeyError:
+            console.print(
+                f"[red]Error: Channel alias '{channel}' is not registered. "
+                "Run `tube-scout auth --channel <alias>` to register.[/red]"
+            )
+            raise typer.Exit(code=5)
+
+    dispatch_audio_fingerprint(
+        channel=channel,
+        all_channels=all_channels is True,
+        force=force,
+        cookies_browser=cookies_browser,
+        sleep_seconds=(sleep_min, sleep_max),
+    )
+
+
+def collect_fingerprint_command(
+    channel: str | None = typer.Option(
+        None,
+        "--channel",
+        help="Channel alias.",
+    ),
+    all_channels: bool = typer.Option(
+        False,
+        "--all-channels",
+        help="Process all registered self-channels.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Re-extract even if fingerprint exists.",
+    ),
+    cookies_browser: str | None = typer.Option(
+        None,
+        "--cookies-browser",
+        help="Override cookies browser (default: brave).",
+    ),
+    cookies_file: str | None = typer.Option(
+        None,
+        "--cookies-file",
+        help="Override cookies.txt path.",
+    ),
+    sleep_min: float = typer.Option(
+        30.0,
+        "--sleep-min",
+        help="Min sleep between calls (seconds).",
+    ),
+    sleep_max: float = typer.Option(
+        60.0,
+        "--sleep-max",
+        help="Max sleep between calls (seconds).",
+    ),
+) -> None:
+    """Alias for collect audio — extract audio, compute fingerprint, delete audio."""
+    if channel and all_channels is True:
+        console.print(
+            "[red]Error: --channel and --all-channels are mutually exclusive.[/red]"
+        )
+        raise typer.Exit(code=2)
+
+    if channel:
+        try:
+            resolve_alias_to_channel_id(channel)
+        except KeyError:
+            console.print(
+                f"[red]Error: Channel alias '{channel}' is not registered. "
+                "Run `tube-scout auth --channel <alias>` to register.[/red]"
+            )
+            raise typer.Exit(code=5)
+
+    dispatch_audio_fingerprint(
+        channel=channel,
+        all_channels=all_channels is True,
+        force=force,
+        cookies_browser=cookies_browser,
+        sleep_seconds=(sleep_min, sleep_max),
+    )
