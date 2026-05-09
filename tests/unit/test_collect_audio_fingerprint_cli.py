@@ -100,11 +100,19 @@ def test_collect_fingerprint_alias_equals_collect_audio(tmp_path) -> None:
 
 
 def test_collect_audio_all_channels(tmp_path) -> None:
-    """Scenario 3: collect audio --all-channels dispatches with all_channels=True."""
-    captured: dict = {}
+    """Scenario 3: collect audio --all-channels dispatches per-channel with video_ids (G-2)."""
+    import json
+
+    channel_dir = tmp_path / "01_collect" / "channels" / "UC_CH1_TEST001"
+    channel_dir.mkdir(parents=True)
+    (channel_dir / "videos_meta.json").write_text(
+        json.dumps([{"video_id": "AAAAAAAAAAA"}]), encoding="utf-8"
+    )
+
+    dispatch_calls: list[dict] = []
 
     def fake_dispatch(**kwargs):
-        captured.update(kwargs)
+        dispatch_calls.append(dict(kwargs))
 
     with patch(
         "tube_scout.cli.collect.dispatch_audio_fingerprint",
@@ -112,6 +120,9 @@ def test_collect_audio_all_channels(tmp_path) -> None:
     ), patch(
         "tube_scout.cli.collect.resolve_project",
         return_value=_mock_mgr(tmp_path),
+    ), patch(
+        "tube_scout.cli.collect.resolve_alias_to_channel_id",
+        return_value="UC_CH1_TEST001",
     ), patch(
         "tube_scout.storage.content_db.migrate_to_v3",
     ), patch(
@@ -123,7 +134,9 @@ def test_collect_audio_all_channels(tmp_path) -> None:
             ["collect", "audio", "--all-channels"],
         )
 
-    assert captured.get("all_channels") is True
+    # G-2: per-channel dispatch with non-None video_ids
+    assert len(dispatch_calls) >= 1, "dispatch must be called at least once"
+    assert dispatch_calls[0].get("video_ids") is not None, "video_ids must not be None"
 
 
 def test_collect_audio_force_flag(tmp_path) -> None:

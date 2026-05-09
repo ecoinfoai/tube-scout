@@ -69,6 +69,7 @@ def _dispatch_ytdlp_transcripts(  # noqa: C901
     cookies_path: str | None = None,
     sleep_seconds: tuple[float, float] = (30.0, 60.0),
     audit_writer: object = None,
+    project_dir: str = "./projects",
     **kwargs: object,
 ) -> None:
     """Fetch captions via yt-dlp for a channel or all channels.
@@ -101,7 +102,7 @@ def _dispatch_ytdlp_transcripts(  # noqa: C901
     if channel is not None and not channel.strip():
         raise KeyError("Channel alias must not be empty.")
 
-    mgr = resolve_project("./projects", None, producer=False)
+    mgr = resolve_project(project_dir, None, producer=False)
     project_dir = Path(mgr.project_dir)
     transcript_dir = project_dir / "01_collect" / "transcripts"
     transcript_dir.mkdir(parents=True, exist_ok=True)
@@ -962,13 +963,15 @@ def collect_transcripts_command(
     # Dispatch to ytdlp backend — return early
     if resolved_source == "ytdlp":
         dispatch_transcript_source(
-            resolved_source, channel=channel, all_channels=all_channels
+            resolved_source, channel=channel, all_channels=all_channels,
+            project_dir=project_dir,
         )
         return
 
     # Dispatch hook for api source (testable seam)
     dispatch_transcript_source(
-        resolved_source, channel=channel, all_channels=all_channels
+        resolved_source, channel=channel, all_channels=all_channels,
+        project_dir=project_dir,
     )
 
     from tube_scout.cli.errors import UserFacingError, render_error
@@ -1761,18 +1764,21 @@ def build_signal_handler(
     audio_temp: Path,
     audit_writer: object,
     current_video_id_ref: list[str],
+    cookies_source: str = "browser:brave",
 ) -> Callable:
     """Build a SIGINT/SIGTERM handler for audio collect commands.
 
     Args:
         audio_temp: Directory containing temporary mp3 files to clean up.
         audit_writer: AuditWriter instance for appending interrupted rows.
-        current_video_id_ref: Single-element list holding the in-progress video_id
-            (mutable reference so handler sees the latest value).
+        current_video_id_ref: Mutable list; empty = no video in flight,
+            non-empty = current_video_id_ref[0] is the in-progress video_id.
+        cookies_source: Cookies source string written to the interrupted audit row.
 
     Returns:
         Signal handler callable(signum, frame) that cleans audio_temp,
-        writes interrupted audit row, and raises SystemExit(130).
+        writes interrupted audit row (only when a video is in flight),
+        and raises SystemExit(130).
     """
     from datetime import UTC, datetime
 
@@ -1781,23 +1787,24 @@ def build_signal_handler(
         for mp3 in audio_temp.glob("*.mp3"):
             mp3.unlink(missing_ok=True)
 
-        # Write interrupted audit row for in-progress video
-        video_id = current_video_id_ref[0] if current_video_id_ref else "unknown"
-        ts = datetime.now(tz=UTC).isoformat()
-        if hasattr(audit_writer, "append_fingerprint_row"):
-            try:
-                audit_writer.append_fingerprint_row({  # type: ignore[union-attr]
-                    "video_id": video_id,
-                    "result": "fail",
-                    "reason": "interrupted",
-                    "duration_sec": None,
-                    "timestamp": ts,
-                    "cookies_source": "brave",
-                })
-            except Exception as _exc:
-                # AT-12.3: log to stderr so SS-5 is not silently swallowed
-                import sys
-                print(f"[signal handler] audit write failed: {_exc}", file=sys.stderr)
+        # G-4: only write interrupted row when a video is actually in progress
+        if current_video_id_ref and current_video_id_ref[0]:
+            video_id = current_video_id_ref[0]
+            ts = datetime.now(tz=UTC).isoformat()
+            if hasattr(audit_writer, "append_fingerprint_row"):
+                try:
+                    audit_writer.append_fingerprint_row({  # type: ignore[union-attr]
+                        "video_id": video_id,
+                        "result": "fail",
+                        "reason": "interrupted",
+                        "duration_sec": None,
+                        "timestamp": ts,
+                        "cookies_source": cookies_source,
+                    })
+                except Exception as _exc:
+                    # AT-12.3: log to stderr so SS-5 is not silently swallowed
+                    import sys
+                    print(f"[signal handler] audit write failed: {_exc}", file=sys.stderr)
 
         raise SystemExit(130)
 
@@ -1840,6 +1847,11 @@ def collect_audio_command(
         "--sleep-max",
         help="Max sleep between calls (seconds).",
     ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory (AT-NEW-1 fix).",
+    ),
 ) -> None:
     """Extract audio, compute chromaprint fingerprint, delete audio temp file.
 
@@ -1878,7 +1890,7 @@ def collect_audio_command(
     # FIX-1: resolve project dir for proper paths
     from tube_scout.storage.content_db import migrate_to_v3
 
-    mgr = resolve_project("./projects", None, producer=False)
+    mgr = resolve_project(project_dir, None, producer=False)
     project_dir = Path(mgr.project_dir)
 
     # FIX-3: audio_temp under project 01_collect (B-X1-7)
@@ -1888,12 +1900,12 @@ def collect_audio_command(
     # FIX-2: audit_writer with correct project dir
     audit = AuditWriter(project_dir)
 
-    # FIX-1: db_path from project
+    # FIX-1 + AT-NEW-3: db_path from project, migrate idempotent (CREATE TABLE IF NOT EXISTS)
     db_path = project_dir / "02_analyze" / "content" / "content_reuse.db"
-    if db_path.exists():
-        migrate_to_v3(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    migrate_to_v3(db_path)
 
-    # FIX-1: resolve video_ids from channel alias
+    # FIX-1 + AT-NEW-2: resolve video_ids from channel alias OR all-channels
     resolved_video_ids: list[str] | None = None
     if channel:
         channel_id = resolve_alias_to_channel_id(channel)
@@ -1908,26 +1920,61 @@ def collect_audio_command(
                 "Run `tube-scout collect videos` first.[/yellow]"
             )
             raise typer.Exit(code=1)
-
-    # FIX-4: mutable ref for SIGINT handler
-    current_video_id_ref: list[str] = [""]
-    _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref)
+    # G-4: empty list = no video in flight; handler guards on non-empty ref[0]
+    current_video_id_ref: list[str] = []
+    cookies_src = f"file:{cookies_file}" if cookies_file else f"browser:{cookies_browser or 'brave'}"
+    _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref, cookies_source=cookies_src)
     _signal.signal(_signal.SIGINT, _handler)
     _signal.signal(_signal.SIGTERM, _handler)
 
-    dispatch_audio_fingerprint(
-        channel=channel,
-        all_channels=all_channels is True,
-        force=force,
-        cookies_browser=cookies_browser,
-        cookies_path=cookies_file,
-        sleep_seconds=(sleep_min, sleep_max),
-        audio_temp=audio_temp_path,
-        db_path=db_path,
-        video_ids=resolved_video_ids,
-        audit_writer=audit,
-        current_video_id_ref=current_video_id_ref,
-    )
+    if channel:
+        dispatch_audio_fingerprint(
+            channel=channel,
+            all_channels=False,
+            force=force,
+            cookies_browser=cookies_browser,
+            cookies_path=cookies_file,
+            sleep_seconds=(sleep_min, sleep_max),
+            audio_temp=audio_temp_path,
+            db_path=db_path,
+            video_ids=resolved_video_ids,
+            audit_writer=audit,
+            current_video_id_ref=current_video_id_ref,
+        )
+    elif all_channels is True:
+        # G-2: dispatch per-channel for isolation (not one aggregated call)
+        from tube_scout.services.auth import load_registry
+        registry = load_registry()
+        for alias in registry:
+            try:
+                ch_id = resolve_alias_to_channel_id(alias)
+            except KeyError:
+                continue
+            ch_dir = project_dir / "01_collect" / "channels" / ch_id
+            ch_meta = ch_dir / "videos_meta.json"
+            if not ch_meta.exists():
+                console.print(
+                    f"[yellow]Channel '{alias}' has no videos_meta.json — skipping.[/yellow]"
+                )
+                continue
+            ch_videos = read_json(ch_meta) or []
+            ch_video_ids = [v["video_id"] for v in ch_videos if "video_id" in v]
+            try:
+                dispatch_audio_fingerprint(
+                    channel=alias,
+                    all_channels=False,
+                    force=force,
+                    cookies_browser=cookies_browser,
+                    cookies_path=cookies_file,
+                    sleep_seconds=(sleep_min, sleep_max),
+                    audio_temp=audio_temp_path,
+                    db_path=db_path,
+                    video_ids=ch_video_ids,
+                    audit_writer=audit,
+                    current_video_id_ref=current_video_id_ref,
+                )
+            except Exception as _exc:
+                console.print(f"[yellow]Channel '{alias}' failed: {_exc}. Continuing.[/yellow]")
 
 
 def collect_fingerprint_command(
@@ -1966,6 +2013,11 @@ def collect_fingerprint_command(
         "--sleep-max",
         help="Max sleep between calls (seconds).",
     ),
+    project_dir: str = typer.Option(
+        "./projects",
+        "--project-dir",
+        help="Projects root directory (AT-NEW-1 fix).",
+    ),
 ) -> None:
     """Alias for collect audio: extract audio, compute fingerprint, delete audio."""
     import signal as _signal
@@ -2001,7 +2053,7 @@ def collect_fingerprint_command(
     # FIX-1: resolve project dir for proper paths
     from tube_scout.storage.content_db import migrate_to_v3
 
-    mgr = resolve_project("./projects", None, producer=False)
+    mgr = resolve_project(project_dir, None, producer=False)
     project_dir = Path(mgr.project_dir)
 
     # FIX-3: audio_temp under project 01_collect (B-X1-7)
@@ -2011,12 +2063,12 @@ def collect_fingerprint_command(
     # FIX-2: audit_writer with correct project dir
     audit = AuditWriter(project_dir)
 
-    # FIX-1: db_path from project
+    # FIX-1 + AT-NEW-3: db_path from project, migrate idempotent (CREATE TABLE IF NOT EXISTS)
     db_path = project_dir / "02_analyze" / "content" / "content_reuse.db"
-    if db_path.exists():
-        migrate_to_v3(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    migrate_to_v3(db_path)
 
-    # FIX-1: resolve video_ids from channel alias
+    # FIX-1 + AT-NEW-2: resolve video_ids from channel alias OR all-channels
     resolved_video_ids: list[str] | None = None
     if channel:
         channel_id = resolve_alias_to_channel_id(channel)
@@ -2031,23 +2083,58 @@ def collect_fingerprint_command(
                 "Run `tube-scout collect videos` first.[/yellow]"
             )
             raise typer.Exit(code=1)
-
-    # FIX-4: mutable ref for SIGINT handler
-    current_video_id_ref: list[str] = [""]
-    _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref)
+    # G-4: empty list = no video in flight; handler guards on non-empty ref[0]
+    current_video_id_ref: list[str] = []
+    cookies_src = f"file:{cookies_file}" if cookies_file else f"browser:{cookies_browser or 'brave'}"
+    _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref, cookies_source=cookies_src)
     _signal.signal(_signal.SIGINT, _handler)
     _signal.signal(_signal.SIGTERM, _handler)
 
-    dispatch_audio_fingerprint(
-        channel=channel,
-        all_channels=all_channels is True,
-        force=force,
-        cookies_browser=cookies_browser,
-        cookies_path=cookies_file,
-        sleep_seconds=(sleep_min, sleep_max),
-        audio_temp=audio_temp_path,
-        db_path=db_path,
-        video_ids=resolved_video_ids,
-        audit_writer=audit,
-        current_video_id_ref=current_video_id_ref,
-    )
+    if channel:
+        dispatch_audio_fingerprint(
+            channel=channel,
+            all_channels=False,
+            force=force,
+            cookies_browser=cookies_browser,
+            cookies_path=cookies_file,
+            sleep_seconds=(sleep_min, sleep_max),
+            audio_temp=audio_temp_path,
+            db_path=db_path,
+            video_ids=resolved_video_ids,
+            audit_writer=audit,
+            current_video_id_ref=current_video_id_ref,
+        )
+    elif all_channels is True:
+        # G-2: dispatch per-channel for isolation (not one aggregated call)
+        from tube_scout.services.auth import load_registry
+        registry = load_registry()
+        for alias in registry:
+            try:
+                ch_id = resolve_alias_to_channel_id(alias)
+            except KeyError:
+                continue
+            ch_dir = project_dir / "01_collect" / "channels" / ch_id
+            ch_meta = ch_dir / "videos_meta.json"
+            if not ch_meta.exists():
+                console.print(
+                    f"[yellow]Channel '{alias}' has no videos_meta.json — skipping.[/yellow]"
+                )
+                continue
+            ch_videos = read_json(ch_meta) or []
+            ch_video_ids = [v["video_id"] for v in ch_videos if "video_id" in v]
+            try:
+                dispatch_audio_fingerprint(
+                    channel=alias,
+                    all_channels=False,
+                    force=force,
+                    cookies_browser=cookies_browser,
+                    cookies_path=cookies_file,
+                    sleep_seconds=(sleep_min, sleep_max),
+                    audio_temp=audio_temp_path,
+                    db_path=db_path,
+                    video_ids=ch_video_ids,
+                    audit_writer=audit,
+                    current_video_id_ref=current_video_id_ref,
+                )
+            except Exception as _exc:
+                console.print(f"[yellow]Channel '{alias}' failed: {_exc}. Continuing.[/yellow]")
