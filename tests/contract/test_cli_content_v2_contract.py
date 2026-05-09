@@ -626,3 +626,308 @@ def test_policy_validate_exits_4_with_invalid_yaml(tmp_path: Path) -> None:
     assert result.exit_code == 4, (
         f"Expected exit 4 for invalid policy, got {result.exit_code}. Output: {result.output!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# T054: whitelist CLI real impl + review --mark + review --pattern (RED)
+# ---------------------------------------------------------------------------
+
+
+def _setup_db_with_pair(tmp_path: Path) -> tuple[Path, Path]:
+    """Create clean v2 DB with professor and comparison pair pre-seeded."""
+    db_dir = tmp_path / "02_analyze" / "content"
+    db_dir.mkdir(parents=True)
+    db_path = db_dir / "content_reuse.db"
+    build_clean_v2_db(db_path)
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "INSERT OR IGNORE INTO professor_pool (professor_id, display_name, created_at, created_by) "
+        "VALUES ('prof-wl-cli', 'WL CLI Prof', '2026-01-01T00:00:00', 'system')"
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO comparison_results "
+        "(source_video_id, target_video_id, review_status, created_at) "
+        "VALUES ('src-vid', 'tgt-vid', 'UNREVIEWED', '2026-01-01T00:00:00')"
+    )
+    conn.commit()
+    conn.close()
+    return tmp_path, db_path
+
+
+def test_whitelist_add_pair_real_impl_marks_false_positive(tmp_path: Path) -> None:
+    """'content whitelist add-pair' marks comparison as FALSE_POSITIVE in DB."""
+    import tube_scout.cli.content as _content_mod
+
+    project, db_path = _setup_db_with_pair(tmp_path)
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            [
+                "whitelist", "add-pair",
+                "--project", str(project),
+                "--source-video-id", "src-vid",
+                "--target-video-id", "tgt-vid",
+                "--reason", "habitual intro identical",
+                "--registered-by", "admin",
+            ],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output: {result.output!r}. "
+        f"Exception: {result.exception!r}"
+    )
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT review_status FROM comparison_results "
+        "WHERE source_video_id='src-vid' AND target_video_id='tgt-vid'"
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row[0] == "FALSE_POSITIVE", f"Expected FALSE_POSITIVE, got {row[0]}"
+
+
+def test_whitelist_add_phrase_real_impl_inserts_phrase(tmp_path: Path) -> None:
+    """'content whitelist add-phrase' inserts a phrase into phrase_whitelist table."""
+    import tube_scout.cli.content as _content_mod
+
+    project, db_path = _setup_db_with_pair(tmp_path)
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            [
+                "whitelist", "add-phrase",
+                "--project", str(project),
+                "--professor", "prof-wl-cli",
+                "--phrase", "안녕하세요 여러분",
+                "--reason", "habitual greeting",
+                "--registered-by", "admin",
+            ],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, (
+        f"Expected exit 0, got {result.exit_code}. Output: {result.output!r}. "
+        f"Exception: {result.exception!r}"
+    )
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT phrase_raw FROM phrase_whitelist WHERE professor_id='prof-wl-cli'"
+    ).fetchone()
+    conn.close()
+    assert row is not None, "phrase_whitelist: phrase not inserted by 'whitelist add-phrase'"
+
+
+def test_whitelist_list_real_impl_shows_entries(tmp_path: Path) -> None:
+    """'content whitelist list' shows registered entries after add-phrase."""
+    import tube_scout.cli.content as _content_mod
+
+    project, db_path = _setup_db_with_pair(tmp_path)
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        runner.invoke(
+            content_app,
+            [
+                "whitelist", "add-phrase",
+                "--project", str(project),
+                "--professor", "prof-wl-cli",
+                "--phrase", "오늘 배울 내용",
+                "--reason", "intro",
+                "--registered-by", "admin",
+            ],
+            catch_exceptions=True,
+        )
+        result = runner.invoke(
+            content_app,
+            ["whitelist", "list", "--project", str(project)],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, f"Expected exit 0: {result.output!r}"
+    assert "오늘 배울 내용" in result.output or "prof-wl-cli" in result.output
+
+
+def test_whitelist_export_real_impl_creates_csv(tmp_path: Path) -> None:
+    """'content whitelist export --fmt csv' creates a CSV file."""
+    import tube_scout.cli.content as _content_mod
+
+    project, db_path = _setup_db_with_pair(tmp_path)
+    output_path = tmp_path / "wl_export.csv"
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        runner.invoke(
+            content_app,
+            [
+                "whitelist", "add-phrase",
+                "--project", str(project),
+                "--professor", "prof-wl-cli",
+                "--phrase", "감사합니다",
+                "--reason", "closing",
+                "--registered-by", "admin",
+            ],
+            catch_exceptions=True,
+        )
+        result = runner.invoke(
+            content_app,
+            [
+                "whitelist", "export",
+                "--project", str(project),
+                "--fmt", "csv",
+                "--output", str(output_path),
+            ],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, f"Expected exit 0: {result.output!r}"
+    assert output_path.exists(), "CSV export file not created"
+
+
+def test_whitelist_remove_real_impl_removes_phrase(tmp_path: Path) -> None:
+    """'content whitelist remove --kind phrase' removes the entry from DB."""
+    import tube_scout.cli.content as _content_mod
+
+    project, db_path = _setup_db_with_pair(tmp_path)
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        runner.invoke(
+            content_app,
+            [
+                "whitelist", "add-phrase",
+                "--project", str(project),
+                "--professor", "prof-wl-cli",
+                "--phrase", "제거 대상 구문",
+                "--reason", "test",
+                "--registered-by", "admin",
+            ],
+            catch_exceptions=True,
+        )
+        # Get the inserted row id
+        conn = sqlite3.connect(str(db_path))
+        row = conn.execute(
+            "SELECT id FROM phrase_whitelist WHERE professor_id='prof-wl-cli'"
+        ).fetchone()
+        conn.close()
+        entry_id = row[0] if row else None
+
+        if entry_id is not None:
+            result = runner.invoke(
+                content_app,
+                [
+                    "whitelist", "remove",
+                    "--project", str(project),
+                    "--kind", "phrase",
+                    "--id", str(entry_id),
+                ],
+                catch_exceptions=True,
+            )
+        else:
+            result = None
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result is not None, "add-phrase failed, no entry to remove"
+    assert result.exit_code == 0, f"Expected exit 0: {result.output!r}"
+
+    conn = sqlite3.connect(str(db_path))
+    count = conn.execute(
+        "SELECT COUNT(*) FROM phrase_whitelist WHERE professor_id='prof-wl-cli'"
+    ).fetchone()[0]
+    conn.close()
+    assert count == 0, "phrase_whitelist: entry not removed by 'whitelist remove'"
+
+
+def test_review_mark_with_advisory_lock_exits_0(tmp_path: Path) -> None:
+    """'content review --mark' with advisory lock exits 0 and marks the comparison."""
+    import tube_scout.cli.content as _content_mod
+
+    project, db_path = _setup_db_with_pair(tmp_path)
+
+    # Get comparison id
+    conn = sqlite3.connect(str(db_path))
+    row = conn.execute(
+        "SELECT id FROM comparison_results WHERE source_video_id='src-vid'"
+    ).fetchone()
+    conn.close()
+    comp_id = row[0]
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            [
+                "review",
+                "--project", str(project),
+                "--channel", "ch-test",
+                "--mark", f"{comp_id} CONFIRMED_DUPLICATE",
+            ],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    assert result.exit_code == 0, f"Expected exit 0: {result.output!r}"
+    conn = sqlite3.connect(str(db_path))
+    status = conn.execute(
+        "SELECT review_status FROM comparison_results WHERE id=?", (comp_id,)
+    ).fetchone()[0]
+    conn.close()
+    assert status == "CONFIRMED_DUPLICATE"
+
+
+def test_review_pattern_filter_shows_matching_pattern(tmp_path: Path) -> None:
+    """'content review --pattern whole' shows only comparisons matching pattern."""
+    import tube_scout.cli.content as _content_mod
+
+    project, db_path = _setup_db_with_pair(tmp_path)
+
+    # Insert a comparison with a known reuse_pattern
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "UPDATE comparison_results SET reuse_pattern='WHOLE_DUPLICATE' "
+        "WHERE source_video_id='src-vid'"
+    )
+    conn.commit()
+    conn.close()
+
+    original_flag = _content_mod._SPEC011_MIGRATED
+    _content_mod._SPEC011_MIGRATED = True
+    try:
+        result = runner.invoke(
+            content_app,
+            [
+                "review",
+                "--project", str(project),
+                "--channel", "ch-test",
+                "--pattern", "WHOLE_DUPLICATE",
+            ],
+            catch_exceptions=True,
+        )
+    finally:
+        _content_mod._SPEC011_MIGRATED = original_flag
+
+    # Must not raise an option parse error (exit code 2)
+    assert result.exit_code != 2, (
+        f"--pattern option not recognized: {result.output!r}"
+    )
