@@ -678,3 +678,73 @@ def migrate_to_v2(db_path: Path) -> None:
         raise
     finally:
         conn.close()
+
+
+def insert_match_spans(
+    comparison_id: int,
+    spans: "list[Any]",
+    db_path: Path,
+) -> None:
+    """Idempotent UPSERT of MatchSpan rows keyed on (comparison_id, span_index).
+
+    Safe to call multiple times with the same spans — existing rows are
+    replaced in-place (INSERT OR REPLACE preserves idempotency).
+
+    Args:
+        comparison_id: FK into comparison_results.id.
+        spans: List of MatchSpan model instances or dicts with matching fields.
+        db_path: Path to the SQLite database file.
+
+    Raises:
+        TypeError: If db_path is not a Path or comparison_id is not an int.
+        ValueError: If comparison_id is not positive.
+    """
+    if not isinstance(db_path, Path):
+        raise TypeError(f"db_path must be a Path, got {type(db_path).__name__}")
+    if not isinstance(comparison_id, int):
+        raise TypeError(
+            f"comparison_id must be an int, got {type(comparison_id).__name__}"
+        )
+    if comparison_id <= 0:
+        raise ValueError(
+            f"comparison_id must be a positive integer, got {comparison_id}"
+        )
+
+    if not spans:
+        return
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        for idx, span in enumerate(spans):
+            if hasattr(span, "start_a_seconds"):
+                sa = span.start_a_seconds
+                ea = span.end_a_seconds
+                sb = span.start_b_seconds
+                eb = span.end_b_seconds
+                length = span.length_seconds
+                sample = span.matched_text_sample
+                base_sub = int(span.baseline_subtracted)
+                wl = int(span.whitelisted)
+            else:
+                sa = span["start_a_seconds"]
+                ea = span["end_a_seconds"]
+                sb = span["start_b_seconds"]
+                eb = span["end_b_seconds"]
+                length = span["length_seconds"]
+                sample = span.get("matched_text_sample", "")
+                base_sub = int(span.get("baseline_subtracted", False))
+                wl = int(span.get("whitelisted", False))
+
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO match_spans
+                    (comparison_id, span_index, start_a_seconds, end_a_seconds,
+                     start_b_seconds, end_b_seconds, length_seconds,
+                     matched_text_sample, baseline_subtracted, whitelisted)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (comparison_id, idx, sa, ea, sb, eb, length, sample, base_sub, wl),
+            )
+        conn.commit()
+    finally:
+        conn.close()
