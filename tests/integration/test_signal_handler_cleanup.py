@@ -149,3 +149,101 @@ time.sleep(10)  # Will be interrupted
     assert proc.returncode == 130, (
         f"Expected exit code 130 after SIGINT, got {proc.returncode}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Scenario 4: G-4 — SIGINT before dispatch loop starts (empty ref)
+# ---------------------------------------------------------------------------
+
+def test_sigint_before_loop_no_interrupted_row(tmp_path: Path) -> None:
+    """G-4: SIGINT before dispatch loop (empty ref []) → cleanup only, no interrupted row."""
+    from tube_scout.cli.collect import build_signal_handler
+    from tube_scout.services.audit_writer import AuditWriter
+
+    audio_temp = tmp_path / "audio_temp"
+    audio_temp.mkdir()
+    (audio_temp / "stale.mp3").write_bytes(b"data")
+
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    audit = AuditWriter(project_dir)
+
+    # Empty list = no video in progress yet
+    current_video_id_ref: list[str] = []
+
+    handler = build_signal_handler(
+        audio_temp=audio_temp,
+        audit_writer=audit,
+        current_video_id_ref=current_video_id_ref,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handler(2, None)
+
+    assert exc_info.value.code == 130
+    # mp3 must be cleaned even if no video in progress
+    assert not list(audio_temp.glob("*.mp3")), "SC-004: mp3 must be removed"
+    # No interrupted row when no video was in progress
+    fp_audit = project_dir / "01_collect" / "fingerprint_audit.csv"
+    rows = _read_audit_rows(fp_audit)
+    assert len(rows) == 0, f"Expected no audit rows when ref empty, got {rows}"
+
+
+def test_sigint_ref_sentinel_not_written_as_video_id(tmp_path: Path) -> None:
+    """G-4: empty ref sentinel must NOT produce a row with video_id='' or '(unknown)'."""
+    from tube_scout.cli.collect import build_signal_handler
+    from tube_scout.services.audit_writer import AuditWriter
+
+    audio_temp = tmp_path / "audio_temp2"
+    audio_temp.mkdir()
+    project_dir = tmp_path / "project2"
+    project_dir.mkdir()
+    audit = AuditWriter(project_dir)
+
+    # Empty list — nothing in flight
+    handler = build_signal_handler(
+        audio_temp=audio_temp,
+        audit_writer=audit,
+        current_video_id_ref=[],
+    )
+
+    with pytest.raises(SystemExit):
+        handler(2, None)
+
+    fp_audit = project_dir / "01_collect" / "fingerprint_audit.csv"
+    rows = _read_audit_rows(fp_audit)
+    bad_ids = [r for r in rows if r.get("video_id") in ("", "(unknown)", "unknown")]
+    assert not bad_ids, f"Sentinel video_id written to audit: {bad_ids}"
+
+
+# ---------------------------------------------------------------------------
+# Scenario 5: P2 cookies_source parameter in build_signal_handler
+# ---------------------------------------------------------------------------
+
+def test_signal_handler_uses_provided_cookies_source(tmp_path: Path) -> None:
+    """P2: build_signal_handler must accept cookies_source and write it to audit row."""
+    from tube_scout.cli.collect import build_signal_handler
+    from tube_scout.services.audit_writer import AuditWriter
+
+    audio_temp = tmp_path / "audio_temp3"
+    audio_temp.mkdir()
+    project_dir = tmp_path / "project3"
+    project_dir.mkdir()
+    audit = AuditWriter(project_dir)
+
+    handler = build_signal_handler(
+        audio_temp=audio_temp,
+        audit_writer=audit,
+        current_video_id_ref=["VIDCOOKIE01"],
+        cookies_source="file:/home/user/.config/cookies.txt",
+    )
+
+    with pytest.raises(SystemExit):
+        handler(2, None)
+
+    fp_audit = project_dir / "01_collect" / "fingerprint_audit.csv"
+    rows = _read_audit_rows(fp_audit)
+    assert rows, "Expected at least one audit row"
+    assert rows[0]["cookies_source"] == "file:/home/user/.config/cookies.txt", (
+        f"Expected cookies_source from caller, got '{rows[0]['cookies_source']}'"
+    )
