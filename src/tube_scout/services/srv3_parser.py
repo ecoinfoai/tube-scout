@@ -93,7 +93,7 @@ def srv3_to_transcript_json(
             f"Inspect for malformed XML."
         )
 
-    fetched_at = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    fetched_at = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
     return {
         "video_id": video_id,

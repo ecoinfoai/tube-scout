@@ -1,6 +1,6 @@
-"""Audit CSV writer for transcript and fingerprint processing records (spec 012, FR-015).
+"""Audit CSV writer for transcript and fingerprint processing records.
 
-Append-only CSV writer with atomic writes via tempfile+rename.
+spec 012 FR-015. Append-only CSV with atomic writes via tempfile+rename.
 Header written once on file creation (data-model E-5).
 """
 

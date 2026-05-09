@@ -101,7 +101,8 @@ def extract_chromaprint_fingerprint(
 
     if duration < _MIN_DURATION_SECONDS:
         raise AudioTooShortError(
-            f"Audio {audio_path} is {duration:.0f}s; minimum 30s required for fingerprint."
+            f"Audio {audio_path} is {duration:.0f}s; "
+            "minimum 30s required for fingerprint."
         )
 
     return fp_b64, duration
@@ -127,8 +128,8 @@ def decode_fingerprint_to_array(fp_b64: bytes) -> "np.ndarray":
         import numpy as np
     except ImportError as exc:
         raise ImportError(
-            "chromaprint/numpy not available. "
-            "Install via `nix develop` and ensure libchromaprint.so is in LD_LIBRARY_PATH."
+            "chromaprint/numpy not available. Install via `nix develop` "
+            "and ensure libchromaprint.so is in LD_LIBRARY_PATH."
         ) from exc
 
     raw_ints, _version = chromaprint.decode_fingerprint(fp_b64)
@@ -156,7 +157,8 @@ def hamming_distance_per_int(a: "np.ndarray", b: "np.ndarray") -> float:
         import numpy as np
     except ImportError as exc:
         raise ImportError(
-            "numpy not available. Install via `uv sync --extra ml-sentiment` or `nix develop`."
+            "numpy not available. "
+            "Install via `uv sync --extra ml-sentiment` or `nix develop`."
         ) from exc
 
     if a.shape != b.shape:
@@ -193,7 +195,8 @@ def best_alignment_hamming(
         import numpy as np
     except ImportError as exc:
         raise ImportError(
-            "numpy not available. Install via `uv sync --extra ml-sentiment` or `nix develop`."
+            "numpy not available. "
+            "Install via `uv sync --extra ml-sentiment` or `nix develop`."
         ) from exc
 
     n = min(len(a), len(b))

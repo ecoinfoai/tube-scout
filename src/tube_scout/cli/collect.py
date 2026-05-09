@@ -79,6 +79,8 @@ def dispatch_audio_fingerprint(
     cookies_browser: str = "brave",
     cookies_path: str | None = None,
     sleep_seconds: tuple[float, float] = (30.0, 60.0),
+    audit_writer: object = None,
+    current_video_id_ref: list[str] | None = None,
     **kwargs: object,
 ) -> None:
     """Dispatch audio extraction + fingerprint + DB persist pipeline.
@@ -93,6 +95,9 @@ def dispatch_audio_fingerprint(
         cookies_browser: Browser name for yt-dlp cookie extraction.
         cookies_path: Optional path to cookies.txt file.
         sleep_seconds: (min, max) sleep range between yt-dlp calls.
+        audit_writer: AuditWriter instance for fingerprint_audit.csv rows.
+        current_video_id_ref: Mutable single-element list updated to the
+            in-progress video_id (for SIGINT handler interrupted row).
         **kwargs: Additional arguments (ignored).
     """
     import datetime
@@ -106,13 +111,32 @@ def dispatch_audio_fingerprint(
     )
 
     if video_ids is None:
+        console.print(
+            "[yellow]dispatch_audio_fingerprint: video_ids not provided; "
+            "pass --channel or an explicit video_ids list.[/yellow]"
+        )
         return
 
+    cookies_src = "file" if cookies_path else "brave"
+
     for video_id in video_ids:
+        # FIX-4: update current_video_id_ref so SIGINT handler writes correct video_id
+        if current_video_id_ref is not None:
+            current_video_id_ref[0] = video_id
+
         already_done = (
             db_path is not None and audio_fingerprint_exists(db_path, video_id)
         )
         if not force and already_done:
+            if audit_writer is not None and hasattr(audit_writer, "append_fingerprint_row"):
+                audit_writer.append_fingerprint_row({
+                    "video_id": video_id,
+                    "result": "skip",
+                    "reason": "skip_existing",
+                    "duration_sec": None,
+                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
+                    "cookies_source": cookies_src,
+                })
             continue
 
         audio_path: Path | None = None
@@ -127,13 +151,36 @@ def dispatch_audio_fingerprint(
             )
             try:
                 fp_bytes, duration = extract_chromaprint_fingerprint(audio_path)
-            except FingerprintExtractError:
+            except FingerprintExtractError as fp_err:
+                console.print(
+                    f"  [yellow]fingerprint skip {video_id}: {fp_err}[/yellow]"
+                )
+                if audit_writer is not None and hasattr(
+                    audit_writer, "append_fingerprint_row"
+                ):
+                    audit_writer.append_fingerprint_row({
+                        "video_id": video_id,
+                        "result": "fail",
+                        "reason": "fpcalc_failed",
+                        "duration_sec": None,
+                        "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
+                        "cookies_source": cookies_src,
+                    })
                 continue
             if db_path is not None:
                 extracted_at = datetime.datetime.now(tz=datetime.UTC).isoformat()
                 insert_audio_fingerprint(
                     db_path, video_id, fp_bytes, duration, extracted_at
                 )
+            if audit_writer is not None and hasattr(audit_writer, "append_fingerprint_row"):
+                audit_writer.append_fingerprint_row({
+                    "video_id": video_id,
+                    "result": "success",
+                    "reason": "captured",
+                    "duration_sec": duration,
+                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
+                    "cookies_source": cookies_src,
+                })
         finally:
             if audio_path is not None:
                 audio_path.unlink(missing_ok=True)
@@ -684,7 +731,10 @@ def collect_transcripts_command(
     source: str | None = typer.Option(
         None,
         "--source",
-        help="Transcript source: 'api' or 'ytdlp'. Default: env TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE or 'api'.",
+        help=(
+            "Transcript source: 'api' or 'ytdlp'. "
+            "Default: env TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE or 'api'."
+        ),
     ),
     prefer_captions_api: bool = typer.Option(
         False,
@@ -742,11 +792,15 @@ def collect_transcripts_command(
 
     # Dispatch to ytdlp backend — return early
     if resolved_source == "ytdlp":
-        dispatch_transcript_source(resolved_source, channel=channel, all_channels=all_channels)
+        dispatch_transcript_source(
+            resolved_source, channel=channel, all_channels=all_channels
+        )
         return
 
     # Dispatch hook for api source (testable seam)
-    dispatch_transcript_source(resolved_source, channel=channel, all_channels=all_channels)
+    dispatch_transcript_source(
+        resolved_source, channel=channel, all_channels=all_channels
+    )
 
     from tube_scout.cli.errors import UserFacingError, render_error
     from tube_scout.services.auth import (
@@ -1616,8 +1670,12 @@ def collect_audio_command(
         help="Max sleep between calls (seconds).",
     ),
 ) -> None:
-    """Extract audio, compute fingerprint, delete audio (Constitution V — audio 영속 0)."""
+    """Extract audio, compute chromaprint fingerprint, delete audio temp file.
+
+    Constitution V: audio files are never persisted (deleted in finally block).
+    """
     import signal as _signal
+
     from tube_scout.services.audit_writer import AuditWriter
 
     if channel and all_channels is True:
@@ -1646,9 +1704,41 @@ def collect_audio_command(
             )
             raise typer.Exit(code=5)
 
-    audio_temp_path = Path(".") / "audio_temp"
+    # FIX-1: resolve project dir for proper paths
+    from tube_scout.storage.content_db import migrate_to_v3
+
+    mgr = resolve_project("./projects", None, producer=False)
+    project_dir = Path(mgr.project_dir)
+
+    # FIX-3: audio_temp under project 01_collect (B-X1-7)
+    audio_temp_path = project_dir / "01_collect" / "audio_temp"
     audio_temp_path.mkdir(parents=True, exist_ok=True)
-    audit = AuditWriter(Path("."))
+
+    # FIX-2: audit_writer with correct project dir
+    audit = AuditWriter(project_dir)
+
+    # FIX-1: db_path from project
+    db_path = project_dir / "02_analyze" / "content" / "content_reuse.db"
+    if db_path.exists():
+        migrate_to_v3(db_path)
+
+    # FIX-1: resolve video_ids from channel alias
+    resolved_video_ids: list[str] | None = None
+    if channel:
+        channel_id = resolve_alias_to_channel_id(channel)
+        channel_dir = project_dir / "01_collect" / "channels" / channel_id
+        meta_path = channel_dir / "videos_meta.json"
+        if meta_path.exists():
+            videos_data = read_json(meta_path) or []
+            resolved_video_ids = [v["video_id"] for v in videos_data if "video_id" in v]
+        else:
+            console.print(
+                f"[yellow]No videos_meta.json for channel '{channel}'. "
+                "Run `tube-scout collect videos` first.[/yellow]"
+            )
+            raise typer.Exit(code=1)
+
+    # FIX-4: mutable ref for SIGINT handler
     current_video_id_ref: list[str] = [""]
     _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref)
     _signal.signal(_signal.SIGINT, _handler)
@@ -1659,8 +1749,13 @@ def collect_audio_command(
         all_channels=all_channels is True,
         force=force,
         cookies_browser=cookies_browser,
+        cookies_path=cookies_file,
         sleep_seconds=(sleep_min, sleep_max),
         audio_temp=audio_temp_path,
+        db_path=db_path,
+        video_ids=resolved_video_ids,
+        audit_writer=audit,
+        current_video_id_ref=current_video_id_ref,
     )
 
 
@@ -1701,8 +1796,9 @@ def collect_fingerprint_command(
         help="Max sleep between calls (seconds).",
     ),
 ) -> None:
-    """Alias for collect audio — extract audio, compute fingerprint, delete audio."""
+    """Alias for collect audio: extract audio, compute fingerprint, delete audio."""
     import signal as _signal
+
     from tube_scout.services.audit_writer import AuditWriter
 
     if channel and all_channels is True:
@@ -1731,9 +1827,41 @@ def collect_fingerprint_command(
             )
             raise typer.Exit(code=5)
 
-    audio_temp_path = Path(".") / "audio_temp"
+    # FIX-1: resolve project dir for proper paths
+    from tube_scout.storage.content_db import migrate_to_v3
+
+    mgr = resolve_project("./projects", None, producer=False)
+    project_dir = Path(mgr.project_dir)
+
+    # FIX-3: audio_temp under project 01_collect (B-X1-7)
+    audio_temp_path = project_dir / "01_collect" / "audio_temp"
     audio_temp_path.mkdir(parents=True, exist_ok=True)
-    audit = AuditWriter(Path("."))
+
+    # FIX-2: audit_writer with correct project dir
+    audit = AuditWriter(project_dir)
+
+    # FIX-1: db_path from project
+    db_path = project_dir / "02_analyze" / "content" / "content_reuse.db"
+    if db_path.exists():
+        migrate_to_v3(db_path)
+
+    # FIX-1: resolve video_ids from channel alias
+    resolved_video_ids: list[str] | None = None
+    if channel:
+        channel_id = resolve_alias_to_channel_id(channel)
+        channel_dir = project_dir / "01_collect" / "channels" / channel_id
+        meta_path = channel_dir / "videos_meta.json"
+        if meta_path.exists():
+            videos_data = read_json(meta_path) or []
+            resolved_video_ids = [v["video_id"] for v in videos_data if "video_id" in v]
+        else:
+            console.print(
+                f"[yellow]No videos_meta.json for channel '{channel}'. "
+                "Run `tube-scout collect videos` first.[/yellow]"
+            )
+            raise typer.Exit(code=1)
+
+    # FIX-4: mutable ref for SIGINT handler
     current_video_id_ref: list[str] = [""]
     _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref)
     _signal.signal(_signal.SIGINT, _handler)
@@ -1744,6 +1872,11 @@ def collect_fingerprint_command(
         all_channels=all_channels is True,
         force=force,
         cookies_browser=cookies_browser,
+        cookies_path=cookies_file,
         sleep_seconds=(sleep_min, sleep_max),
         audio_temp=audio_temp_path,
+        db_path=db_path,
+        video_ids=resolved_video_ids,
+        audit_writer=audit,
+        current_video_id_ref=current_video_id_ref,
     )
