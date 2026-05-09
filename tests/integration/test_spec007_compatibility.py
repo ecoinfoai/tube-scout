@@ -25,26 +25,29 @@ def _sha256_rows(db: Path, table: str) -> str:
 
 
 def _write_embeddings(captions_dir: Path, video_ids: list[str], dim: int = 8) -> None:
-    import numpy as np
+    import random
 
     captions_dir.mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(2)
-    vecs = rng.random((len(video_ids), dim)).astype("float32")
-    norms = vecs.sum(axis=1, keepdims=True)
-    vecs = vecs / norms
-    df = pl.DataFrame({"video_id": video_ids, "embedding": vecs.tolist()})
+    rng = random.Random(2)
+    rows = []
+    for _ in video_ids:
+        v = [rng.gauss(0, 1) for _ in range(dim)]
+        norm = sum(x * x for x in v) ** 0.5 or 1.0
+        rows.append([x / norm for x in v])
+    df = pl.DataFrame({"video_id": video_ids, "embedding": rows})
     df.write_parquet(captions_dir / "embeddings.parquet")
 
 
 def test_spec007_rows_unchanged_after_nc2(tmp_path: Path) -> None:
-    """spec 007 comparison_results rows are byte-identical after migrate + nc2."""
+    """spec 007 comparison_results rows are byte-identical before and after nc2."""
     from tube_scout.services.nc2_matcher import generate_nc2_pairs
     from tube_scout.services.professor_resolver import map_professor
 
     db = build_spec007_legacy_db(tmp_path / "cr.db")
+    migrate_to_v2(db)
+    # Measure hash AFTER migrate so column additions don't count as nc2 change
     hash_before = _sha256_rows(db, "comparison_results")
 
-    migrate_to_v2(db)
     # Map one professor to the legacy channel
     map_professor("prof-x", "Prof X", "ch-test", "__channel_owner__", db, "test")
 

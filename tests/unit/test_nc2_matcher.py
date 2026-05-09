@@ -49,18 +49,18 @@ def _setup_db_with_videos(
 
 
 def _write_embeddings(captions_dir: Path, video_ids: list[str], dim: int = 8) -> Path:
-    """Write a synthetic embeddings.parquet with unit vectors."""
-    import numpy as np
+    """Write a synthetic embeddings.parquet with distinct unit vectors."""
+    import random
 
     captions_dir.mkdir(parents=True, exist_ok=True)
     emb_path = captions_dir / "embeddings.parquet"
-    rng = np.random.default_rng(42)
-    vecs = rng.random((len(video_ids), dim)).astype("float32")
-    norms = np.linalg.norm(vecs, axis=1, keepdims=True)
-    vecs = vecs / norms
-    df = pl.DataFrame(
-        {"video_id": video_ids, "embedding": vecs.tolist()}
-    )
+    rng = random.Random(42)
+    rows = []
+    for _ in video_ids:
+        v = [rng.gauss(0, 1) for _ in range(dim)]
+        norm = sum(x * x for x in v) ** 0.5 or 1.0
+        rows.append([x / norm for x in v])
+    df = pl.DataFrame({"video_id": video_ids, "embedding": rows})
     df.write_parquet(emb_path)
     return emb_path
 
