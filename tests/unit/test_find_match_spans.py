@@ -41,8 +41,8 @@ def test_anchor_extension_left_right() -> None:
 
 def test_normalized_exact_match() -> None:
     """Segments differing only in punctuation/case match after normalize_phrase."""
-    from tube_scout.services.time_axis_indicators import find_match_spans
     from tube_scout.services.phrase_whitelist import normalize_phrase
+    from tube_scout.services.time_axis_indicators import find_match_spans
 
     segs_a = [_seg(0.0, 5.0, "Hello, World!")]
     segs_b = [_seg(0.0, 5.0, "hello world")]

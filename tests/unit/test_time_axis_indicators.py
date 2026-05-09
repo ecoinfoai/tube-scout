@@ -94,8 +94,8 @@ def test_case_c_short_2min(case_c_segs) -> None:
 
 def test_no_match_returns_zeros() -> None:
     """Completely disjoint captions → I-6=0, I-7=0, I-8=0, spans=[]."""
-    from tube_scout.services.time_axis_indicators import compute_time_axis
     from tube_scout.models.reuse_v2 import CandidatePair
+    from tube_scout.services.time_axis_indicators import compute_time_axis
 
     segs_a = [{"start": 0.0, "end": 5.0, "text": "apple orange"}]
     segs_b = [{"start": 0.0, "end": 5.0, "text": "banana cherry"}]

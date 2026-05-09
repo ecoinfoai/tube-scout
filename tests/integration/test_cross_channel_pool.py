@@ -9,7 +9,6 @@ import sqlite3
 from pathlib import Path
 
 import polars as pl
-import pytest
 
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db
 from tube_scout.services.professor_resolver import map_professor, resolve_caption_pool

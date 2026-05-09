@@ -589,7 +589,10 @@ def content_review_command(
         pattern: Reuse pattern filter.
         professor: Professor identifier filter.
     """
-    from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+    from tube_scout.services.advisory_lock import (
+        ConcurrentWriteRejected,
+        layer_d_write_lock,
+    )
 
     mgr = resolve_project(project_dir, project, producer=is_producer("content"))
     db = _get_db(mgr.project_dir)
@@ -620,7 +623,8 @@ def content_review_command(
             raise typer.Exit(code=1)
 
         try:
-            from datetime import UTC, datetime as _dt
+            from datetime import UTC
+            from datetime import datetime as _dt
             now = _dt.now(UTC).isoformat()
             with layer_d_write_lock(db_path) as lock_conn:
                 cur = lock_conn.execute(
@@ -868,8 +872,8 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
     import sqlite3
     from datetime import UTC, datetime
 
-    from tube_scout.models.reuse_v2 import CandidatePair, ComparisonResult as _CR
     from tube_scout.models.content import ComparisonResult
+    from tube_scout.models.reuse_v2 import CandidatePair
     from tube_scout.services.content_comparator import compute_suspicion_score
     from tube_scout.services.layer_defense import apply_layers, filter_pair_whitelisted
     from tube_scout.services.nc2_matcher import generate_nc2_pairs
@@ -1359,7 +1363,10 @@ def whitelist_add_pair(
         reason: Reason text.
         registered_by: Admin identifier.
     """
-    from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+    from tube_scout.services.advisory_lock import (
+        ConcurrentWriteRejected,
+        layer_d_write_lock,
+    )
     from tube_scout.services.phrase_whitelist import add_pair_whitelist
 
     db_path = _ensure_v2_schema(project)
@@ -1399,7 +1406,10 @@ def whitelist_add_phrase(
         reason: Reason text.
         registered_by: Admin identifier.
     """
-    from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+    from tube_scout.services.advisory_lock import (
+        ConcurrentWriteRejected,
+        layer_d_write_lock,
+    )
     from tube_scout.services.phrase_whitelist import add_phrase_whitelist
 
     db_path = _ensure_v2_schema(project)
@@ -1516,7 +1526,10 @@ def whitelist_remove(
         kind: Entry kind (pair|phrase).
         id: Entry ID.
     """
-    from tube_scout.services.advisory_lock import ConcurrentWriteRejected, layer_d_write_lock
+    from tube_scout.services.advisory_lock import (
+        ConcurrentWriteRejected,
+        layer_d_write_lock,
+    )
     from tube_scout.services.phrase_whitelist import remove_whitelist
 
     db_path = _ensure_v2_schema(project)
@@ -1551,6 +1564,7 @@ def policy_show(
         project: Project directory.
     """
     import yaml
+
     from tube_scout.models.reuse_v2 import PolicyConfig
 
     _ensure_v2_schema(project)
@@ -1594,7 +1608,7 @@ def policy_validate(
             f"layer_c_evolution_band={list(policy.layer_c_evolution_band)}, "
             f"all bands within [0,1]."
         )
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         typer.echo(
             f"Policy file not found at {project / '02_analyze' / 'content' / 'policy.yaml'}. "
             "Create from template: 'tube-scout content policy show > policy.yaml'.",

@@ -7,7 +7,7 @@ stable assertions without side effects.
 """
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _SPEC007_SCHEMA = """
@@ -169,7 +169,7 @@ _NOW = "2026-05-09T00:00:00+00:00"
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _apply_v2_migration(conn: sqlite3.Connection) -> None:

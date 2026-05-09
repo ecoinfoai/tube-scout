@@ -8,10 +8,12 @@ import json
 import sqlite3
 from pathlib import Path
 
-import pytest
-
+from tube_scout.models.reuse_v2 import (
+    BaselineBootstrapReport,
+    BaselinePhrase,
+    MatchSpan,
+)
 from tube_scout.storage.content_db import migrate_to_v2
-from tube_scout.models.reuse_v2 import BaselinePhrase, BaselineBootstrapReport, MatchSpan
 
 
 def _make_db(tmp_path: Path) -> Path:
@@ -184,7 +186,9 @@ def test_list_baseline_filters_by_professor(tmp_path: Path) -> None:
 def test_remove_baseline_phrase_returns_true_if_found(tmp_path: Path) -> None:
     """remove_baseline_phrase returns True if phrase was removed, False if not found."""
     from tube_scout.services.baseline_corpus import (
-        add_baseline_phrase, remove_baseline_phrase, list_baseline
+        add_baseline_phrase,
+        list_baseline,
+        remove_baseline_phrase,
     )
 
     db = _make_db(tmp_path)
@@ -200,7 +204,10 @@ def test_remove_baseline_phrase_returns_true_if_found(tmp_path: Path) -> None:
 
 def test_subtract_baseline_marks_spans(tmp_path: Path) -> None:
     """subtract_baseline removes spans matching baseline phrases, returns (remaining, seconds)."""
-    from tube_scout.services.baseline_corpus import add_baseline_phrase, subtract_baseline
+    from tube_scout.services.baseline_corpus import (
+        add_baseline_phrase,
+        subtract_baseline,
+    )
 
     db = _make_db(tmp_path)
     add_baseline_phrase("prof-test", "안녕하세요", db, None, "admin")

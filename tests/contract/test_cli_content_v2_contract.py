@@ -9,12 +9,10 @@ are wired correctly (T019).
 import sqlite3
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db, build_spec007_legacy_db
 from tube_scout.cli.content import content_app
-
 
 runner = CliRunner()
 
@@ -523,8 +521,8 @@ def test_baseline_remove_removes_phrase(tmp_path: Path) -> None:
 
 def test_policy_show_outputs_yaml_or_default(tmp_path: Path) -> None:
     """'content policy show' exits 0 and outputs YAML or default policy."""
+
     import tube_scout.cli.content as _content_mod
-    import yaml
 
     db_dir = tmp_path / "02_analyze" / "content"
     db_dir.mkdir(parents=True)

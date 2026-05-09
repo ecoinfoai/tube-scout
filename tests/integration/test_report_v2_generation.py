@@ -8,7 +8,6 @@ import json
 import sqlite3
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db
@@ -73,9 +72,9 @@ def test_sc006_html_four_pattern_sections(tmp_path: Path) -> None:
 
 def test_sc006_xlsx_five_sheets(tmp_path: Path) -> None:
     """SC-006b: Excel report has 5 required sheets."""
-    from tube_scout.reporting.content_report import generate_v2_report
-
     import openpyxl
+
+    from tube_scout.reporting.content_report import generate_v2_report
 
     project_dir, _ = _make_full_project(tmp_path)
     paths = generate_v2_report(project_dir, professor_id="prof-e2e-rpt", fmt="xlsx")
@@ -118,8 +117,8 @@ def test_sc006_all_format_creates_three_files(tmp_path: Path) -> None:
 
 def test_sc006_cli_report_content_command(tmp_path: Path) -> None:
     """CLI 'report content --professor --format html' exits 0 and creates file."""
-    from tube_scout.cli.main import app
     import tube_scout.cli.content as _content_mod
+    from tube_scout.cli.main import app
 
     project_dir, _ = _make_full_project(tmp_path)
 

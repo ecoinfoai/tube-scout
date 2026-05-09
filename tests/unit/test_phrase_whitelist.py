@@ -4,7 +4,6 @@ Tests add_pair_whitelist, add_phrase_whitelist, list_whitelist,
 export_whitelist, remove_whitelist, and subtract_phrase_whitelist.
 """
 
-import csv
 import sqlite3
 from pathlib import Path
 
@@ -151,7 +150,10 @@ def test_list_whitelist_kind_filter(tmp_path: Path) -> None:
 
 def test_export_whitelist_csv(tmp_path: Path) -> None:
     """export_whitelist creates a CSV file and returns its path."""
-    from tube_scout.services.phrase_whitelist import add_phrase_whitelist, export_whitelist
+    from tube_scout.services.phrase_whitelist import (
+        add_phrase_whitelist,
+        export_whitelist,
+    )
 
     db = _make_db(tmp_path)
     add_phrase_whitelist("prof-wl", "감사합니다", "test", db, "admin")
@@ -166,7 +168,10 @@ def test_export_whitelist_csv(tmp_path: Path) -> None:
 
 def test_export_whitelist_xlsx(tmp_path: Path) -> None:
     """export_whitelist creates an XLSX file with Pair and Phrase sheets."""
-    from tube_scout.services.phrase_whitelist import add_phrase_whitelist, export_whitelist
+    from tube_scout.services.phrase_whitelist import (
+        add_phrase_whitelist,
+        export_whitelist,
+    )
 
     db = _make_db(tmp_path)
     add_phrase_whitelist("prof-wl", "안녕하세요", "test", db, "admin")
@@ -183,7 +188,10 @@ def test_export_whitelist_xlsx(tmp_path: Path) -> None:
 
 def test_export_whitelist_markdown(tmp_path: Path) -> None:
     """export_whitelist creates a Markdown file."""
-    from tube_scout.services.phrase_whitelist import add_phrase_whitelist, export_whitelist
+    from tube_scout.services.phrase_whitelist import (
+        add_phrase_whitelist,
+        export_whitelist,
+    )
 
     db = _make_db(tmp_path)
     add_phrase_whitelist("prof-wl", "오늘은", "test", db, "admin")

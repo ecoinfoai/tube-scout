@@ -10,7 +10,6 @@ import sqlite3
 from pathlib import Path
 
 import polars as pl
-import pytest
 
 from tests.fixtures.spec011.fixture_db import build_spec007_legacy_db
 from tube_scout.storage.content_db import migrate_to_v2

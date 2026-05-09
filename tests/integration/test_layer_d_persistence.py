@@ -7,11 +7,9 @@ for whitelisted pair/phrase combinations.
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from tests.fixtures.spec011.fixture_db import build_clean_v2_db
-from tube_scout.models.reuse_v2 import CandidatePair, MatchSpan, PolicyConfig
 from tube_scout.models.content import ComparisonResult
+from tube_scout.models.reuse_v2 import CandidatePair, MatchSpan, PolicyConfig
 
 
 def _make_db(tmp_path: Path) -> Path:
@@ -56,8 +54,8 @@ def _make_span(text: str, length: float = 300.0) -> MatchSpan:
 
 def test_sc005_pair_whitelist_suppresses_next_run(tmp_path: Path) -> None:
     """SC-005a: pair marked FALSE_POSITIVE is filtered by filter_pair_whitelisted."""
-    from tube_scout.services.phrase_whitelist import add_pair_whitelist
     from tube_scout.services.layer_defense import filter_pair_whitelisted
+    from tube_scout.services.phrase_whitelist import add_pair_whitelist
 
     db = _make_db(tmp_path)
 
@@ -135,8 +133,8 @@ def test_sc005_phrase_whitelist_suppresses_span_in_next_run(tmp_path: Path) -> N
 
 def test_sc005_full_pipeline_pair_plus_phrase_whitelist(tmp_path: Path) -> None:
     """SC-005c: combined pair whitelist + phrase whitelist in apply_layers pipeline."""
-    from tube_scout.services.phrase_whitelist import add_phrase_whitelist
     from tube_scout.services.layer_defense import apply_layers
+    from tube_scout.services.phrase_whitelist import add_phrase_whitelist
 
     db = _make_db(tmp_path)
     add_phrase_whitelist("prof-e2e", "안녕하세요 여러분", "habitual", db, "admin")

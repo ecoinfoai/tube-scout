@@ -4,14 +4,11 @@ Verifies that apply_layers correctly chains A → B → D-phrase → C
 using a real SQLite DB with baseline corpus data.
 """
 
-import json
 import sqlite3
 from pathlib import Path
 
-import pytest
-
-from tube_scout.models.reuse_v2 import MatchSpan, PolicyConfig
 from tube_scout.models.content import ComparisonResult
+from tube_scout.models.reuse_v2 import MatchSpan, PolicyConfig
 from tube_scout.storage.content_db import migrate_to_v2
 
 
@@ -130,8 +127,8 @@ def test_full_pipeline_a_then_c(tmp_path: Path) -> None:
 
 def test_full_pipeline_baseline_subtraction_then_c_demotion(tmp_path: Path) -> None:
     """Baseline phrase subtraction + evolution band demotion applied in sequence."""
-    from tube_scout.services.layer_defense import apply_layers
     from tube_scout.services.baseline_corpus import add_baseline_phrase
+    from tube_scout.services.layer_defense import apply_layers
 
     db = _make_db(tmp_path)
     add_baseline_phrase("prof-test", "안녕하세요 여러분", db, None, "system")
