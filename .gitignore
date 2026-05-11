@@ -8,6 +8,7 @@ input/
 output/
 results/
 _workspace/
+_archive/
 
 # Python
 __pycache__/
