@@ -1,13 +1,16 @@
 """Audit CSV writer for transcript and fingerprint processing records.
 
-spec 012 FR-015. Append-only CSV with atomic writes via tempfile+rename.
-Header written once on file creation (data-model E-5).
+spec 012 FR-015 + spec 013 FR-057~FR-060.
+Append-only CSV with atomic writes via tempfile+rename.
+Header written once on file creation (data-model E-5, E-12).
 """
 
 import csv
 import os
 import tempfile
 from pathlib import Path
+
+# ─── spec 012 backward-compat fieldnames (frozen — do not modify) ─────────────
 
 TRANSCRIPTS_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason", "source", "timestamp", "cookies_source"
@@ -16,6 +19,54 @@ TRANSCRIPTS_FIELDNAMES: tuple[str, ...] = (
 FINGERPRINT_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason", "duration_sec", "timestamp", "cookies_source"
 )
+
+# ─── spec 013 v2 stage fieldnames ─────────────────────────────────────────────
+
+TAKEOUT_INGEST_FIELDNAMES: tuple[str, ...] = (
+    "video_id", "result", "reason",
+    "mp4_filename", "match_confidence", "score", "timestamp",
+)
+AUDIO_EXTRACT_FIELDNAMES: tuple[str, ...] = (
+    "video_id", "result", "reason",
+    "input_kind", "output_path", "wav_size_bytes", "elapsed_s", "timestamp",
+)
+_TRANSCRIPTS_V2_FIELDNAMES: tuple[str, ...] = (
+    "video_id", "result", "reason",
+    "source", "caption_source_detail", "timestamp", "cookies_source",
+)
+_FINGERPRINT_V2_FIELDNAMES: tuple[str, ...] = (
+    "video_id", "result", "reason",
+    "duration_sec", "fingerprint_input_policy", "timestamp", "cookies_source",
+)
+NORMALIZE_FIELDNAMES: tuple[str, ...] = (
+    "video_id", "result", "reason",
+    "input_source", "normalizer_version", "timestamp",
+)
+ANALYZE_FIELDNAMES: tuple[str, ...] = (
+    "pair_id", "source_video_id", "target_video_id",
+    "result", "reason", "matching_mode", "elapsed_s", "timestamp",
+)
+REPORT_FIELDNAMES: tuple[str, ...] = (
+    "professor", "channel", "result", "reason",
+    "format", "output_path", "pair_count", "appendix_count", "timestamp",
+)
+KB_EXPORT_FIELDNAMES: tuple[str, ...] = (
+    "video_id", "result", "reason",
+    "format", "output_path", "byte_count", "timestamp",
+)
+
+STAGE_FIELDNAMES: dict[str, tuple[str, ...]] = {
+    "takeout_ingest": TAKEOUT_INGEST_FIELDNAMES,
+    "audio_extract":  AUDIO_EXTRACT_FIELDNAMES,
+    "transcripts":    _TRANSCRIPTS_V2_FIELDNAMES,
+    "fingerprint":    _FINGERPRINT_V2_FIELDNAMES,
+    "normalize":      NORMALIZE_FIELDNAMES,
+    "analyze":        ANALYZE_FIELDNAMES,
+    "report":         REPORT_FIELDNAMES,
+    "kb_export":      KB_EXPORT_FIELDNAMES,
+}
+
+VALID_RESULTS: frozenset[str] = frozenset({"success", "skip", "fail"})
 
 
 class AuditWriter:
@@ -58,6 +109,32 @@ class AuditWriter:
             except OSError:
                 pass
             raise
+
+    def append_row(self, stage: str, row: dict) -> None:
+        """Append a row to <project_dir>/01_collect/<stage>_audit.csv.
+
+        Args:
+            stage: One of STAGE_FIELDNAMES keys.
+            row: Dict with at least all keys in STAGE_FIELDNAMES[stage].
+                Extra keys are dropped (csv.DictWriter extrasaction='ignore').
+
+        Raises:
+            KeyError: stage not in STAGE_FIELDNAMES.
+            ValueError: row['result'] not in VALID_RESULTS.
+        """
+        if stage not in STAGE_FIELDNAMES:
+            valid = sorted(STAGE_FIELDNAMES)
+            raise KeyError(f"Unknown audit stage: {stage!r}. Valid stages: {valid}")
+        if row.get("result") not in VALID_RESULTS:
+            raise ValueError(
+                f"row['result'] must be one of {sorted(VALID_RESULTS)}, "
+                f"got {row.get('result')!r}"
+            )
+        self._append_row(
+            self._collect_dir / f"{stage}_audit.csv",
+            STAGE_FIELDNAMES[stage],
+            row,
+        )
 
     def append_transcript_row(self, row: dict) -> None:
         """Append a row to transcripts_audit.csv.
