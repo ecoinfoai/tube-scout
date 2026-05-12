@@ -12,19 +12,23 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ReusePatternLabel(str, Enum):
-    """Four-way classification of a reuse pair by contiguity and week alignment.
+    """Classification of a reuse pair by contiguity and week alignment.
 
     Values:
         WHOLE_SAME_WEEK: Single contiguous block reused within the same week.
         SCATTERED_SAME_WEEK: Multiple short spans reused within the same week.
         WHOLE_DIFF_WEEK: Single contiguous block reused across different weeks.
         SCATTERED_DIFF_WEEK: Multiple short spans reused across different weeks.
+        RE_RECORDED_SAME_CONTENT: Same content re-recorded (spec 013 v4).
+        TAIL_UPDATE: Same lecture with appended/updated tail segment (spec 013 v4).
     """
 
     WHOLE_SAME_WEEK = "whole-same-week"
     SCATTERED_SAME_WEEK = "scattered-same-week"
     WHOLE_DIFF_WEEK = "whole-different-week"
     SCATTERED_DIFF_WEEK = "scattered-different-week"
+    RE_RECORDED_SAME_CONTENT = "re-recorded-same-content"
+    TAIL_UPDATE = "tail-update"
 
 
 class LayerAttribution(BaseModel):
