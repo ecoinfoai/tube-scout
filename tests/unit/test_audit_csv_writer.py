@@ -4,17 +4,14 @@ T010 RED — 6 scenarios for CSV append, header, atomic write, and fieldnames.
 """
 
 import csv
-from datetime import datetime, timezone
-from pathlib import Path
-
-import pytest
 
 
 def test_transcripts_fieldnames_constant():
     from tube_scout.services.audit_writer import TRANSCRIPTS_FIELDNAMES
 
     assert TRANSCRIPTS_FIELDNAMES == (
-        "video_id", "result", "reason", "source", "timestamp", "cookies_source"
+        "video_id", "result", "reason",
+        "source", "caption_source_detail", "timestamp", "cookies_source",
     )
 
 
@@ -22,7 +19,8 @@ def test_fingerprint_fieldnames_constant():
     from tube_scout.services.audit_writer import FINGERPRINT_FIELDNAMES
 
     assert FINGERPRINT_FIELDNAMES == (
-        "video_id", "result", "reason", "duration_sec", "timestamp", "cookies_source"
+        "video_id", "result", "reason",
+        "duration_sec", "fingerprint_input_policy", "timestamp", "cookies_source",
     )
 
 

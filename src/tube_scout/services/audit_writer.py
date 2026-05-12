@@ -10,14 +10,16 @@ import os
 import tempfile
 from pathlib import Path
 
-# ─── spec 012 backward-compat fieldnames (frozen — do not modify) ─────────────
+# ─── fieldnames (unified v2 — spec 012 shims inject missing defaults) ─────────
 
 TRANSCRIPTS_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason", "source", "timestamp", "cookies_source"
+    "video_id", "result", "reason",
+    "source", "caption_source_detail", "timestamp", "cookies_source",
 )
 
 FINGERPRINT_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason", "duration_sec", "timestamp", "cookies_source"
+    "video_id", "result", "reason",
+    "duration_sec", "fingerprint_input_policy", "timestamp", "cookies_source",
 )
 
 # ─── spec 013 v2 stage fieldnames ─────────────────────────────────────────────
@@ -29,14 +31,6 @@ TAKEOUT_INGEST_FIELDNAMES: tuple[str, ...] = (
 AUDIO_EXTRACT_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason",
     "input_kind", "output_path", "wav_size_bytes", "elapsed_s", "timestamp",
-)
-_TRANSCRIPTS_V2_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "source", "caption_source_detail", "timestamp", "cookies_source",
-)
-_FINGERPRINT_V2_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "duration_sec", "fingerprint_input_policy", "timestamp", "cookies_source",
 )
 NORMALIZE_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason",
@@ -58,8 +52,8 @@ KB_EXPORT_FIELDNAMES: tuple[str, ...] = (
 STAGE_FIELDNAMES: dict[str, tuple[str, ...]] = {
     "takeout_ingest": TAKEOUT_INGEST_FIELDNAMES,
     "audio_extract":  AUDIO_EXTRACT_FIELDNAMES,
-    "transcripts":    _TRANSCRIPTS_V2_FIELDNAMES,
-    "fingerprint":    _FINGERPRINT_V2_FIELDNAMES,
+    "transcripts":    TRANSCRIPTS_FIELDNAMES,
+    "fingerprint":    FINGERPRINT_FIELDNAMES,
     "normalize":      NORMALIZE_FIELDNAMES,
     "analyze":        ANALYZE_FIELDNAMES,
     "report":         REPORT_FIELDNAMES,
@@ -141,21 +135,18 @@ class AuditWriter:
 
         Args:
             row: Dict with keys matching TRANSCRIPTS_FIELDNAMES.
+                caption_source_detail defaults to "n/a" if absent (spec 012 shim).
         """
-        self._append_row(
-            self._collect_dir / "transcripts_audit.csv",
-            TRANSCRIPTS_FIELDNAMES,
-            row,
-        )
+        row = {**row, "caption_source_detail": row.get("caption_source_detail", "n/a")}
+        self.append_row("transcripts", row)
 
     def append_fingerprint_row(self, row: dict) -> None:
         """Append a row to fingerprint_audit.csv.
 
         Args:
             row: Dict with keys matching FINGERPRINT_FIELDNAMES.
+                fingerprint_input_policy defaults to "n/a" if absent (spec 012 shim).
         """
-        self._append_row(
-            self._collect_dir / "fingerprint_audit.csv",
-            FINGERPRINT_FIELDNAMES,
-            row,
-        )
+        default = row.get("fingerprint_input_policy", "n/a")
+        row = {**row, "fingerprint_input_policy": default}
+        self.append_row("fingerprint", row)

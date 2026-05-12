@@ -1,20 +1,19 @@
-"""T041 RED: data-model E-5 — audit CSV column sequence frozen, append-only invariant.
+"""T041: data-model E-5 — audit CSV column sequence frozen, append-only invariant.
 
 Phase 5 / User Story 3: AuditWriter must produce exactly the columns defined in
 data-model.md E-5. Column order, count, and names must be frozen (spec Y compatibility).
 
 Verified properties:
-- transcripts_audit.csv: exactly TRANSCRIPTS_FIELDNAMES (6 columns in order)
-- fingerprint_audit.csv: exactly FINGERPRINT_FIELDNAMES (6 columns in order)
+- transcripts_audit.csv: exactly TRANSCRIPTS_FIELDNAMES (7 columns in order, v2 schema)
+- fingerprint_audit.csv: exactly FINGERPRINT_FIELDNAMES (7 columns in order, v2 schema)
 - Append-only: second call appends a row; header appears only once
 - Column sequence matches data-model.md E-5 tables (contractual freeze)
+- spec 012 shim rows without caption_source_detail/fingerprint_input_policy default to "n/a"
 """
 
 import csv
 import datetime
 from pathlib import Path
-
-import pytest
 
 from tube_scout.services.audit_writer import (
     FINGERPRINT_FIELDNAMES,
@@ -22,9 +21,8 @@ from tube_scout.services.audit_writer import (
     AuditWriter,
 )
 
-
 # ---------------------------------------------------------------------------
-# Expected columns per data-model.md E-5 (contractual freeze)
+# Expected columns per data-model.md E-5 v2 (contractual freeze)
 # ---------------------------------------------------------------------------
 
 _EXPECTED_TRANSCRIPTS_COLS = (
@@ -32,6 +30,7 @@ _EXPECTED_TRANSCRIPTS_COLS = (
     "result",
     "reason",
     "source",
+    "caption_source_detail",
     "timestamp",
     "cookies_source",
 )
@@ -41,6 +40,7 @@ _EXPECTED_FINGERPRINT_COLS = (
     "result",
     "reason",
     "duration_sec",
+    "fingerprint_input_policy",
     "timestamp",
     "cookies_source",
 )
@@ -93,7 +93,7 @@ def test_transcripts_audit_csv_column_order_and_append_only(tmp_path: Path) -> N
     project_dir.mkdir()
     writer = AuditWriter(project_dir)
 
-    ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
     row1 = {
         "video_id": "aaaaaaaaaaa",
         "result": "success",
@@ -131,7 +131,7 @@ def test_transcripts_audit_csv_column_order_and_append_only(tmp_path: Path) -> N
 
     # Header must appear exactly once (append-only)
     raw_lines = csv_path.read_text(encoding="utf-8").strip().splitlines()
-    header_lines = [l for l in raw_lines if l.startswith("video_id,")]
+    header_lines = [ln for ln in raw_lines if ln.startswith("video_id,")]
     assert len(header_lines) == 1, (
         f"Header appeared {len(header_lines)} time(s); expected exactly 1 (append-only)"
     )
@@ -147,7 +147,7 @@ def test_fingerprint_audit_csv_column_order_and_append_only(tmp_path: Path) -> N
     project_dir.mkdir()
     writer = AuditWriter(project_dir)
 
-    ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
     row1 = {
         "video_id": "ccccccccccc",
         "result": "success",
@@ -183,7 +183,7 @@ def test_fingerprint_audit_csv_column_order_and_append_only(tmp_path: Path) -> N
 
     # Header once
     raw_lines = csv_path.read_text(encoding="utf-8").strip().splitlines()
-    header_lines = [l for l in raw_lines if l.startswith("video_id,")]
+    header_lines = [ln for ln in raw_lines if ln.startswith("video_id,")]
     assert len(header_lines) == 1, (
         f"Header appeared {len(header_lines)} time(s); expected exactly 1"
     )
