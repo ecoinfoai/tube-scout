@@ -1,21 +1,18 @@
-"""Spec 013 T004 — contract smoke test: faster-whisper [asr] extra importability.
+"""Contract test — faster-whisper import smoke test (spec 013 T004 / B-12 / B-13)."""
 
-GREEN requires: uv sync --extra asr (installs faster-whisper + CTranslate2 backend).
-Without the extra the test is skipped with an actionable message.
-"""
-
-from __future__ import annotations
+import importlib
 
 import pytest
 
 
 def test_faster_whisper_import_succeeds() -> None:
-    """Assert that faster_whisper.WhisperModel is importable after uv sync --extra asr."""
-    # GREEN requires: uv sync --extra asr
-    fw = pytest.importorskip(
-        "faster_whisper",
-        reason="faster-whisper not installed — run: uv sync --extra asr",
-    )
-    assert hasattr(fw, "WhisperModel"), (
-        "faster_whisper.WhisperModel not found; package may be partially installed"
+    """faster-whisper must import after `uv sync --extra asr`.
+
+    GREEN requires the [asr] optional extra to have been installed.
+    """
+    pytest.importorskip("faster_whisper", reason="Install via: uv sync --extra asr")
+    module = importlib.import_module("faster_whisper")
+    assert hasattr(module, "WhisperModel"), (
+        "faster_whisper module is missing the WhisperModel symbol — "
+        "verify pyproject.toml [asr] extra and `uv sync --extra asr` succeeded."
     )
