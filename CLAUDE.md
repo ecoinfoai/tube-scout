@@ -1,6 +1,6 @@
 # tube-scout Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-09
+Auto-generated from all feature plans. Last updated: 2026-05-13
 
 ## Active Technologies
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, pydantic v2, nbformat, anthropic (new), openai (new), statsmodels (new — ARIMA), prophet (new), transformers + torch (new — KoBERT/KoELECTRA) (002-v2-analytics-expansion)
@@ -20,6 +20,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-09
 - JSON (atomic write) under `~/.config/tube-scout/tokens/` for (009-runtime-auth-fix)
 - Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, sentence-transformers (spec 007 인계), jinja2, plotly, openpyxl. **신규 0건** — 기존 의존성 surface 안에서 충분. (011-reuse-fullstack-subtitle)
 - 기존 spec 007 `02_analyze/content/content_reuse.db`(SQLite) + `embeddings.parquet`(polars) + caption JSON. 신규 테이블 5개 추가, 신규 storage 엔진 도입 없음. (011-reuse-fullstack-subtitle)
+- Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, jinja2, plotly, weasyprint(optional `pdf`), spec 012 chromaprint/ffmpeg 재사용. 신규 PyPI: `faster-whisper>=1.0.0` (CTranslate2 backend, int8 양자화, GPU/CPU 분기). 신규 Nix: `cudnn`, `cuda-nvrtc` (faster-whisper GPU 런타임). optional extra `asr`로 분리. (013-takeout-local-asr-reuse)
+- SQLite v4 마이그레이션 — `channel_metadata`, `video_metadata` 신규 테이블 + `processing_status` (+`match_confidence`, `caption_source_detail`) + `quality_results` (+`asr_quality_flags` JSON) + `comparison_results` (+`audio_fp_*`, `source_type_pair`) ALTER. JSON(channel_meta, videos_meta) 이중 적재. 임시 WAV는 비영구(통합 모드 즉시 삭제, C-1). (013-takeout-local-asr-reuse)
 
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, statsmodels/prophet (001-lecture-video-analytics)
 
@@ -45,6 +47,7 @@ not OOM 13 GB dev hosts during pytest collection.
 | Forecasting | `uv sync --extra ml-forecast` | + statsmodels, prophet (~700 MB, Stan compile) |
 | All ML | `uv sync --extra ml` | both ML extras |
 | PDF reports | `uv sync --extra pdf` | + weasyprint (cairo/pango) |
+| Speech-to-text (local) | `uv sync --extra asr` | + faster-whisper (~1.5 GB int8 quantized weights via huggingface-hub) |
 | Everything | `uv sync --all-extras` | every extra above |
 
 All heavy imports in `src/` are function-local (lazy) — calling a
@@ -60,10 +63,10 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 013-takeout-local-asr-reuse (v0.5.0 target): Takeout-based local ASR + lecture-video reuse detection + KB transcript export. Adds `faster-whisper>=1.0.0` (CTranslate2 backend, int8/float16), splits `[asr]` optional extra. v4 SQLite migration (2 new tables + 4 ALTERs). 9 new CLI commands: `collect takeout`, `collect audio-extract`, `collect process-audio`, `collect transcripts --source asr`, `collect fingerprint --source local`, `process normalize-transcripts`, `analyze content-reuse`, `report content-reuse`, `transcript export`/`export-bulk`. New services: `takeout_ingest.py`, `audio_extract.py`, `asr.py`, `text_normalizer.py`, `worker_pool.py`, `progress_reporter.py`, `evidence_score.py`. New reporting template `professor_nC2_report.html` (multi-axis Phase 3, aggregate-score deferred 30 days). audit_writer.py generalized to 8 stages. C-3/C-4/C-5 clarifications drive multi-axis report sort, TTY auto-detect progress, atomic claim retry-failed. Phase 4 fully removes spec 012 yt-dlp surface (public-sector ops policy). flake.nix devShell adds `cudnn`, `cuda-nvrtc`.
+- 013-takeout-local-asr-reuse: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`)
 - 012-ytdlp-adapter (v0.4.0): `yt-dlp` + `chromaprint` + `ffmpeg` adapter. 3 new CLI subcommands: `collect transcripts --source ytdlp`, `collect audio`, `collect fingerprint`. SQLite v3 schema adds `audio_fingerprint` table (B-X1-2: v2 tables unchanged). `services/audio_fingerprint.py` (chromaprint + hamming distance, B-X1-9 isolated from spec 011 `services/fingerprint.py`). `services/ytdlp_adapter.py` (srv3 caption fetch + audio extract). `services/srv3_parser.py` (SRV3 XML → spec 010 transcript JSON). `services/audit_writer.py` (append-only CSV, E-5 frozen fieldnames). Signal handler (`build_signal_handler`) + alias resolver gate (exit 5 for empty/unregistered channels). SC-004 audio_temp lifecycle enforced via try/finally + SIGINT handler. flake.nix devShell adds `chromaprint`, `ffmpeg`, `zlib`, `stdenv.cc.cc.lib`.
 - 012-ytdlp-adapter: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`)
-- 011-reuse-fullstack-subtitle: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, sentence-transformers (spec 007 인계), jinja2, plotly, openpyxl. **신규 0건** — 기존 의존성 surface 안에서 충분.
-- 2026-05-08 (deps hotfix): `transformers`, `torch`, `prophet`, `statsmodels`, `weasyprint` moved from hard `dependencies` into PEP 621 optional-extras (`ml-sentiment`, `ml-forecast`, `pdf`, aggregate `ml`/`all`). Default `uv sync` now installs ~1 GB of deps instead of ~5.4 GB and pytest collection no longer OOMs 13 GB dev hosts. Lazy-import error messages in `services/sentiment.py` and `services/forecaster.py` updated to point operators at the correct `uv sync --extra <name>` recipe; `tests/unit/test_forecaster_ext.py` gains a `prophet` `importorskip` guard. **Migration**: existing dev `.venv` may carry stale ML libs — run `uv sync` (no extras) to prune, or `uv sync --extra dev --extra ml` to keep ML on hand.
 
 
 <!-- MANUAL ADDITIONS START -->
