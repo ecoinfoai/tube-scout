@@ -75,9 +75,15 @@ ml = [
 pdf = [
     "weasyprint>=62.0",
 ]
+# `pip install tube-scout[asr]` — faster-whisper local ASR transcription.
+# Required ONLY when TranscriptService(source="asr") or the collect
+# transcripts --source asr subcommand is invoked (spec 013).
+asr = [
+    "faster-whisper>=1.0.0,<2.0.0",
+]
 # Everything-and-the-kitchen-sink.
 all = [
-    "tube-scout[ml,pdf]",
+    "tube-scout[ml,pdf,asr]",
 ]
 # Test + lint toolchain.
 dev = [
