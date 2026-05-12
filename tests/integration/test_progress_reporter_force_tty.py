@@ -68,3 +68,19 @@ def test_force_tty_false_emits_throttled_lines(capsys) -> None:
     assert any("N=100/total=100" in ln for ln in update_lines), (
         "Final item (N=100) must always emit in NonTTY mode"
     )
+
+
+def test_make_progress_reporter_auto_detects_isatty(monkeypatch) -> None:
+    """force_tty=None branches on sys.stdout.isatty()."""
+    import sys
+
+    from tube_scout.services.progress_reporter import make_progress_reporter
+
+    # pytest capsys env: isatty() is False → NonTTY returned
+    reporter = make_progress_reporter("transcripts", total=1, force_tty=None)
+    assert type(reporter).__name__ in ("NonTTYProgressReporter", "TTYProgressReporter")
+
+    # mock isatty()=True → TTY returned
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
+    reporter_tty = make_progress_reporter("transcripts", total=1, force_tty=None)
+    assert type(reporter_tty).__name__ == "TTYProgressReporter"
