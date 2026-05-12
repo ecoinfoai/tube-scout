@@ -21,7 +21,10 @@ class SuspicionGrade(StrEnum):
 VALID_PROCESSING_STATUSES = frozenset({
     "pending", "collecting", "collected",
     "fingerprinted", "compared", "failed", "no_caption",
+    "asr_in_progress", "asr_failed",
 })
+
+VALID_MATCH_CONFIDENCES = frozenset({"high", "medium", "ambiguous"})
 
 VALID_CAPTION_SOURCES = frozenset({"transcript_api", "captions_api", "whisper"})
 
@@ -228,3 +231,85 @@ class SuspicionScore(BaseModel):
     i3_contribution: float
     i4_contribution: float
     i5_contribution: float
+
+
+# ─── spec 013 v4 models ───────────────────────────────────────────────────────
+
+
+class AsrQualityFlags(BaseModel):
+    """Extensible ASR quality flag set (FR-018).
+
+    Stored as JSON-serialized TEXT in quality_results.asr_quality_flags.
+    Ref: data-model.md §E-9.
+    """
+
+    hallucination_repeat: bool = False
+    vad_over_truncated: bool = False
+    language_mismatch: bool = False
+    short_segments_excess: bool = False
+    silence_hallucination: bool = False
+    compression_ratio_violations: int = 0
+
+    model_config = {"extra": "allow"}
+
+
+class ChannelMetadata(BaseModel):
+    """Channel-level metadata ingested from Google Takeout or API.
+
+    Ref: data-model.md §E-1.
+
+    Attributes:
+        channel_id: YouTube channel ID (UCxxxx...).
+        channel_alias: spec 003 alias resolver key.
+        title: Channel display name.
+        country: ISO 3166-1 alpha-2 country code.
+        privacy_status: Channel privacy setting.
+        source: Data origin.
+        takeout_root_hint: Absolute path of most recent Takeout root.
+        ingested_at: ISO 8601 timezone-aware ingestion timestamp.
+    """
+
+    channel_id: str = Field(..., min_length=1)
+    channel_alias: str = Field(..., min_length=1)
+    title: str | None = None
+    country: str | None = Field(None, max_length=2)
+    privacy_status: Literal["public", "unlisted", "private"] | None = None
+    source: Literal["takeout", "api", "manual"]
+    takeout_root_hint: str | None = None
+    ingested_at: datetime
+
+
+class VideoMetadata(BaseModel):
+    """Video-level metadata extracted from Takeout CSV or API.
+
+    Ref: data-model.md §E-2.
+
+    Attributes:
+        video_id: YouTube video ID (≤ 20 chars).
+        channel_id: Parent channel ID.
+        title: Video title.
+        duration_seconds: Video duration in seconds.
+        language: Primary language tag.
+        category: YouTube category string.
+        privacy_status: Video privacy setting.
+        created_at: Video creation timestamp.
+        published_at: Video publish timestamp (None for private videos).
+        source: Data origin.
+        match_confidence: mp4 ↔ video_id mapping confidence.
+        mp4_relative_path: Path relative to channel work_dir.
+        ingested_at: ISO 8601 timezone-aware ingestion timestamp.
+    """
+
+    video_id: str = Field(..., min_length=1, max_length=20)
+    channel_id: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1)
+    duration_seconds: float | None = Field(None, ge=0.0)
+    language: str | None = None
+    category: str | None = None
+    privacy_status: Literal["public", "unlisted", "private"] | None = None
+    created_at: datetime | None = None
+    published_at: datetime | None = None
+    source: Literal["takeout", "api"]
+    match_confidence: Literal["high", "medium", "ambiguous"] | None = None
+    mp4_relative_path: str | None = None
+    ingested_at: datetime
