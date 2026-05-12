@@ -54,6 +54,10 @@
             zlib
             stdenv.cc.cc.lib
 
+            # spec 013: faster-whisper GPU support (cuDNN inference + NVRTC JIT)
+            cudaPackages.cudnn
+            cudaPackages.cuda_nvrtc
+
             # agenix CLI for editing department/shared *.age files
             agenix.packages.${system}.default
           ];
@@ -67,7 +71,7 @@
               harfbuzz
               fontconfig
               freetype
-            ])}:${pkgs.chromaprint}/lib:${pkgs.zlib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:''${LD_LIBRARY_PATH}"
+            ])}:${pkgs.chromaprint}/lib:${pkgs.zlib}/lib:${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.cudaPackages.cudnn}/lib:${pkgs.cudaPackages.cuda_nvrtc}/lib:''${LD_LIBRARY_PATH}"
 
           '';
         };
