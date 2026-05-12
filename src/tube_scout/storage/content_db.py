@@ -863,3 +863,143 @@ def audio_fingerprint_exists(db_path: Path, video_id: str) -> bool:
         return row is not None
     finally:
         conn.close()
+
+
+# ─── spec 013 v4 migration ────────────────────────────────────────────────────
+
+_V4_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS channel_metadata (
+    channel_id           TEXT PRIMARY KEY,
+    channel_alias        TEXT NOT NULL,
+    title                TEXT,
+    country              TEXT,
+    privacy_status       TEXT,
+    source               TEXT NOT NULL,
+    takeout_root_hint    TEXT,
+    ingested_at          TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS video_metadata (
+    video_id             TEXT PRIMARY KEY,
+    channel_id           TEXT NOT NULL,
+    title                TEXT NOT NULL,
+    duration_seconds     REAL,
+    language             TEXT,
+    category             TEXT,
+    privacy_status       TEXT,
+    created_at           TEXT,
+    published_at         TEXT,
+    source               TEXT NOT NULL,
+    match_confidence     TEXT,
+    mp4_relative_path    TEXT,
+    ingested_at          TEXT NOT NULL,
+    FOREIGN KEY (channel_id) REFERENCES channel_metadata(channel_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_video_meta_channel ON video_metadata(channel_id);
+CREATE INDEX IF NOT EXISTS idx_video_meta_privacy ON video_metadata(privacy_status);
+"""
+
+_V4_ALTER_COLUMNS: list[tuple[str, str, str]] = [
+    ("processing_status",  "match_confidence",        "TEXT"),
+    ("processing_status",  "caption_source_detail",   "TEXT"),
+    ("quality_results",    "asr_quality_flags",        "TEXT"),
+    ("comparison_results", "audio_fp_hamming",         "INTEGER"),
+    ("comparison_results", "audio_fp_best_offset",     "REAL"),
+    ("comparison_results", "audio_fp_overlap_seconds", "REAL"),
+    ("comparison_results", "source_type_pair",         "TEXT"),
+]
+
+
+def _add_column_if_missing(
+    cur: sqlite3.Cursor,
+    table: str,
+    column: str,
+    type_: str,
+) -> bool:
+    """Add a column to a table only if it does not already exist.
+
+    Args:
+        cur: SQLite cursor.
+        table: Table name.
+        column: Column name to add.
+        type_: SQLite type (e.g., 'TEXT', 'INTEGER', 'REAL').
+
+    Returns:
+        True if column was added (i.e., it was missing), False if it
+        already existed (no-op).
+    """
+    existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table});").fetchall()}
+    if column in existing:
+        return False
+    cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_};")
+    return True
+
+
+def migrate_to_v4(db_path: Path) -> None:
+    """Migrate content_reuse.db from v3 → v4. Idempotent.
+
+    Adds two new tables (channel_metadata, video_metadata) and alters
+    three existing tables (processing_status, quality_results, comparison_results)
+    to add the columns required by spec 013.
+
+    Pre-conditions:
+        - db_path exists and is a v3-or-higher SQLite database
+          (PRAGMA user_version >= 3).
+
+    Post-conditions:
+        - PRAGMA user_version == 4.
+        - channel_metadata and video_metadata tables exist.
+        - processing_status has columns match_confidence and caption_source_detail.
+        - quality_results has column asr_quality_flags.
+        - comparison_results has columns audio_fp_hamming, audio_fp_best_offset,
+          audio_fp_overlap_seconds, source_type_pair.
+        - All existing rows preserved (no data loss).
+
+    Args:
+        db_path: Path to content_reuse.db (assumed v3 schema present).
+
+    Raises:
+        FileNotFoundError: db_path does not exist.
+        ValueError: PRAGMA user_version < 3 (run migrate_to_v3 first).
+    """
+    if not db_path.exists():
+        raise FileNotFoundError(f"Database not found: {db_path}")
+
+    with sqlite3.connect(db_path) as conn:
+        version = conn.execute("PRAGMA user_version;").fetchone()[0]
+
+    if version < 3:
+        raise ValueError(
+            f"Database at {db_path} has user_version={version}, expected >= 3. "
+            "Run migrate_to_v3 first."
+        )
+    if version >= 4:
+        return
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(_V4_SCHEMA_SQL)
+        cur = conn.cursor()
+        for table, column, type_ in _V4_ALTER_COLUMNS:
+            _add_column_if_missing(cur, table, column, type_)
+        conn.execute("PRAGMA user_version = 4;")
+
+
+def _ensure_v4(db_path: Path) -> None:
+    """Ensure the database is at v4. Auto-migrates from v3 if needed.
+
+    Args:
+        db_path: Path to content_reuse.db.
+
+    Raises:
+        ValueError: user_version < 3 (migrate_to_v3 must be run first).
+    """
+    with sqlite3.connect(db_path) as conn:
+        version = conn.execute("PRAGMA user_version;").fetchone()[0]
+    if version < 3:
+        raise ValueError(
+            f"Database at {db_path} has user_version={version}, expected >= 3. "
+            "Run migrate_to_v3 first."
+        )
+    if version < 4:
+        migrate_to_v4(db_path)
