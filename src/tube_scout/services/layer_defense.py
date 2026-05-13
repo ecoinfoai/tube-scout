@@ -3,10 +3,14 @@
 Applies Layer A (length cutoff) → B (baseline subtraction) →
 D-phrase (whitelist subtraction) → C (evolution band demotion) in order.
 Pure transformation; no DB writes. Persistence is the caller's responsibility.
+
+spec 013 §C adds standalone apply_layer_a/b/c/d functions for direct use by
+the nC2 analysis pipeline.
 """
 
 import sqlite3
 from pathlib import Path
+from typing import Literal
 
 from tube_scout.models.content import ComparisonResult
 from tube_scout.models.reuse_v2 import (
@@ -199,3 +203,111 @@ def apply_layers(
     })
 
     return updated, current_spans
+
+
+# ─── spec 013 §C: standalone layer functions ──────────────────────────────────
+
+
+def apply_layer_a(spans: list[MatchSpan], min_seconds: float) -> list[MatchSpan]:
+    """Layer A — remove spans shorter than min_seconds.
+
+    Args:
+        spans: Input matching spans.
+        min_seconds: Minimum span length to retain.
+
+    Returns:
+        Spans with length_seconds >= min_seconds.
+    """
+    return [s for s in spans if s.length_seconds >= min_seconds]
+
+
+def apply_layer_b(
+    spans: list[MatchSpan],
+    professor_id: str,
+    db_path: Path,
+    *,
+    threshold: float = 0.30,
+) -> list[MatchSpan]:
+    """Layer B — remove spans whose text matches professor baseline corpus.
+
+    Delegates to subtract_baseline. The threshold parameter is reserved for
+    future n-gram frequency filtering; currently any baseline-matching span
+    is removed.
+
+    Args:
+        spans: Input matching spans.
+        professor_id: Professor pool identifier for baseline lookup.
+        db_path: Path to content_reuse.db SQLite file.
+        threshold: Reserved — future: fraction of n-grams in corpus to trigger removal.
+
+    Returns:
+        Spans with baseline-matching text removed.
+
+    Raises:
+        TypeError: If db_path is not a Path.
+    """
+    remaining, _ = subtract_baseline(professor_id, spans, db_path)
+    return remaining
+
+
+def apply_layer_c(
+    spans: list[MatchSpan],
+    dept_idf: dict[str, float],
+    *,
+    min_idf: float = 1.0,
+) -> list[MatchSpan]:
+    """Layer C — remove spans whose matched_text_sample has low IDF score.
+
+    Spans are removed if the average IDF of tokens in matched_text_sample is
+    below min_idf (i.e., the text contains only common departmental terms).
+
+    Args:
+        spans: Input matching spans.
+        dept_idf: Mapping of normalized token -> IDF value.
+        min_idf: Minimum average IDF for a span to be retained.
+
+    Returns:
+        Spans with average IDF >= min_idf.
+    """
+    if not dept_idf:
+        return list(spans)
+
+    def _avg_idf(text: str) -> float:
+        tokens = text.lower().split()
+        if not tokens:
+            return min_idf
+        scores = [dept_idf.get(t, min_idf) for t in tokens]
+        return sum(scores) / len(scores)
+
+    return [s for s in spans if _avg_idf(s.matched_text_sample) >= min_idf]
+
+
+def apply_layer_d(
+    pair_id: str,
+    db: "ContentDB",
+) -> Literal["CONFIRMED_DUPLICATE", "FALSE_POSITIVE", None]:
+    """Layer D — look up operator-curated review_status for a pair.
+
+    Args:
+        pair_id: Composite key "{source_video_id}:{target_video_id}".
+        db: ContentDB wrapper (used to query comparison_results).
+
+    Returns:
+        "CONFIRMED_DUPLICATE", "FALSE_POSITIVE", or None if not yet reviewed.
+    """
+    parts = pair_id.split(":", 1)
+    if len(parts) != 2:
+        return None
+    src, tgt = parts
+    conn = db._conn
+    row = conn.execute(
+        "SELECT review_status FROM comparison_results "
+        "WHERE source_video_id = ? AND target_video_id = ?",
+        (src, tgt),
+    ).fetchone()
+    if row is None:
+        return None
+    status = row[0] if isinstance(row, (list, tuple)) else row["review_status"]
+    if status in ("CONFIRMED_DUPLICATE", "FALSE_POSITIVE"):
+        return status  # type: ignore[return-value]
+    return None
