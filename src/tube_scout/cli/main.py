@@ -38,6 +38,7 @@ from tube_scout.cli.report import (
     report_department_command,
     report_video_command,
 )
+from tube_scout.cli.process import process_normalize_transcripts_command
 from tube_scout.cli.search_cli import search_command
 from tube_scout.cli.validate_cli import validate_command
 from tube_scout.models.config import (
@@ -88,6 +89,11 @@ collect_app.command(name="audio")(collect_audio_command)
 collect_app.command(name="fingerprint")(collect_fingerprint_command)
 collect_app.command(name="takeout")(collect_takeout_command)
 collect_app.command(name="audio-extract")(collect_audio_extract_command)
+
+# Register process subcommands
+process_app = typer.Typer(help="Process collected data (normalize, etc.).")
+app.add_typer(process_app, name="process")
+process_app.command(name="normalize-transcripts")(process_normalize_transcripts_command)
 
 # Register analyze subcommands
 analyze_app.command(name="retention")(analyze_retention_command)
