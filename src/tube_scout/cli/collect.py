@@ -2650,6 +2650,269 @@ def collect_fingerprint_command(
                 console.print(f"[yellow]Channel '{alias}' failed: {_exc}. Continuing.[/yellow]")
 
 
+def collect_process_audio_command(  # noqa: C901
+    channel: str = typer.Option(
+        ...,
+        "--channel",
+        help="Channel alias (must be registered).",
+    ),
+    video_ids_str: str = typer.Option(
+        "",
+        "--video-ids",
+        help="Comma-separated video IDs to process.",
+    ),
+    all_takeout: bool = typer.Option(
+        False,
+        "--all-takeout",
+        help="Process all videos in video_metadata for this channel.",
+    ),
+    preset: str = typer.Option(
+        ...,
+        "--preset",
+        help="ASR preset: poc-laptop, prod-a6000, prod-a6000-pool, cpu-fallback.",
+    ),
+    skip_fingerprint: bool = typer.Option(
+        False,
+        "--skip-fingerprint",
+        help="Skip chromaprint fingerprint step.",
+    ),
+    skip_asr: bool = typer.Option(
+        False,
+        "--skip-asr",
+        help="Skip ASR transcription step.",
+    ),
+    keep_audio: bool = typer.Option(
+        False,
+        "--keep-audio",
+        help="Keep WAV files after processing (default: delete immediately).",
+    ),
+    retry_failed: bool = typer.Option(
+        False,
+        "--retry-failed",
+        help="Also retry videos with asr_failed status.",
+    ),
+    auto_normalize: bool = typer.Option(
+        True,
+        "--auto-normalize/--no-auto-normalize",
+        help="Normalize transcript after ASR (default: on).",
+        rich_help_panel="Process options",
+    ),
+    audio_cache_dir: str = typer.Option(
+        "/tmp/tube-scout-audio",
+        "--audio-cache-dir",
+        help="WAV extraction directory.",
+        rich_help_panel="Process options",
+    ),
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Work root for channel data directories.",
+        rich_help_panel="Process options",
+    ),
+    db_path_str: str = typer.Option(
+        "",
+        "--db-path",
+        help="Path to content_reuse.db (defaults to <data-dir>/content_reuse.db).",
+        rich_help_panel="Process options",
+    ),
+) -> None:
+    """Integrated per-video pipeline: WAV extract → fingerprint → ASR → normalize → WAV delete.
+
+    FR-010~FR-025 (spec 013). Exit codes: 0=success, 2=alias/selection error,
+    5=one or more per-video failures.
+    """
+    import datetime
+    import signal
+    import sqlite3
+
+    from tube_scout.services.asr import PRESET_TABLE, transcribe_audio
+    from tube_scout.services.audio_extract import WavLifecycle, extract_wav_16k_mono
+    from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
+    from tube_scout.services.audit_writer import AuditWriter
+    from tube_scout.services.progress_reporter import make_progress_reporter
+    from tube_scout.services.text_normalizer import normalize_transcript_json
+    from tube_scout.storage.content_db import insert_audio_fingerprint
+
+    work_root = Path(data_dir)
+    db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
+    cache_dir = Path(audio_cache_dir)
+
+    if not db.exists():
+        console.print(f"[red]DB not found: {db}. Run 'collect takeout' first.[/red]")
+        raise typer.Exit(code=2)
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    transcript_dir = work_root / channel / "01_collect" / "transcripts"
+    transcript_dir.mkdir(parents=True, exist_ok=True)
+    normalized_dir = work_root / channel / "01_collect" / "transcripts_normalized"
+    normalized_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resolve video list
+    try:
+        with sqlite3.connect(db) as conn:
+            if video_ids_str:
+                ids = [v.strip() for v in video_ids_str.split(",") if v.strip()]
+                placeholders = ",".join("?" * len(ids))
+                rows = conn.execute(
+                    f"SELECT video_id, mp4_relative_path FROM video_metadata"
+                    f" WHERE video_id IN ({placeholders})",
+                    ids,
+                ).fetchall()
+            elif all_takeout:
+                rows = conn.execute(
+                    "SELECT vm.video_id, vm.mp4_relative_path FROM video_metadata vm"
+                    " JOIN channel_metadata cm ON cm.channel_id = vm.channel_id"
+                    " WHERE cm.channel_alias = ?",
+                    (channel,),
+                ).fetchall()
+            else:
+                console.print("[red]Specify --video-ids or --all-takeout.[/red]")
+                raise typer.Exit(code=2)
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        console.print(f"[red]DB query error: {exc}[/red]")
+        raise typer.Exit(code=2) from exc
+
+    if not rows:
+        console.print("[yellow]No videos found for the given selection.[/yellow]")
+        raise typer.Exit(code=0)
+
+    preset_cfg = PRESET_TABLE.get(preset, {})
+    model_size = str(preset_cfg.get("model", "large-v3"))
+    compute_type = str(preset_cfg.get("compute_type", "int8_float16"))
+    device = str(preset_cfg.get("device", "cuda"))
+    device_index = int(preset_cfg.get("device_index") or 0)
+
+    audit = AuditWriter(work_root / channel)
+    any_failed = False
+
+    # SIGINT/SIGTERM: clean up current wav, write interrupted audit row
+    current_wav_ref: list[Path] = []
+
+    def _sighandler(signum: int, frame: object) -> None:
+        for wav in current_wav_ref:
+            if wav.exists():
+                wav.unlink(missing_ok=True)
+        raise SystemExit(130)
+
+    signal.signal(signal.SIGINT, _sighandler)
+    signal.signal(signal.SIGTERM, _sighandler)
+
+    with make_progress_reporter("transcripts", total=len(rows)) as progress:
+        for i, (video_id, mp4_rel) in enumerate(rows, start=1):
+            ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+
+            if mp4_rel is None:
+                console.print(f"[yellow]skip[/yellow] {video_id}: no mp4_relative_path")
+                any_failed = True
+                progress.update(video_id, i)
+                continue
+
+            mp4_path = work_root / channel / mp4_rel
+            if not mp4_path.exists():
+                console.print(f"[yellow]skip[/yellow] {video_id}: mp4 not found {mp4_path}")
+                any_failed = True
+                progress.update(video_id, i)
+                continue
+
+            wav_path = cache_dir / f"{video_id}.wav"
+            current_wav_ref[:] = [wav_path]
+
+            try:
+                # Step 1: WAV extract
+                try:
+                    extract_wav_16k_mono(mp4_path, wav_path, force=True)
+                except (FileNotFoundError, RuntimeError) as exc:
+                    console.print(f"[yellow]wav fail[/yellow] {video_id}: {exc}")
+                    any_failed = True
+                    continue
+
+                # Step 2: fingerprint (optional)
+                if not skip_fingerprint:
+                    try:
+                        fp_bytes, fp_duration = extract_chromaprint_fingerprint(mp4_path)
+                        insert_audio_fingerprint(db, video_id, fp_bytes, fp_duration, ts)
+                        audit.append_fingerprint_row({
+                            "video_id": video_id,
+                            "result": "success",
+                            "reason": "captured",
+                            "duration_sec": round(fp_duration, 3),
+                            "timestamp": ts,
+                            "cookies_source": "local",
+                        })
+                    except Exception as exc:
+                        console.print(f"[yellow]fp fail[/yellow] {video_id}: {exc}")
+
+                # Step 3: ASR (optional)
+                if not skip_asr:
+                    import json as _json
+                    import os as _os
+                    import tempfile as _tempfile
+
+                    try:
+                        asr_result = transcribe_audio(
+                            wav_path,
+                            model_size=model_size,
+                            compute_type=compute_type,
+                            device=device,
+                            device_index=device_index,
+                        )
+                        transcript = {
+                            "video_id": video_id,
+                            "source": asr_result.caption_source_detail,
+                            "language": asr_result.language_detected,
+                            "duration": asr_result.duration,
+                            "segments": asr_result.segments,
+                            "asr_quality_flags": asr_result.asr_quality_flags.model_dump(),
+                            "fetched_at": ts,
+                        }
+                        json_path = transcript_dir / f"{video_id}.json"
+                        fd, tmp_name = _tempfile.mkstemp(dir=transcript_dir, suffix=".tmp")
+                        try:
+                            with _os.fdopen(fd, "w", encoding="utf-8") as f:
+                                _json.dump(transcript, f, ensure_ascii=False, indent=2)
+                            _os.replace(tmp_name, json_path)
+                        except Exception:
+                            try:
+                                _os.unlink(tmp_name)
+                            except OSError:
+                                pass
+                            raise
+
+                        # Step 4: normalize (optional)
+                        if auto_normalize:
+                            norm_path = normalized_dir / f"{video_id}.json"
+                            normalize_transcript_json(json_path, norm_path, force=False)
+
+                        audit.append_transcript_row({
+                            "video_id": video_id,
+                            "result": "success",
+                            "reason": "asr_transcribed",
+                            "source": asr_result.caption_source_detail,
+                            "timestamp": ts,
+                            "cookies_source": "local",
+                        })
+                        console.print(
+                            f"[green]ok[/green] {video_id} "
+                            f"lang={asr_result.language_detected} "
+                            f"dur={asr_result.duration:.1f}s"
+                        )
+                    except Exception as exc:
+                        console.print(f"[yellow]asr fail[/yellow] {video_id}: {exc}")
+                        any_failed = True
+
+            finally:
+                if not keep_audio and wav_path.exists():
+                    wav_path.unlink(missing_ok=True)
+                current_wav_ref[:] = []
+
+            progress.update(video_id, i)
+
+    if any_failed:
+        raise typer.Exit(code=5)
+
+
 def collect_takeout_command(
     takeout_dir: str = typer.Option(
         ...,
