@@ -2158,3 +2158,82 @@ def collect_fingerprint_command(
                 )
             except Exception as _exc:
                 console.print(f"[yellow]Channel '{alias}' failed: {_exc}. Continuing.[/yellow]")
+
+
+def collect_takeout_command(
+    takeout_dir: str = typer.Option(
+        ...,
+        "--takeout-dir",
+        help="Takeout decompressed root directory (contains YouTube subdir).",
+    ),
+    channel: str = typer.Option(
+        ...,
+        "--channel",
+        help="spec 003 channel alias (must be registered).",
+    ),
+    copy: bool = typer.Option(
+        False,
+        "--copy",
+        help="Copy mp4 files instead of creating symlinks.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print mapping results only; no DB writes.",
+    ),
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Work root for channel data directories.",
+    ),
+    db_path_str: str = typer.Option(
+        "",
+        "--db-path",
+        help="Path to content_reuse.db (defaults to <data-dir>/content_reuse.db).",
+    ),
+) -> None:
+    """Ingest Google Takeout export: parse CSV metadata, map mp4 to video_id, persist to SQLite.
+
+    FR-001/FR-002/FR-009 (spec 013). Exit codes: 0=success, 2=alias error,
+    3=path error, 4=DB migration error.
+    """
+    from tube_scout.services.takeout_ingest import ingest_takeout
+
+    takeout_path = Path(takeout_dir)
+    work_root = Path(data_dir)
+    db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
+
+    if not takeout_path.exists():
+        console.print(f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]")
+        raise typer.Exit(code=3)
+
+    try:
+        result = ingest_takeout(
+            takeout_dir=takeout_path,
+            channel_alias=channel,
+            db_path=db,
+            work_root=work_root,
+            use_symlinks=not copy,
+            dry_run=dry_run,
+        )
+    except ValueError as exc:
+        console.print(f"[red]Alias error: {exc}[/red]")
+        raise typer.Exit(code=2) from exc
+    except FileNotFoundError as exc:
+        console.print(f"[red]Path error: {exc}[/red]")
+        raise typer.Exit(code=3) from exc
+    except Exception as exc:
+        console.print(f"[red]DB migration or unexpected error: {exc}[/red]")
+        raise typer.Exit(code=4) from exc
+
+    mode = "[dim](dry-run)[/dim]" if dry_run else ""
+    console.print(
+        f"[green]takeout ingest complete {mode}[/green] "
+        f"channel={result.channel_alias} "
+        f"total={result.total_videos} new={result.new_videos} "
+        f"high={result.high_confidence_mappings} "
+        f"medium={result.medium_confidence_mappings} "
+        f"ambiguous={result.ambiguous_mappings} "
+        f"unmapped={result.unmapped_filenames} "
+        f"ignored_csv={result.ignored_csv_count}"
+    )

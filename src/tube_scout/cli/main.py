@@ -24,6 +24,7 @@ from tube_scout.cli.collect import (
     collect_comments_command,
     collect_fingerprint_command,
     collect_retention_command,
+    collect_takeout_command,
     collect_transcripts_command,
     collect_videos_command,
 )
@@ -84,6 +85,7 @@ collect_app.command(name="bulk")(collect_bulk_command)
 collect_app.command(name="all")(collect_all_command)
 collect_app.command(name="audio")(collect_audio_command)
 collect_app.command(name="fingerprint")(collect_fingerprint_command)
+collect_app.command(name="takeout")(collect_takeout_command)
 
 # Register analyze subcommands
 analyze_app.command(name="retention")(analyze_retention_command)
