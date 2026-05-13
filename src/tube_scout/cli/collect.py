@@ -2237,3 +2237,168 @@ def collect_takeout_command(
         f"unmapped={result.unmapped_filenames} "
         f"ignored_csv={result.ignored_csv_count}"
     )
+
+
+def collect_audio_extract_command(
+    channel: str = typer.Option(
+        ...,
+        "--channel",
+        help="Channel alias (must be registered in spec 003 auth registry).",
+    ),
+    video_ids_str: str = typer.Option(
+        "",
+        "--video-ids",
+        help="Comma-separated video IDs to process. Overrides --all-takeout.",
+    ),
+    all_takeout: bool = typer.Option(
+        False,
+        "--all-takeout",
+        help="Process all videos in video_metadata for this channel.",
+    ),
+    audio_cache_dir: str = typer.Option(
+        "/tmp/tube-scout-audio",
+        "--audio-cache-dir",
+        help="Directory where WAV files are written (accumulated, not deleted).",
+    ),
+    keep_audio: bool = typer.Option(
+        False,
+        "--keep-audio",
+        help="Do not delete WAV after extraction (no-op in standalone extract mode).",
+    ),
+    sample_rate: int = typer.Option(
+        16000,
+        "--sample-rate",
+        help="Target sample rate in Hz (default 16000 for faster-whisper).",
+    ),
+    codec: str = typer.Option(
+        "pcm_s16le",
+        "--codec",
+        help="Audio codec: pcm_s16le (default) or flac.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite existing WAV files.",
+    ),
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Work root for channel data directories.",
+    ),
+    db_path_str: str = typer.Option(
+        "",
+        "--db-path",
+        help="Path to content_reuse.db (defaults to <data-dir>/content_reuse.db).",
+    ),
+) -> None:
+    """Extract mono 16 kHz WAV from Takeout mp4 files.
+
+    FR-010~FR-012 (spec 013). Exit codes: 0=success, 2=alias error,
+    5=one or more ffmpeg failures.
+    """
+    import datetime
+    import sqlite3
+    import time
+
+    from tube_scout.services.audio_extract import extract_wav_16k_mono
+    from tube_scout.services.audit_writer import AuditWriter
+
+    work_root = Path(data_dir)
+    db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
+    cache_dir = Path(audio_cache_dir)
+
+    if not db.exists():
+        console.print(f"[red]DB not found: {db}. Run \'collect takeout\' first.[/red]")
+        raise typer.Exit(code=2)
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resolve video list from DB
+    try:
+        with sqlite3.connect(db) as conn:
+            if video_ids_str:
+                ids = [v.strip() for v in video_ids_str.split(",") if v.strip()]
+                placeholders = ",".join("?" * len(ids))
+                rows = conn.execute(
+                    f"SELECT video_id, mp4_relative_path FROM video_metadata"
+                    f" WHERE video_id IN ({placeholders})",
+                    ids,
+                ).fetchall()
+            elif all_takeout:
+                rows = conn.execute(
+                    "SELECT video_id, mp4_relative_path FROM video_metadata"
+                    " WHERE channel_id IN ("
+                    "  SELECT channel_id FROM channel_metadata WHERE channel_alias = ?"
+                    ")",
+                    (channel,),
+                ).fetchall()
+            else:
+                console.print("[red]Specify --video-ids or --all-takeout.[/red]")
+                raise typer.Exit(code=2)
+    except ValueError as exc:
+        console.print(f"[red]Alias error: {exc}[/red]")
+        raise typer.Exit(code=2) from exc
+
+    if not rows:
+        console.print("[yellow]No video_metadata rows found for the given selection.[/yellow]")
+        raise typer.Exit(code=0)
+
+    audit = AuditWriter(work_root / channel)
+    any_failed = False
+
+    for video_id, mp4_rel in rows:
+        wav_path = cache_dir / f"{video_id}.wav"
+        ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+
+        if mp4_rel is None:
+            audit.append_row("audio_extract", {
+                "video_id": video_id,
+                "result": "skip",
+                "reason": "no_mp4_path",
+                "input_kind": "mp4",
+                "output_path": "",
+                "wav_size_bytes": 0,
+                "elapsed_s": 0.0,
+                "timestamp": ts,
+            })
+            continue
+
+        mp4_path = work_root / channel / mp4_rel
+        t0 = time.monotonic()
+        try:
+            extract_wav_16k_mono(
+                mp4_path,
+                wav_path,
+                sample_rate=sample_rate,
+                codec=codec,
+                force=force,
+            )
+            elapsed = time.monotonic() - t0
+            audit.append_row("audio_extract", {
+                "video_id": video_id,
+                "result": "success",
+                "reason": "extracted",
+                "input_kind": "mp4",
+                "output_path": str(wav_path),
+                "wav_size_bytes": wav_path.stat().st_size if wav_path.exists() else 0,
+                "elapsed_s": round(elapsed, 3),
+                "timestamp": ts,
+            })
+            console.print(f"[green]ok[/green] {video_id} -> {wav_path.name}")
+        except (FileNotFoundError, RuntimeError) as exc:
+            any_failed = True
+            elapsed = time.monotonic() - t0
+            audit.append_row("audio_extract", {
+                "video_id": video_id,
+                "result": "fail",
+                "reason": "audio_decode_failed",
+                "input_kind": "mp4",
+                "output_path": "",
+                "wav_size_bytes": 0,
+                "elapsed_s": round(elapsed, 3),
+                "timestamp": ts,
+            })
+            console.print(f"[yellow]fail[/yellow] {video_id}: {exc}")
+
+    if any_failed:
+        raise typer.Exit(code=5)
