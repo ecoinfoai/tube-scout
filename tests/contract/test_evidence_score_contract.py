@@ -21,23 +21,30 @@ def test_score_mp4_candidates_returns_per_candidate_signals(tmp_path: Path) -> N
     mp4 = tmp_path / "1-1.강의제목A.mp4"
     mp4.write_bytes(b"\x00" * 1024)
 
+    import datetime
+
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
     # Two candidate VideoMetadata entries
     candidates = [
         VideoMetadata(
             video_id="vid001",
             title="1-1.강의제목A",
-            duration_sec=3600.0,
+            duration_seconds=3600.0,
             channel_id="UCfake0001",
-            privacy="unlisted",
-            created_at="2026-04-01T09:00:00Z",
+            privacy_status="unlisted",
+            created_at=datetime.datetime(2026, 4, 1, 9, 0, 0, tzinfo=datetime.timezone.utc),
+            source="takeout",
+            ingested_at=now,
         ),
         VideoMetadata(
             video_id="vid002",
             title="1-2.강의제목B",
-            duration_sec=2700.0,
+            duration_seconds=2700.0,
             channel_id="UCfake0001",
-            privacy="unlisted",
-            created_at="2026-04-08T09:00:00Z",
+            privacy_status="unlisted",
+            created_at=datetime.datetime(2026, 4, 8, 9, 0, 0, tzinfo=datetime.timezone.utc),
+            source="takeout",
+            ingested_at=now,
         ),
     ]
 
