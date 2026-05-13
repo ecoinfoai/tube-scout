@@ -8,6 +8,7 @@ from rich.console import Console
 
 from tube_scout.cli.analyze import (
     analyze_all_command,
+    analyze_content_reuse_command,
     analyze_eqs_command,
     analyze_forecast_command,
     analyze_retention_command,
@@ -105,6 +106,7 @@ analyze_app.command(name="eqs")(analyze_eqs_command)
 analyze_app.command(name="topic")(analyze_topic_command)
 analyze_app.command(name="forecast")(analyze_forecast_command)
 analyze_app.command(name="all")(analyze_all_command)
+analyze_app.command(name="content-reuse")(analyze_content_reuse_command)
 
 # Register report subcommands
 report_app.command(name="video")(report_video_command)
