@@ -49,7 +49,7 @@ def test_extract_wav_16k_mono_creates_file_with_correct_specs(tmp_path: Path) ->
         check=True,
     )
     parts = probe.stdout.strip().split(",")
-    codec, channels, sample_rate = parts[0], parts[1], parts[2]
+    codec, sample_rate, channels = parts[0], parts[1], parts[2]
     assert codec == "pcm_s16le", f"codec must be pcm_s16le, got {codec}"
     assert channels == "1", f"channels must be 1 (mono), got {channels}"
     assert sample_rate == "16000", f"sample_rate must be 16000, got {sample_rate}"
