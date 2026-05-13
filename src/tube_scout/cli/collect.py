@@ -877,6 +877,186 @@ def collect_comments_command(
             progress.advance(task)
 
 
+def _collect_transcripts_asr(  # noqa: C901
+    channel: str,
+    video_ids_str: str,
+    preset: str,
+    model: str,
+    compute_type: str,
+    device: str,
+    language: str,
+    beam_size: int,
+    vad_filter: bool,
+    retry_failed: bool,
+    cleanup_audio: bool,
+    auto_normalize: bool,
+    audio_cache_dir: str,
+    data_dir: str,
+    db_path_str: str,
+) -> None:
+    """--source asr branch: run faster-whisper ASR on cached WAV files (FR-016~FR-022)."""
+    import datetime
+    import sqlite3
+
+    from tube_scout.services.asr import PRESET_TABLE, transcribe_audio
+    from tube_scout.services.audit_writer import AuditWriter
+    from tube_scout.services.text_normalizer import normalize_transcript_json
+    from tube_scout.services.worker_pool import run_pool
+
+    work_root = Path(data_dir)
+    db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
+    cache_dir = Path(audio_cache_dir)
+
+    if not db.exists():
+        console.print(f"[red]DB not found: {db}. Run 'collect takeout' first.[/red]")
+        raise typer.Exit(code=2)
+
+    transcript_dir = work_root / channel / "01_collect" / "transcripts"
+    transcript_dir.mkdir(parents=True, exist_ok=True)
+    normalized_dir = work_root / channel / "01_collect" / "transcripts_normalized"
+    normalized_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resolve video list
+    try:
+        with sqlite3.connect(db) as conn:
+            if video_ids_str:
+                ids = [v.strip() for v in video_ids_str.split(",") if v.strip()]
+                placeholders = ",".join("?" * len(ids))
+                rows = conn.execute(
+                    f"SELECT video_id FROM processing_status WHERE video_id IN ({placeholders})",
+                    ids,
+                ).fetchall()
+            else:
+                status_filter = "'collected', 'asr_failed'" if retry_failed else "'collected'"
+                rows = conn.execute(
+                    f"SELECT ps.video_id FROM processing_status ps"
+                    f" JOIN video_metadata vm ON vm.video_id = ps.video_id"
+                    f" JOIN channel_metadata cm ON cm.channel_id = vm.channel_id"
+                    f" WHERE cm.channel_alias = ? AND ps.status IN ({status_filter})",
+                    (channel,),
+                ).fetchall()
+    except Exception as exc:
+        console.print(f"[red]DB query error: {exc}[/red]")
+        raise typer.Exit(code=2) from exc
+
+    if not rows:
+        console.print("[yellow]No videos in 'collected' status found.[/yellow]")
+        raise typer.Exit(code=0)
+
+    video_ids = [r[0] for r in rows]
+
+    # Pool preset: spawn worker_pool
+    if preset == "prod-a6000-pool":
+        result = run_pool(
+            db_path=db,
+            audio_cache_dir=cache_dir,
+            transcripts_dir=transcript_dir,
+            n_workers=2,
+            device_indices=[0, 1],
+            model_size=model,
+            compute_type=compute_type,
+            language=language,
+            auto_normalize=auto_normalize,
+            retry_failed=retry_failed,
+            keep_audio=not cleanup_audio,
+        )
+        console.print(
+            f"[green]pool done[/green] processed={result.total_processed} "
+            f"failed={result.total_failed} skipped={result.total_skipped}"
+        )
+        return
+
+    # Single-worker path
+    preset_cfg = PRESET_TABLE.get(preset, {})
+    resolved_model = model or preset_cfg.get("model", "large-v3")
+    resolved_compute = compute_type or preset_cfg.get("compute_type", "int8_float16")
+    resolved_device = device or preset_cfg.get("device", "cuda")
+    device_index = int(preset_cfg.get("device_index") or 0)
+
+    audit = AuditWriter(work_root / channel)
+
+    for video_id in video_ids:
+        wav_path = cache_dir / f"{video_id}.wav"
+        ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+
+        if not wav_path.exists():
+            console.print(f"[yellow]skip[/yellow] {video_id}: WAV not found {wav_path}")
+            audit.append_transcript_row({
+                "video_id": video_id,
+                "result": "skip",
+                "reason": "wav_not_found",
+                "source": "asr",
+                "timestamp": ts,
+                "cookies_source": "local",
+            })
+            continue
+
+        try:
+            result = transcribe_audio(
+                wav_path,
+                model_size=resolved_model,
+                compute_type=resolved_compute,
+                device=resolved_device,
+                device_index=device_index,
+                language=language,
+                beam_size=beam_size,
+                vad_filter=vad_filter,
+            )
+        except Exception as exc:
+            console.print(f"[yellow]asr fail[/yellow] {video_id}: {exc}")
+            audit.append_transcript_row({
+                "video_id": video_id,
+                "result": "fail",
+                "reason": "asr_error",
+                "source": "asr",
+                "timestamp": ts,
+                "cookies_source": "local",
+            })
+            continue
+        finally:
+            if cleanup_audio and wav_path.exists():
+                wav_path.unlink(missing_ok=True)
+
+        import tempfile as _tempfile
+        import os as _os
+        transcript = {
+            "video_id": video_id,
+            "source": result.caption_source_detail,
+            "language": result.language_detected,
+            "duration": result.duration,
+            "segments": result.segments,
+            "asr_quality_flags": result.asr_quality_flags.model_dump(),
+            "fetched_at": ts,
+        }
+        json_path = transcript_dir / f"{video_id}.json"
+        fd, tmp_name = _tempfile.mkstemp(dir=transcript_dir, suffix=".tmp")
+        try:
+            import json as _json
+            with _os.fdopen(fd, "w", encoding="utf-8") as f:
+                _json.dump(transcript, f, ensure_ascii=False, indent=2)
+            _os.replace(tmp_name, json_path)
+        except Exception:
+            try:
+                _os.unlink(tmp_name)
+            except OSError:
+                pass
+            raise
+
+        if auto_normalize:
+            norm_path = normalized_dir / f"{video_id}.json"
+            normalize_transcript_json(json_path, norm_path)
+
+        audit.append_transcript_row({
+            "video_id": video_id,
+            "result": "success",
+            "reason": "asr_transcribed",
+            "source": result.caption_source_detail,
+            "timestamp": ts,
+            "cookies_source": "local",
+        })
+        console.print(f"[green]ok[/green] {video_id} lang={result.language_detected} dur={result.duration:.1f}s")
+
+
 def collect_transcripts_command(
     data_dir: str = typer.Option(
         "./data",
@@ -912,7 +1092,7 @@ def collect_transcripts_command(
         None,
         "--source",
         help=(
-            "Transcript source: 'api' or 'ytdlp'. "
+            "Transcript source: 'api', 'ytdlp', or 'asr'. "
             "Default: env TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE or 'api'."
         ),
     ),
@@ -933,6 +1113,79 @@ def collect_transcripts_command(
             "all videos. Without this flag, videos with an existing "
             "non-empty transcript JSON are skipped (resume mode)."
         ),
+    ),
+    # ASR-specific flags (--source asr only)
+    asr_preset: str | None = typer.Option(
+        None,
+        "--preset",
+        help="ASR preset: poc-laptop, prod-a6000, prod-a6000-pool, cpu-fallback (required for --source asr).",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_model: str = typer.Option(
+        "",
+        "--model",
+        help="Override model for --source asr (default from preset).",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_compute_type: str = typer.Option(
+        "",
+        "--compute-type",
+        help="Override compute type for --source asr (default from preset).",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_device: str = typer.Option(
+        "",
+        "--device",
+        help="Override device for --source asr (default from preset).",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_language: str = typer.Option(
+        "ko",
+        "--language",
+        help="Language code for ASR (default: ko).",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_beam_size: int = typer.Option(
+        5,
+        "--beam-size",
+        help="Beam size for faster-whisper (default: 5).",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_vad_filter: bool = typer.Option(
+        True,
+        "--vad-filter/--no-vad-filter",
+        help="Enable VAD filter for ASR (default: on).",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_retry_failed: bool = typer.Option(
+        False,
+        "--retry-failed",
+        help="Also retry videos in asr_failed status.",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_cleanup_audio: bool = typer.Option(
+        False,
+        "--cleanup-audio",
+        help="Delete WAV file after each video is transcribed.",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_auto_normalize: bool = typer.Option(
+        True,
+        "--auto-normalize/--no-auto-normalize",
+        help="Automatically normalize transcript after ASR (default: on).",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_audio_cache_dir: str = typer.Option(
+        "/tmp/tube-scout-audio",
+        "--audio-cache-dir",
+        help="WAV cache directory for --source asr.",
+        rich_help_panel="ASR options (--source asr)",
+    ),
+    asr_db_path_str: str = typer.Option(
+        "",
+        "--db-path",
+        help="Path to content_reuse.db for --source asr (defaults to <data-dir>/content_reuse.db).",
+        rich_help_panel="ASR options (--source asr)",
     ),
 ) -> None:
     """Collect transcripts for videos using youtube-transcript-api.
@@ -969,6 +1222,33 @@ def collect_transcripts_command(
                 "Run `tube-scout auth --channel <alias>` to register.[/red]"
             )
             raise typer.Exit(code=5)
+
+    # Dispatch to asr backend — return early
+    if resolved_source == "asr":
+        if not channel:
+            console.print("[red]--channel is required for --source asr.[/red]")
+            raise typer.Exit(code=2)
+        if not asr_preset:
+            console.print("[red]--preset is required for --source asr.[/red]")
+            raise typer.Exit(code=2)
+        _collect_transcripts_asr(
+            channel=channel,
+            video_ids_str=video_id or "",
+            preset=asr_preset,
+            model=asr_model,
+            compute_type=asr_compute_type,
+            device=asr_device,
+            language=asr_language,
+            beam_size=asr_beam_size,
+            vad_filter=asr_vad_filter,
+            retry_failed=asr_retry_failed,
+            cleanup_audio=asr_cleanup_audio,
+            auto_normalize=asr_auto_normalize,
+            audio_cache_dir=asr_audio_cache_dir,
+            data_dir=data_dir,
+            db_path_str=asr_db_path_str,
+        )
+        return
 
     # Dispatch to ytdlp backend — return early
     if resolved_source == "ytdlp":
