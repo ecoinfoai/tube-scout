@@ -119,11 +119,11 @@ def test_duration_ms_converted_to_seconds(tmp_path: Path) -> None:
     _channel, videos = parse_takeout_csv_metadata(takeout_root)
 
     by_id = {v.video_id: v for v in videos}
-    assert abs(by_id["vidA"].duration_sec - 3600.0) < 0.001, (
-        f"Expected 3600.0s, got {by_id['vidA'].duration_sec}"
+    assert abs(by_id["vidA"].duration_seconds - 3600.0) < 0.001, (
+        f"Expected 3600.0s, got {by_id['vidA'].duration_seconds}"
     )
-    assert abs(by_id["vidB"].duration_sec - 105.0) < 0.001, (
-        f"Expected 105.0s, got {by_id['vidB'].duration_sec}"
+    assert abs(by_id["vidB"].duration_seconds - 105.0) < 0.001, (
+        f"Expected 105.0s, got {by_id['vidB'].duration_seconds}"
     )
 
 
