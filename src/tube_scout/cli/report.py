@@ -958,3 +958,93 @@ def report_content_command(
     else:
         console.print(f"[red]Unknown format: {format}. Use html, xlsx, or json.[/red]")
         raise typer.Exit(code=1)
+
+
+def report_content_reuse_command(
+    channel: str = typer.Option(..., "--channel", help="Channel alias"),
+    professor: str = typer.Option(..., "--professor", help="Professor identifier"),
+    mode: str = typer.Option("M-nC2", "--mode", help="Matching mode: M-nC2 or M-default"),
+    top_k: int = typer.Option(50, "--top-k", help="Top-K suspect pairs in report"),
+    sort_by: str = typer.Option(
+        "i2-cosine",
+        "--sort-by",
+        help="Sort metric: i2-cosine, i6-longest-contiguous, i7-distribution-dispersion, i8-position-diversity, audio-fp-hamming",
+    ),
+    appendix_threshold_i2_cosine: float | None = typer.Option(
+        None, "--appendix-threshold-i2-cosine", help="Appendix threshold for I-2 cosine similarity"
+    ),
+    appendix_threshold_i6_longest_contiguous: float | None = typer.Option(
+        None, "--appendix-threshold-i6-longest-contiguous", help="Appendix threshold for I-6 longest contiguous (seconds)"
+    ),
+    appendix_threshold_i7_distribution_dispersion: float | None = typer.Option(
+        None, "--appendix-threshold-i7-distribution-dispersion", help="Appendix threshold for I-7 distribution dispersion"
+    ),
+    appendix_threshold_i8_position_diversity: float | None = typer.Option(
+        None, "--appendix-threshold-i8-position-diversity", help="Appendix threshold for I-8 position diversity"
+    ),
+    appendix_threshold_audio_fp_hamming: int | None = typer.Option(
+        None, "--appendix-threshold-audio-fp-hamming", help="Appendix threshold for audio fingerprint Hamming distance"
+    ),
+    format: str = typer.Option("both", "--format", help="Output format: pdf, html, or both"),
+    output: str | None = typer.Option(None, "--output", help="Output directory (default: current directory)"),
+    db_path: str | None = typer.Option(None, "--db-path", help="Path to content_reuse.db"),
+) -> None:
+    """Render per-professor nC2 content reuse report (HTML + PDF)."""
+    from tube_scout.reporting.professor_nc2 import (
+        AppendixThresholds,
+        render_professor_nc2_report,
+    )
+    from tube_scout.storage.content_db import ContentDB
+
+    valid_formats = {"pdf", "html", "both"}
+    if format not in valid_formats:
+        console.print(f"[red]Invalid format: {format!r}. Use one of: {sorted(valid_formats)}[/red]")
+        raise typer.Exit(code=1)
+
+    valid_sort = {
+        "i2-cosine", "i6-longest-contiguous", "i7-distribution-dispersion",
+        "i8-position-diversity", "audio-fp-hamming",
+    }
+    if sort_by not in valid_sort:
+        console.print(f"[red]Invalid --sort-by: {sort_by!r}. Valid: {sorted(valid_sort)}[/red]")
+        raise typer.Exit(code=1)
+
+    resolved_db = Path(db_path) if db_path else Path.cwd() / "content_reuse.db"
+    if not resolved_db.exists():
+        console.print(f"[red]Database not found: {resolved_db}[/red]")
+        raise typer.Exit(code=1)
+
+    output_dir = Path(output) if output else Path.cwd() / "reports" / "content_reuse"
+
+    thresholds = AppendixThresholds(
+        i2_cosine=appendix_threshold_i2_cosine,
+        i6_longest_contiguous=appendix_threshold_i6_longest_contiguous,
+        i7_distribution_dispersion=appendix_threshold_i7_distribution_dispersion,
+        i8_position_diversity=appendix_threshold_i8_position_diversity,
+        audio_fp_hamming=appendix_threshold_audio_fp_hamming,
+    )
+
+    db = ContentDB(resolved_db)
+    try:
+        result = render_professor_nc2_report(
+            professor=professor,
+            channel_alias=channel,
+            db=db,
+            output_dir=output_dir,
+            matching_mode=mode,  # type: ignore[arg-type]
+            top_k=top_k,
+            sort_by=sort_by,  # type: ignore[arg-type]
+            appendix_thresholds=thresholds,
+            output_format=format,  # type: ignore[arg-type]
+        )
+    finally:
+        db.close()
+
+    if result.html_path:
+        console.print(f"[green]HTML report: {result.html_path}[/green]")
+    if result.pdf_path:
+        console.print(f"[green]PDF report: {result.pdf_path}[/green]")
+    console.print(
+        f"[blue]Professor: {result.professor} | Pairs: {result.pair_count} | "
+        f"Appendix: {result.appendix_count}[/blue]"
+    )
