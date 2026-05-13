@@ -157,13 +157,20 @@ def _make_spans_for_classify(
 def test_classify_whole_same_week() -> None:
     """classify() returns WHOLE_SAME_WEEK for high I-6 ratio + same_week=True."""
     from tube_scout.services.pattern_classifier import classify
-    from tube_scout.models.reuse_v2 import ReusePatternLabel
+    from tube_scout.models.reuse_v2 import ReusePatternLabel, MatchSpan
 
+    # i6=2000, min_duration=2400: 2000/2400=0.833 >= 0.80 → whole
     comparison = _make_comparison(
-        i6_longest_contiguous_seconds=1800.0,  # 1800/2400 = 0.75 >= 0.80 → whole
+        i6_longest_contiguous_seconds=2000.0,
         i2_cosine_similarity=0.50,
     )
-    spans = _make_spans_for_classify(first_half_coverage=0.9, second_half_coverage=0.9, src_duration=2400.0)
+    # Spans covering both halves to avoid TAIL_UPDATE override
+    spans = [
+        MatchSpan(start_a_seconds=0.0, end_a_seconds=1200.0, start_b_seconds=0.0,
+                  end_b_seconds=1200.0, length_seconds=1200.0, matched_text_sample="first"),
+        MatchSpan(start_a_seconds=1200.0, end_a_seconds=2400.0, start_b_seconds=1200.0,
+                  end_b_seconds=2400.0, length_seconds=1200.0, matched_text_sample="second"),
+    ]
     result = classify(
         pair=comparison,
         src_duration=2400.0,
@@ -226,23 +233,38 @@ def test_classify_re_recorded_same_content_when_audio_differs() -> None:
 
 
 def test_classify_tail_update_when_i8_drops() -> None:
-    """classify() returns TAIL_UPDATE when i8_first >= 0.85 and i8_second <= 0.15."""
-    from tube_scout.services.pattern_classifier import classify
-    from tube_scout.models.reuse_v2 import ReusePatternLabel
+    """classify() returns TAIL_UPDATE when i8_first >= 0.85 and i8_second <= 0.15.
 
-    # Spans concentrated in first half only → tail-update pattern
+    Creates spans covering 9 out of 10 bins in the first half (i8_first≈0.9)
+    and no spans in the second half (i8_second=0.0).
+    """
+    from tube_scout.services.pattern_classifier import classify
+    from tube_scout.models.reuse_v2 import ReusePatternLabel, MatchSpan
+
+    # 9 spans spread across the first 500 s of a 1000 s video (bins 0-8 of 10)
+    # each span covers 40s, placed at 40s intervals → 9 bins out of 10 in first half
+    first_half_spans = [
+        MatchSpan(
+            start_a_seconds=float(i * 50),
+            end_a_seconds=float(i * 50 + 40),
+            start_b_seconds=float(i * 50),
+            end_b_seconds=float(i * 50 + 40),
+            length_seconds=40.0,
+            matched_text_sample=f"segment {i}",
+        )
+        for i in range(9)  # 0-8 → covers bins 0..8 of first half's 10 bins
+    ]
+    # i6 = 40 s (one span), well below 0.80 * 1000 = 800 → scattered base
     comparison = _make_comparison(
-        i6_longest_contiguous_seconds=300.0,  # 300/1000 = 0.30 < 0.80 → scattered
+        i6_longest_contiguous_seconds=40.0,
         i2_cosine_similarity=0.60,
     )
-    # Only first-half spans; no second-half → i8_first high, i8_second = 0
-    spans = _make_spans_for_classify(first_half_coverage=0.9, second_half_coverage=0.0, src_duration=1000.0)
     result = classify(
         pair=comparison,
         src_duration=1000.0,
         tgt_duration=1000.0,
         audio_fp_hamming=None,
-        spans=spans,
+        spans=first_half_spans,
         same_week=True,
     )
     assert result == ReusePatternLabel.TAIL_UPDATE, (
