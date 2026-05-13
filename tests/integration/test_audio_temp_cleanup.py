@@ -74,7 +74,7 @@ def test_audio_temp_empty_after_5_video_processing(tmp_path: Path) -> None:
 
         writer.append_fingerprint_row({
             "video_id": video_id,
-            "result": "ok",
+            "result": "success",
             "reason": "captured",
             "duration_sec": duration,
             "timestamp": extracted_at,
