@@ -145,3 +145,104 @@ def test_i8_position_diversity_ranks(case_a_segs, case_b_segs) -> None:
         f"Expected I-8(B) >= I-8(A), got I-8(A)={res_a.i8_position_diversity}, "
         f"I-8(B)={res_b.i8_position_diversity}"
     )
+
+
+# ─── T060 RED — spec 013 contract §B: standalone indicator functions ──────────
+
+
+def _make_span(
+    start_a: float,
+    end_a: float,
+    start_b: float,
+    end_b: float,
+    length: float,
+) -> "MatchSpan":
+    from tube_scout.models.reuse_v2 import MatchSpan
+    return MatchSpan(
+        start_a_seconds=start_a,
+        end_a_seconds=end_a,
+        start_b_seconds=start_b,
+        end_b_seconds=end_b,
+        length_seconds=length,
+        matched_text_sample="test sample text",
+    )
+
+
+def test_i6_longest_contiguous_single_span() -> None:
+    """Single 300 s span → I-6 = 300.0."""
+    from tube_scout.services.time_axis_indicators import compute_i6_longest_contiguous
+
+    spans = [_make_span(0.0, 300.0, 0.0, 300.0, 300.0)]
+    assert compute_i6_longest_contiguous(spans) == 300.0
+
+
+def test_i6_returns_zero_on_empty() -> None:
+    """Empty span list → I-6 = 0.0."""
+    from tube_scout.services.time_axis_indicators import compute_i6_longest_contiguous
+
+    assert compute_i6_longest_contiguous([]) == 0.0
+
+
+def test_i7_dispersion_balanced_vs_concentrated() -> None:
+    """Balanced spans → higher dispersion than concentrated spans.
+
+    Concentrated: two spans of identical length (low dispersion).
+    Balanced: spans of very different lengths (high dispersion).
+    """
+    from tube_scout.services.time_axis_indicators import compute_i7_distribution_dispersion
+
+    concentrated = [
+        _make_span(0.0, 100.0, 0.0, 100.0, 100.0),
+        _make_span(200.0, 300.0, 200.0, 300.0, 100.0),
+    ]
+    balanced = [
+        _make_span(0.0, 10.0, 0.0, 10.0, 10.0),
+        _make_span(100.0, 500.0, 100.0, 500.0, 400.0),
+    ]
+
+    i7_conc = compute_i7_distribution_dispersion(concentrated)
+    i7_bal = compute_i7_distribution_dispersion(balanced)
+
+    assert i7_bal >= i7_conc, (
+        f"Balanced dispersion ({i7_bal}) must be >= concentrated ({i7_conc})"
+    )
+    assert 0.0 <= i7_conc <= 1.0, f"i7 must be in [0,1], got {i7_conc}"
+    assert 0.0 <= i7_bal <= 1.0, f"i7 must be in [0,1], got {i7_bal}"
+
+
+def test_i8_position_diversity_full_coverage_returns_1() -> None:
+    """Spans covering all N bins → I-8 = 1.0.
+
+    Using 10 bins over 1000 s video: 10 spans at 100 s intervals.
+    """
+    from tube_scout.services.time_axis_indicators import compute_i8_position_diversity
+
+    spans = [
+        _make_span(i * 100.0, i * 100.0 + 10.0, i * 100.0, i * 100.0 + 10.0, 10.0)
+        for i in range(10)
+    ]
+    result = compute_i8_position_diversity(spans, src_duration=1000.0, tgt_duration=1000.0)
+
+    assert result == pytest.approx(1.0, abs=0.01), (
+        f"Full coverage across 10 bins expected I-8=1.0, got {result}"
+    )
+
+
+def test_i8_half_split_returns_two_values_summing_to_total() -> None:
+    """compute_i8_half_split returns (first_half, second_half) tuple, both in [0,1]."""
+    from tube_scout.services.time_axis_indicators import compute_i8_half_split
+
+    # 2 spans: one in first 500 s, one in second 500 s of 1000 s video
+    spans = [
+        _make_span(100.0, 200.0, 100.0, 200.0, 100.0),
+        _make_span(700.0, 800.0, 700.0, 800.0, 100.0),
+    ]
+    first_half, second_half = compute_i8_half_split(spans, src_duration=1000.0)
+
+    assert isinstance(first_half, float), "first_half must be float"
+    assert isinstance(second_half, float), "second_half must be float"
+    assert 0.0 <= first_half <= 1.0, f"first_half={first_half} out of [0,1]"
+    assert 0.0 <= second_half <= 1.0, f"second_half={second_half} out of [0,1]"
+    # Both halves have at least one span → each half > 0
+    assert first_half > 0.0, "First span is in first half → first_half must be > 0"
+    assert second_half > 0.0, "Second span is in second half → second_half must be > 0"
