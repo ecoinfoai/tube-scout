@@ -220,3 +220,125 @@ def compute_time_axis(
         i8_position_diversity=i8,
         spans=spans,
     )
+
+
+# ─── spec 013 §B standalone indicator functions ───────────────────────────────
+
+
+def compute_i6_longest_contiguous(spans: list[MatchSpan]) -> float:
+    """I-6: length of the longest matching span in seconds.
+
+    Args:
+        spans: All matching spans for a pair (sort order irrelevant).
+
+    Returns:
+        max(span.length_seconds) or 0.0 if spans is empty.
+    """
+    if not spans:
+        return 0.0
+    return max(s.length_seconds for s in spans)
+
+
+def compute_i7_distribution_dispersion(spans: list[MatchSpan]) -> float:
+    """I-7: dispersion of span length distribution using Gini coefficient.
+
+    Returns 1 - Gini coefficient so that:
+        0.0 = all spans the same length (concentrated)
+        1.0 = uniform distribution (equally dispersed)
+
+    Single-span or empty → 0.0.
+
+    Args:
+        spans: Matching spans for a pair.
+
+    Returns:
+        Dispersion value in [0, 1].
+    """
+    lengths = [s.length_seconds for s in spans]
+    n = len(lengths)
+    if n < 2:
+        return 0.0
+    sorted_lengths = sorted(lengths)
+    total = sum(sorted_lengths)
+    if total == 0.0:
+        return 0.0
+    cumsum = 0.0
+    gini_sum = 0.0
+    for i, val in enumerate(sorted_lengths):
+        cumsum += val
+        gini_sum += (2 * (i + 1) - n - 1) * val
+    gini = gini_sum / (n * total)
+    return max(0.0, min(1.0, 1.0 - gini))
+
+
+def compute_i8_position_diversity(
+    spans: list[MatchSpan],
+    src_duration: float,
+    tgt_duration: float,
+) -> float:
+    """I-8: fraction of N-bin timeline covered by at least one span midpoint.
+
+    Bins the source timeline into N=10 equal-width bins. Counts how many
+    bins contain at least one span midpoint, then averages source and target.
+
+    Args:
+        spans: Matching spans for a pair.
+        src_duration: Total duration of source video in seconds.
+        tgt_duration: Total duration of target video in seconds.
+
+    Returns:
+        Fraction of bins covered, averaged across source and target: [0, 1].
+    """
+    n_bins = 10
+    if not spans:
+        return 0.0
+
+    def _coverage(starts: list[float], ends: list[float], duration: float) -> float:
+        if duration <= 0.0:
+            return 0.0
+        bin_size = duration / n_bins
+        covered: set[int] = set()
+        for s, e in zip(starts, ends):
+            mid = (s + e) / 2.0
+            covered.add(min(n_bins - 1, int(mid / bin_size)))
+        return len(covered) / n_bins
+
+    src_cov = _coverage(
+        [s.start_a_seconds for s in spans],
+        [s.end_a_seconds for s in spans],
+        src_duration,
+    )
+    tgt_cov = _coverage(
+        [s.start_b_seconds for s in spans],
+        [s.end_b_seconds for s in spans],
+        tgt_duration,
+    )
+    return (src_cov + tgt_cov) / 2.0
+
+
+def compute_i8_half_split(
+    spans: list[MatchSpan],
+    src_duration: float,
+) -> tuple[float, float]:
+    """I-8 split into first-half and second-half coverage.
+
+    Uses compute_i8_position_diversity restricted to each half of the source
+    timeline. Useful for detecting tail-update patterns.
+
+    Args:
+        spans: Matching spans for a pair.
+        src_duration: Total duration of source video in seconds.
+
+    Returns:
+        (i8_first_half, i8_second_half) each in [0, 1].
+    """
+    if not spans or src_duration <= 0.0:
+        return (0.0, 0.0)
+
+    half = src_duration / 2.0
+    first_spans = [s for s in spans if s.start_a_seconds < half]
+    second_spans = [s for s in spans if s.start_a_seconds >= half]
+
+    first = compute_i8_position_diversity(first_spans, half, half)
+    second = compute_i8_position_diversity(second_spans, half, half)
+    return (first, second)

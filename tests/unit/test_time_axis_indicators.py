@@ -184,30 +184,31 @@ def test_i6_returns_zero_on_empty() -> None:
 
 
 def test_i7_dispersion_balanced_vs_concentrated() -> None:
-    """Balanced spans → higher dispersion than concentrated spans.
+    """Equal-length spans → higher dispersion than unequal spans.
 
-    Concentrated: two spans of identical length (low dispersion).
-    Balanced: spans of very different lengths (high dispersion).
+    Equal-length (uniform): Gini = 0 → dispersion = 1.0 (maximum equality).
+    Unequal lengths (one tiny, one large): Gini > 0 → dispersion < 1.0.
+    Dispersion = 1 - Gini, so equal lengths yield the highest dispersion.
     """
     from tube_scout.services.time_axis_indicators import compute_i7_distribution_dispersion
 
-    concentrated = [
+    equal_lengths = [
         _make_span(0.0, 100.0, 0.0, 100.0, 100.0),
         _make_span(200.0, 300.0, 200.0, 300.0, 100.0),
     ]
-    balanced = [
+    unequal_lengths = [
         _make_span(0.0, 10.0, 0.0, 10.0, 10.0),
         _make_span(100.0, 500.0, 100.0, 500.0, 400.0),
     ]
 
-    i7_conc = compute_i7_distribution_dispersion(concentrated)
-    i7_bal = compute_i7_distribution_dispersion(balanced)
+    i7_equal = compute_i7_distribution_dispersion(equal_lengths)
+    i7_unequal = compute_i7_distribution_dispersion(unequal_lengths)
 
-    assert i7_bal >= i7_conc, (
-        f"Balanced dispersion ({i7_bal}) must be >= concentrated ({i7_conc})"
+    assert i7_equal >= i7_unequal, (
+        f"Equal-length spans ({i7_equal}) must have >= dispersion than unequal ({i7_unequal})"
     )
-    assert 0.0 <= i7_conc <= 1.0, f"i7 must be in [0,1], got {i7_conc}"
-    assert 0.0 <= i7_bal <= 1.0, f"i7 must be in [0,1], got {i7_bal}"
+    assert 0.0 <= i7_equal <= 1.0, f"i7 must be in [0,1], got {i7_equal}"
+    assert 0.0 <= i7_unequal <= 1.0, f"i7 must be in [0,1], got {i7_unequal}"
 
 
 def test_i8_position_diversity_full_coverage_returns_1() -> None:
