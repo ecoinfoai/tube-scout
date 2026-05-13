@@ -37,6 +37,7 @@ from tube_scout.cli.report import (
     report_channel_command,
     report_comment_insight_command,
     report_content_command,
+    report_content_reuse_command,
     report_department_command,
     report_video_command,
 )
@@ -115,6 +116,7 @@ report_app.command(name="comment-insight")(report_comment_insight_command)
 report_app.command(name="department")(report_department_command)
 report_app.command(name="bundle")(report_bundle_command)
 report_app.command(name="content")(report_content_command)
+report_app.command(name="content-reuse")(report_content_reuse_command)
 
 
 def _version_callback(value: bool) -> None:
