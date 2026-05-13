@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import sqlite3
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -53,6 +54,7 @@ def _write_dup_video_csv(takeout_dir: Path) -> Path:
 def _write_ignored_category_csvs(takeout_dir: Path) -> Path:
     """Return takeout_dir with all FR-008 ignored-category CSV files present."""
     yt = takeout_dir / "YouTube 및 YouTube Music"
+    yt.mkdir(parents=True, exist_ok=True)
     ignored = [
         "동영상 녹화.csv",
         "동영상 텍스트.csv",
@@ -93,6 +95,7 @@ def test_assemble_channel_work_dir_creates_symlinks(tmp_path: Path) -> None:
     work_root = tmp_path / "data"
     work_root.mkdir()
 
+    # assemble_channel_work_dir does not require alias validation
     work_dir = assemble_channel_work_dir(
         takeout_dir=FIXTURE_TAKEOUT,
         channel_alias="test_channel",
@@ -135,28 +138,40 @@ def test_ingest_takeout_rejects_unknown_alias(tmp_path: Path) -> None:
 def test_ingest_takeout_idempotent_two_runs(tmp_path: Path) -> None:
     """Running ingest_takeout twice on the same takeout produces the same DB row count."""
     from tube_scout.services.takeout_ingest import ingest_takeout
+    from tube_scout.models.config import ChannelRegistration
 
     db_path = tmp_path / "content_reuse.db"
     work_root = tmp_path / "data"
     work_root.mkdir()
 
+    _mock_registry = {"test_channel": ChannelRegistration(
+        channel_id="UCfakeAnonChan0123456789",
+        alias="test_channel",
+        channel_name="Test Channel",
+        registered_at="2026-01-01T00:00:00Z",
+        last_used_at="2026-01-01T00:00:00Z",
+        token_path="/tmp/fake_token.json",
+    )}
+
     # First run
-    result1 = ingest_takeout(
-        takeout_dir=FIXTURE_TAKEOUT,
-        channel_alias="test_channel",
-        db_path=db_path,
-        work_root=work_root,
-    )
+    with patch("tube_scout.services.takeout_ingest._load_alias_registry", return_value=_mock_registry):
+        result1 = ingest_takeout(
+            takeout_dir=FIXTURE_TAKEOUT,
+            channel_alias="test_channel",
+            db_path=db_path,
+            work_root=work_root,
+        )
     with sqlite3.connect(db_path) as conn:
         row_count_1 = conn.execute("SELECT COUNT(*) FROM video_metadata").fetchone()[0]
 
     # Second run — same takeout, idempotent
-    result2 = ingest_takeout(
-        takeout_dir=FIXTURE_TAKEOUT,
-        channel_alias="test_channel",
-        db_path=db_path,
-        work_root=work_root,
-    )
+    with patch("tube_scout.services.takeout_ingest._load_alias_registry", return_value=_mock_registry):
+        result2 = ingest_takeout(
+            takeout_dir=FIXTURE_TAKEOUT,
+            channel_alias="test_channel",
+            db_path=db_path,
+            work_root=work_root,
+        )
     with sqlite3.connect(db_path) as conn:
         row_count_2 = conn.execute("SELECT COUNT(*) FROM video_metadata").fetchone()[0]
 
@@ -174,18 +189,29 @@ def test_ingest_takeout_idempotent_two_runs(tmp_path: Path) -> None:
 def test_ingest_takeout_dry_run_no_db_write(tmp_path: Path) -> None:
     """dry_run=True must not write any rows to SQLite."""
     from tube_scout.services.takeout_ingest import ingest_takeout
+    from tube_scout.models.config import ChannelRegistration
 
     db_path = tmp_path / "content_reuse.db"
     work_root = tmp_path / "data"
     work_root.mkdir()
 
-    result = ingest_takeout(
-        takeout_dir=FIXTURE_TAKEOUT,
-        channel_alias="test_channel",
-        db_path=db_path,
-        work_root=work_root,
-        dry_run=True,
-    )
+    _mock_registry = {"test_channel": ChannelRegistration(
+        channel_id="UCfakeAnonChan0123456789",
+        alias="test_channel",
+        channel_name="Test Channel",
+        registered_at="2026-01-01T00:00:00Z",
+        last_used_at="2026-01-01T00:00:00Z",
+        token_path="/tmp/fake_token.json",
+    )}
+
+    with patch("tube_scout.services.takeout_ingest._load_alias_registry", return_value=_mock_registry):
+        result = ingest_takeout(
+            takeout_dir=FIXTURE_TAKEOUT,
+            channel_alias="test_channel",
+            db_path=db_path,
+            work_root=work_root,
+            dry_run=True,
+        )
 
     assert result.dry_run is True, "IngestResult.dry_run must be True"
     assert not db_path.exists() or _video_metadata_count(db_path) == 0, (
@@ -230,12 +256,23 @@ def test_ignored_categories_audit_logged(tmp_path: Path) -> None:
     work_root = tmp_path / "data"
     work_root.mkdir(exist_ok=True)
 
-    result = ingest_takeout(
-        takeout_dir=tmp_path,
-        channel_alias="test_channel",
-        db_path=db_path,
-        work_root=work_root,
-    )
+    from tube_scout.models.config import ChannelRegistration
+    _mock_registry = {"test_channel": ChannelRegistration(
+        channel_id="UCfakeAnonChan0123456789",
+        alias="test_channel",
+        channel_name="Test Channel",
+        registered_at="2026-01-01T00:00:00Z",
+        last_used_at="2026-01-01T00:00:00Z",
+        token_path="/tmp/fake_token.json",
+    )}
+
+    with patch("tube_scout.services.takeout_ingest._load_alias_registry", return_value=_mock_registry):
+        result = ingest_takeout(
+            takeout_dir=tmp_path,
+            channel_alias="test_channel",
+            db_path=db_path,
+            work_root=work_root,
+        )
 
     assert result.ignored_csv_count >= 5, (
         f"Expected at least 5 ignored CSVs, got {result.ignored_csv_count}"
