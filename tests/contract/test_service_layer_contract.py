@@ -21,13 +21,14 @@ def _assert_sig(func, param_names: list[str], min_doc_len: int = 10) -> None:
 
 
 def test_nc2_signatures() -> None:
-    """nc2_matcher functions match service_layer.md §1 signatures."""
+    """nc2_matcher functions match service_layer.md §1 + spec 013 §A signatures."""
     from tube_scout.services.nc2_matcher import generate_nc2_pairs, get_caption_pool
 
     _assert_sig(get_caption_pool, ["professor_id", "db_path"])
+    # spec 013 extended generate_nc2_pairs with optional layer_a_min_seconds
     _assert_sig(
         generate_nc2_pairs,
-        ["professor_id", "db_path", "captions_dir", "cosine_cull_threshold"],
+        ["professor_id", "db_path", "captions_dir", "cosine_cull_threshold", "layer_a_min_seconds"],
     )
 
 
