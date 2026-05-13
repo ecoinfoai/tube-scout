@@ -906,3 +906,76 @@ def analyze_all_command(
                 raise err
 
     console.print("\n[bold green]Analysis pipeline complete.[/bold green]")
+
+
+def analyze_content_reuse_command(
+    channel: str = typer.Option(..., "--channel", help="Channel alias to analyze."),
+    professor: str = typer.Option(..., "--professor", help="Professor pool identifier."),
+    mode: str = typer.Option(
+        "M-default",
+        "--mode",
+        help="Matching mode: M-default or M-nC2.",
+    ),
+    layer_a_seconds: float = typer.Option(
+        30.0,
+        "--layer-a-seconds",
+        help="Layer A minimum video duration (seconds).",
+    ),
+    layer_b_threshold: float = typer.Option(
+        0.30,
+        "--layer-b-threshold",
+        help="Layer B baseline n-gram frequency threshold.",
+    ),
+    resume: bool = typer.Option(False, "--resume/--no-resume", help="Skip already-analyzed pairs."),
+    force: bool = typer.Option(False, "--force", help="Re-analyze even if done."),
+    db_path: str = typer.Option(
+        "./data/content_reuse.db",
+        "--db-path",
+        help="Path to content_reuse.db SQLite file.",
+    ),
+) -> None:
+    """Run nC2 reuse analysis for a professor's video pool.
+
+    Args:
+        channel: Channel alias.
+        professor: Professor pool identifier.
+        mode: Matching mode (M-default or M-nC2).
+        layer_a_seconds: Minimum video duration for pairing.
+        layer_b_threshold: Layer B n-gram threshold.
+        resume: Skip already-analyzed pairs.
+        force: Re-analyze even if done.
+        db_path: Path to SQLite database.
+    """
+    from tube_scout.services.nc2_matcher import run_nc2_analysis, AnalysisResult
+    from tube_scout.storage.content_db import ContentDB, _ensure_v4, migrate_to_v3, migrate_to_v2
+    from tube_scout.services.audit_writer import AuditWriter
+    from typing import Literal
+
+    if mode not in ("M-default", "M-nC2"):
+        console.print(f"[red]Invalid mode '{mode}'. Must be M-default or M-nC2.[/red]")
+        raise typer.Exit(code=1)
+
+    resolved_db = Path(db_path)
+    resolved_db.parent.mkdir(parents=True, exist_ok=True)
+
+    db = ContentDB(resolved_db)
+    try:
+        result = run_nc2_analysis(
+            professor=professor,
+            channel_alias=channel,
+            db=db,
+            matching_mode=mode,  # type: ignore[arg-type]
+            layer_a_min_seconds=layer_a_seconds,
+            layer_b_threshold=layer_b_threshold,
+            resume=resume,
+            force=force,
+        )
+    finally:
+        db.close()
+
+    console.print(f"[green]Analysis complete:[/green] professor={result.professor}")
+    console.print(f"  total_pairs_generated : {result.total_pairs_generated}")
+    console.print(f"  pairs_culled_layer_a  : {result.pairs_culled_layer_a}")
+    console.print(f"  pairs_analyzed        : {result.pairs_analyzed}")
+    console.print(f"  pairs_failed          : {result.pairs_failed}")
+    console.print(f"  elapsed_seconds       : {result.elapsed_seconds:.2f}")
