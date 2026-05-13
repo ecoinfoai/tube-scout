@@ -1992,6 +1992,163 @@ def collect_audio_command(
                 console.print(f"[yellow]Channel '{alias}' failed: {_exc}. Continuing.[/yellow]")
 
 
+def _collect_fingerprint_local(
+    channel: str | None,
+    video_ids_str: str,
+    all_takeout: bool,
+    input_kind: str,
+    audio_cache_dir: str,
+    force: bool,
+    data_dir: str,
+    db_path_local_str: str,
+) -> None:
+    """--source local branch: fingerprint Takeout mp4 or cached wav files (FR-013~FR-015)."""
+    import datetime
+    import sqlite3
+    import time
+
+    from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
+    from tube_scout.services.audit_writer import AuditWriter
+    from tube_scout.storage.content_db import insert_audio_fingerprint
+
+    if not channel:
+        console.print("[red]--channel is required for --source local.[/red]")
+        raise typer.Exit(code=2)
+
+    if input_kind not in ("mp4", "wav_16k", "wav_22k"):
+        console.print(f"[red]--input-kind must be mp4, wav_16k, or wav_22k. Got: {input_kind}[/red]")
+        raise typer.Exit(code=2)
+
+    work_root = Path(data_dir)
+    db = Path(db_path_local_str) if db_path_local_str else work_root / "content_reuse.db"
+    cache_dir = Path(audio_cache_dir)
+
+    if not db.exists():
+        console.print(f"[red]DB not found: {db}. Run 'collect takeout' first.[/red]")
+        raise typer.Exit(code=2)
+
+    try:
+        with sqlite3.connect(db) as conn:
+            if video_ids_str:
+                ids = [v.strip() for v in video_ids_str.split(",") if v.strip()]
+                placeholders = ",".join("?" * len(ids))
+                rows = conn.execute(
+                    f"SELECT video_id, mp4_relative_path FROM video_metadata"
+                    f" WHERE video_id IN ({placeholders})",
+                    ids,
+                ).fetchall()
+            elif all_takeout:
+                rows = conn.execute(
+                    "SELECT video_id, mp4_relative_path FROM video_metadata"
+                    " WHERE channel_id IN ("
+                    "  SELECT channel_id FROM channel_metadata WHERE channel_alias = ?"
+                    ")",
+                    (channel,),
+                ).fetchall()
+            else:
+                console.print("[red]Specify --video-ids or --all-takeout.[/red]")
+                raise typer.Exit(code=2)
+    except typer.Exit:
+        raise
+    except Exception as exc:
+        console.print(f"[red]DB query error: {exc}[/red]")
+        raise typer.Exit(code=2) from exc
+
+    if not rows:
+        console.print("[yellow]No video_metadata rows found for the given selection.[/yellow]")
+        raise typer.Exit(code=0)
+
+    audit = AuditWriter(work_root / channel)
+    any_failed = False
+
+    for video_id, mp4_rel in rows:
+        ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+
+        if input_kind == "mp4":
+            if mp4_rel is None:
+                audit.append_fingerprint_row({
+                    "video_id": video_id,
+                    "result": "skip",
+                    "reason": "no_mp4_path",
+                    "duration_sec": None,
+                    "timestamp": ts,
+                    "cookies_source": "local",
+                    "fingerprint_input_policy": input_kind,
+                })
+                continue
+            input_path = work_root / channel / mp4_rel
+        else:
+            input_path = cache_dir / f"{video_id}.wav"
+
+        if not input_path.exists():
+            any_failed = True
+            audit.append_fingerprint_row({
+                "video_id": video_id,
+                "result": "fail",
+                "reason": "input_file_missing",
+                "duration_sec": None,
+                "timestamp": ts,
+                "cookies_source": "local",
+                "fingerprint_input_policy": input_kind,
+            })
+            console.print(f"[yellow]skip[/yellow] {video_id}: input not found {input_path}")
+            continue
+
+        # Skip if fingerprint already in DB and not force
+        if not force:
+            try:
+                with sqlite3.connect(db) as conn:
+                    existing = conn.execute(
+                        "SELECT 1 FROM audio_fingerprint WHERE video_id = ?", (video_id,)
+                    ).fetchone()
+                if existing:
+                    audit.append_fingerprint_row({
+                        "video_id": video_id,
+                        "result": "skip",
+                        "reason": "already_fingerprinted",
+                        "duration_sec": None,
+                        "timestamp": ts,
+                        "cookies_source": "local",
+                        "fingerprint_input_policy": input_kind,
+                    })
+                    console.print(f"[dim]skip[/dim] {video_id} already fingerprinted")
+                    continue
+            except Exception:
+                pass
+
+        t0 = time.monotonic()
+        try:
+            fp_bytes, duration = extract_chromaprint_fingerprint(input_path)
+            elapsed = time.monotonic() - t0
+            insert_audio_fingerprint(db, video_id, fp_bytes, duration, ts)
+            audit.append_fingerprint_row({
+                "video_id": video_id,
+                "result": "success",
+                "reason": "captured",
+                "duration_sec": round(duration, 3),
+                "timestamp": ts,
+                "cookies_source": "local",
+                "fingerprint_input_policy": input_kind,
+            })
+            console.print(f"[green]ok[/green] {video_id} {duration:.1f}s")
+        except Exception as exc:
+            any_failed = True
+            elapsed = time.monotonic() - t0
+            audit.append_fingerprint_row({
+                "video_id": video_id,
+                "result": "fail",
+                "reason": "fpcalc_failed",
+                "duration_sec": None,
+                "timestamp": ts,
+                "cookies_source": "local",
+                "fingerprint_input_policy": input_kind,
+            })
+            console.print(f"[yellow]fail[/yellow] {video_id}: {exc}")
+
+    if any_failed:
+        raise typer.Exit(code=5)
+
+
 def collect_fingerprint_command(
     channel: str | None = typer.Option(
         None,
@@ -2033,8 +2190,61 @@ def collect_fingerprint_command(
         "--project-dir",
         help="Projects root directory (AT-NEW-1 fix).",
     ),
+    source: str = typer.Option(
+        "ytdlp",
+        "--source",
+        help="Input source: 'ytdlp' (spec 012, default) or 'local' (spec 013 Takeout mp4/wav).",
+    ),
+    input_kind: str = typer.Option(
+        "mp4",
+        "--input-kind",
+        help="Input kind for --source local: 'mp4', 'wav_16k', or 'wav_22k'.",
+    ),
+    video_ids_str: str = typer.Option(
+        "",
+        "--video-ids",
+        help="Comma-separated video IDs (--source local only).",
+    ),
+    all_takeout: bool = typer.Option(
+        False,
+        "--all-takeout",
+        help="Process all video_metadata rows (--source local only).",
+    ),
+    audio_cache_dir: str = typer.Option(
+        "/tmp/tube-scout-audio",
+        "--audio-cache-dir",
+        help="WAV cache directory for --input-kind wav_16k/wav_22k.",
+    ),
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Work root for channel data directories (--source local only).",
+    ),
+    db_path_local_str: str = typer.Option(
+        "",
+        "--db-path",
+        help="Path to content_reuse.db (--source local; defaults to <data-dir>/content_reuse.db).",
+    ),
 ) -> None:
-    """Alias for collect audio: extract audio, compute fingerprint, delete audio."""
+    """Extract chromaprint fingerprint from audio. Supports yt-dlp (spec 012) and local Takeout (spec 013).
+
+    --source local: FR-013~FR-015 (spec 013). Exit codes: 0=success, 2=alias/selection
+    error, 5=one or more fpcalc failures.
+    --source ytdlp: spec 012 flow (unchanged).
+    """
+    if source == "local":
+        _collect_fingerprint_local(
+            channel=channel,
+            video_ids_str=video_ids_str,
+            all_takeout=all_takeout,
+            input_kind=input_kind,
+            audio_cache_dir=audio_cache_dir,
+            force=force,
+            data_dir=data_dir,
+            db_path_local_str=db_path_local_str,
+        )
+        return
+
     import signal as _signal
 
     from tube_scout.services.audit_writer import AuditWriter
