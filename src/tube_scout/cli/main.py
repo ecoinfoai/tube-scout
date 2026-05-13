@@ -43,6 +43,7 @@ from tube_scout.cli.report import (
 )
 from tube_scout.cli.process import process_normalize_transcripts_command
 from tube_scout.cli.search_cli import search_command
+from tube_scout.cli.transcript import transcript_export_bulk_typer, transcript_export_typer
 from tube_scout.cli.validate_cli import validate_command
 from tube_scout.models.config import (
     AcademicCalendar,
@@ -74,6 +75,12 @@ app.add_typer(analyze_app, name="analyze")
 app.add_typer(report_app, name="report")
 app.add_typer(calendar_app, name="calendar")
 app.add_typer(content_app, name="content")
+
+# transcript subcommand group (spec 013 FR-040~FR-042)
+transcript_app = typer.Typer(help="Export transcripts to KB-ingestible formats.")
+app.add_typer(transcript_app, name="transcript")
+transcript_app.command(name="export")(transcript_export_typer)
+transcript_app.command(name="export-bulk")(transcript_export_bulk_typer)
 
 # T089: register admin subcommand group (US3 admin CLI).
 from tube_scout.cli.admin import admin_app  # noqa: E402
