@@ -20,9 +20,9 @@ takeout_sample/
             ├── 2-2.강의제목D.mp4
             ├── 3-1.강의제목E.mp4
             ├── 3-2.강의제목F.mp4
-            ├── 5-1.임경민.mp4
-            ├── 9-2.리차드방.mp4
-            └── 19-2.허제은.mp4
+            ├── 5-1.홍길동.mp4
+            ├── 9-2.김영희.mp4
+            └── 19-2.박철수.mp4
 ```
 
 ## Video IDs and Metadata
@@ -35,9 +35,9 @@ takeout_sample/
 | ddddddddddd   | 2-2.강의제목D  | 3000000     | 1.0             | private  |
 | eeeeeeeeeee   | 3-1.강의제목E  | 2400000     | 1.0             | unlisted |
 | fffffffffff   | 3-2.강의제목F  | 3300000     | 1.0             | unlisted |
-| ggggggggggg   | 5-1.임경민     | 105000      | 1.0             | unlisted |
-| hhhhhhhhhhh   | 9-2.리차드방   | 1309000     | 1.0             | private  |
-| iiiiiiiiiii   | 19-2.허제은    | 2948000     | 1.0             | private  |
+| ggggggggggg   | 5-1.홍길동     | 105000      | 1.0             | unlisted |
+| hhhhhhhhhhh   | 9-2.김영희     | 1309000     | 1.0             | private  |
+| iiiiiiiiiii   | 19-2.박철수    | 2948000     | 1.0             | private  |
 
 ## Notes
 
