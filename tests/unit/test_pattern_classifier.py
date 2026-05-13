@@ -114,3 +114,137 @@ def test_fail_fast_on_zero_duration() -> None:
     comparison = _make_comparison(i6_longest_contiguous_seconds=100.0)
     with pytest.raises(ValueError, match="duration"):
         classify_reuse_pattern(comparison, (0.0, 0.0), same_week=True, policy=policy)
+
+
+# ─── T061 RED — spec 013 §D: classify() with 2 new patterns ──────────────────
+
+
+def _make_spans_for_classify(
+    first_half_coverage: float = 0.0,
+    second_half_coverage: float = 0.0,
+    src_duration: float = 1000.0,
+) -> list:
+    """Create MatchSpan list approximating given half-split coverage."""
+    from tube_scout.models.reuse_v2 import MatchSpan
+
+    spans = []
+    if first_half_coverage > 0.0:
+        half = src_duration / 2.0
+        end = half * first_half_coverage
+        spans.append(MatchSpan(
+            start_a_seconds=0.0,
+            end_a_seconds=max(1.0, end),
+            start_b_seconds=0.0,
+            end_b_seconds=max(1.0, end),
+            length_seconds=max(1.0, end),
+            matched_text_sample="first half content",
+        ))
+    if second_half_coverage > 0.0:
+        half = src_duration / 2.0
+        start = half + 10.0
+        end = half + half * second_half_coverage
+        spans.append(MatchSpan(
+            start_a_seconds=start,
+            end_a_seconds=max(start + 1.0, end),
+            start_b_seconds=start,
+            end_b_seconds=max(start + 1.0, end),
+            length_seconds=max(1.0, end - start),
+            matched_text_sample="second half content",
+        ))
+    return spans
+
+
+def test_classify_whole_same_week() -> None:
+    """classify() returns WHOLE_SAME_WEEK for high I-6 ratio + same_week=True."""
+    from tube_scout.services.pattern_classifier import classify
+    from tube_scout.models.reuse_v2 import ReusePatternLabel
+
+    comparison = _make_comparison(
+        i6_longest_contiguous_seconds=1800.0,  # 1800/2400 = 0.75 >= 0.80 → whole
+        i2_cosine_similarity=0.50,
+    )
+    spans = _make_spans_for_classify(first_half_coverage=0.9, second_half_coverage=0.9, src_duration=2400.0)
+    result = classify(
+        pair=comparison,
+        src_duration=2400.0,
+        tgt_duration=2400.0,
+        audio_fp_hamming=None,
+        spans=spans,
+        same_week=True,
+    )
+    assert result == ReusePatternLabel.WHOLE_SAME_WEEK, f"Expected WHOLE_SAME_WEEK, got {result}"
+
+
+def test_classify_scattered_different_week() -> None:
+    """classify() returns SCATTERED_DIFF_WEEK for low I-6 ratio + same_week=False."""
+    from tube_scout.services.pattern_classifier import classify
+    from tube_scout.models.reuse_v2 import ReusePatternLabel
+
+    comparison = _make_comparison(
+        i6_longest_contiguous_seconds=200.0,  # 200/2400 = 0.083 < 0.80 → scattered
+        i2_cosine_similarity=0.50,
+    )
+    spans = _make_spans_for_classify(first_half_coverage=0.2, second_half_coverage=0.2, src_duration=2400.0)
+    result = classify(
+        pair=comparison,
+        src_duration=2400.0,
+        tgt_duration=2400.0,
+        audio_fp_hamming=None,
+        spans=spans,
+        same_week=False,
+    )
+    assert result == ReusePatternLabel.SCATTERED_DIFF_WEEK, f"Expected SCATTERED_DIFF_WEEK, got {result}"
+
+
+def test_classify_re_recorded_same_content_when_audio_differs() -> None:
+    """classify() returns RE_RECORDED_SAME_CONTENT when audio fp hamming > threshold
+    and i2 cosine >= 0.85 and i6 covers >= 50% of shorter duration.
+    """
+    from tube_scout.services.pattern_classifier import classify
+    from tube_scout.models.reuse_v2 import ReusePatternLabel
+
+    # i6 = 1300 / 2000 = 0.65 >= 0.50 → qualifies for override
+    # i2 >= 0.85 → qualifies
+    # audio_fp_hamming = 80 > threshold(50) → re-recorded override
+    comparison = _make_comparison(
+        i6_longest_contiguous_seconds=1300.0,
+        i2_cosine_similarity=0.90,
+    )
+    spans = _make_spans_for_classify(first_half_coverage=0.8, second_half_coverage=0.3, src_duration=2000.0)
+    result = classify(
+        pair=comparison,
+        src_duration=2000.0,
+        tgt_duration=2000.0,
+        audio_fp_hamming=80,   # > threshold 50 → re-recorded
+        spans=spans,
+        same_week=True,
+        audio_fp_hamming_threshold=50,
+    )
+    assert result == ReusePatternLabel.RE_RECORDED_SAME_CONTENT, (
+        f"Expected RE_RECORDED_SAME_CONTENT, got {result}"
+    )
+
+
+def test_classify_tail_update_when_i8_drops() -> None:
+    """classify() returns TAIL_UPDATE when i8_first >= 0.85 and i8_second <= 0.15."""
+    from tube_scout.services.pattern_classifier import classify
+    from tube_scout.models.reuse_v2 import ReusePatternLabel
+
+    # Spans concentrated in first half only → tail-update pattern
+    comparison = _make_comparison(
+        i6_longest_contiguous_seconds=300.0,  # 300/1000 = 0.30 < 0.80 → scattered
+        i2_cosine_similarity=0.60,
+    )
+    # Only first-half spans; no second-half → i8_first high, i8_second = 0
+    spans = _make_spans_for_classify(first_half_coverage=0.9, second_half_coverage=0.0, src_duration=1000.0)
+    result = classify(
+        pair=comparison,
+        src_duration=1000.0,
+        tgt_duration=1000.0,
+        audio_fp_hamming=None,
+        spans=spans,
+        same_week=True,
+    )
+    assert result == ReusePatternLabel.TAIL_UPDATE, (
+        f"Expected TAIL_UPDATE when content concentrated in first half only, got {result}"
+    )
