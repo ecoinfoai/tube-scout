@@ -85,7 +85,7 @@ def test_full_pipeline_srv3_to_json(tmp_path: Path) -> None:
     writer = AuditWriter(project_dir)
     writer.append_transcript_row({
         "video_id": video_id,
-        "result": "ok",
+        "result": "success",
         "reason": "fetched",
         "source": source_value,
         "timestamp": transcript["fetched_at"],

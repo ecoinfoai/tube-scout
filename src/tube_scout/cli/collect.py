@@ -213,7 +213,7 @@ def _dispatch_ytdlp_transcripts(  # noqa: C901
 
             _audit.append_transcript_row({
                 "video_id": video_id,
-                "result": "ok",
+                "result": "success",
                 "reason": "fetched",
                 "source": source_value,
                 "timestamp": transcript.get("fetched_at", datetime.datetime.now(tz=datetime.UTC).isoformat()),
