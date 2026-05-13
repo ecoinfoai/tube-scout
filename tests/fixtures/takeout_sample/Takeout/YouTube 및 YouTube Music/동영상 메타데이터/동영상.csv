@@ -1,0 +1,10 @@
+동영상 ID,채널 ID,제목,근사치 길이(ms),공개 상태,게시 날짜,동영상 생성 타임스탬프,언어,카테고리
+aaaaaaaaaaa,UCaaaaaaaaaaaaaaaaaaaaaaaa,1-1.강의자A_과목1_1주차_1차시,6300000,비공개,,2022-03-02T09:00:00+09:00,ko,교육
+bbbbbbbbbbb,UCaaaaaaaaaaaaaaaaaaaaaaaa,1-2.강의자A_과목1_1주차_2차시,5400000,비공개,,2022-03-02T10:00:00+09:00,ko,교육
+ccccccccccc,UCaaaaaaaaaaaaaaaaaaaaaaaa,2-1.강의자A_과목1_2주차_1차시,7200000,비공개,,2022-03-09T09:00:00+09:00,ko,교육
+ddddddddddd,UCaaaaaaaaaaaaaaaaaaaaaaaa,2-2.강의자A_과목1_2주차_2차시,6600000,비공개,,2022-03-09T10:00:00+09:00,ko,교육
+eeeeeeeeeee,UCaaaaaaaaaaaaaaaaaaaaaaaa,3-1.강의자A_과목1_3주차_1차시,7800000,비공개,,2022-03-16T09:00:00+09:00,ko,교육
+fffffffffff,UCaaaaaaaaaaaaaaaaaaaaaaaa,3-2.강의자A_과목1_3주차_2차시,5100000,비공개,,2022-03-16T10:00:00+09:00,ko,교육
+ggggggggggg,UCaaaaaaaaaaaaaaaaaaaaaaaa,1-1.강의자A_과목1_1주차_1차시,6360000,비공개,,2023-03-01T09:00:00+09:00,ko,교육
+hhhhhhhhhhh,UCaaaaaaaaaaaaaaaaaaaaaaaa,4-1.강의자A_과목1_4주차_1차시,8400000,비공개,,2022-03-23T09:00:00+09:00,ko,교육
+iiiiiiiiiii,UCaaaaaaaaaaaaaaaaaaaaaaaa,4-2.강의자A_과목1_4주차_2차시,4800000,비공개,,2022-03-23T10:00:00+09:00,ko,교육
