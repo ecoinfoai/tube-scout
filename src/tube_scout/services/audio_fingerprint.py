@@ -1,6 +1,6 @@
 """Audio fingerprint module — chromaprint subprocess + decode + similarity.
 
-No yt-dlp, no DB (those are in adjacent modules per B-X1-2).
+No DB writes here (those live in adjacent modules per B-X1-2).
 B-X1-9: separate from services/fingerprint.py (text SHA — spec 011).
 """
 import re

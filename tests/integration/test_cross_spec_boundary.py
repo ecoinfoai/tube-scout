@@ -1,11 +1,11 @@
 """Cross-spec boundary integration tests (Constitution VII).
 
-Originally introduced as T045 for spec 012 (B-X1-1 through B-X1-9). Spec 013
-Phase 5 removes the yt-dlp surface, so the boundaries that asserted yt-dlp
-behaviour (B-X1-1 srv3, B-X1-4 alias→yt-dlp gate, B-X1-6 cookies env,
-B-X1-7 dispatch_audio_fingerprint cleanup of yt-dlp downloads, B-X1-8
-yt-dlp install path) are dropped here. The yt-dlp-independent
-boundaries (B-X1-2, B-X1-3, B-X1-5, B-X1-9) remain.
+Originally introduced as T045 for the predecessor media-adapter spec
+(B-X1-1 through B-X1-9). Spec 013 Phase 5 removes the predecessor
+adapter surface, so the boundaries that asserted adapter-specific
+behaviour (B-X1-1, B-X1-4, B-X1-6, B-X1-7, B-X1-8) are dropped here.
+The adapter-independent boundaries (B-X1-2, B-X1-3, B-X1-5, B-X1-9)
+remain.
 """
 
 import inspect
