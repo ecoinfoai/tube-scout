@@ -178,7 +178,7 @@ def test_dispatch_audio_fingerprint_exception_still_cleans(tmp_path: Path) -> No
     """T036b: dispatch_audio_fingerprint deletes audio even when fpcalc raises."""
     from tube_scout.cli.collect import dispatch_audio_fingerprint
     from tube_scout.storage.content_db import migrate_to_v3
-    from tube_scout.services.ytdlp_errors import FingerprintExtractError
+    from tube_scout.services.audio_fingerprint import FingerprintExtractError
 
     audio_temp = tmp_path / "audio_temp"
     audio_temp.mkdir()

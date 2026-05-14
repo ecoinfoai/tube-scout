@@ -64,8 +64,10 @@ def test_full_lifecycle_extract_fingerprint_db_delete(tmp_path: Path) -> None:
 
 def test_too_short_audio_skip_no_db_insert(tmp_path: Path) -> None:
     """Scenario 2: 25s audio → AudioTooShortError → audit 'too_short' + DB INSERT 0."""
-    from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
-    from tube_scout.services.ytdlp_errors import AudioTooShortError
+    from tube_scout.services.audio_fingerprint import (
+        AudioTooShortError,
+        extract_chromaprint_fingerprint,
+    )
     from tube_scout.storage.content_db import audio_fingerprint_exists, migrate_to_v3
     from tube_scout.services.audit_writer import AuditWriter
 
