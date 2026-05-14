@@ -8,10 +8,25 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from tube_scout.services.ytdlp_errors import AudioTooShortError, FingerprintExtractError
-
 if TYPE_CHECKING:
     import numpy as np
+
+
+class FingerprintExtractError(Exception):
+    """fpcalc subprocess failed to extract a chromaprint fingerprint."""
+
+    def __init__(self, message: str, **context: object) -> None:
+        super().__init__(message)
+        self.context: dict[str, object] = context
+
+
+class AudioTooShortError(Exception):
+    """Audio duration is below the minimum threshold for fingerprinting (30s)."""
+
+    def __init__(self, message: str, **context: object) -> None:
+        super().__init__(message)
+        self.context: dict[str, object] = context
+
 
 _MIN_DURATION_SECONDS = 30
 _DURATION_RE = re.compile(r"^DURATION=(\d+)$", re.MULTILINE)

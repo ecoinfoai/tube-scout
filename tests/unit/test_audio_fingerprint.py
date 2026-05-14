@@ -48,8 +48,10 @@ def test_extract_returns_fingerprint_and_duration(tmp_path: Path) -> None:
 
 def test_extract_too_short_raises_audio_too_short_error(tmp_path: Path) -> None:
     """Scenario 2: 25s audio → AudioTooShortError."""
-    from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
-    from tube_scout.services.ytdlp_errors import AudioTooShortError
+    from tube_scout.services.audio_fingerprint import (
+        AudioTooShortError,
+        extract_chromaprint_fingerprint,
+    )
 
     audio = tmp_path / "short.mp3"
     audio.write_bytes(b"\x00" * 10)
@@ -63,8 +65,10 @@ def test_extract_too_short_raises_audio_too_short_error(tmp_path: Path) -> None:
 
 def test_extract_fpcalc_nonzero_raises_fingerprint_extract_error(tmp_path: Path) -> None:
     """Scenario 3: fpcalc returncode=1 → FingerprintExtractError with stderr."""
-    from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
-    from tube_scout.services.ytdlp_errors import FingerprintExtractError
+    from tube_scout.services.audio_fingerprint import (
+        FingerprintExtractError,
+        extract_chromaprint_fingerprint,
+    )
 
     audio = tmp_path / "bad.mp3"
     audio.write_bytes(b"\x00" * 10)
@@ -79,8 +83,10 @@ def test_extract_fpcalc_nonzero_raises_fingerprint_extract_error(tmp_path: Path)
 
 def test_extract_malformed_stdout_raises_fingerprint_extract_error(tmp_path: Path) -> None:
     """Scenario 4: fpcalc stdout missing FINGERPRINT/DURATION → FingerprintExtractError."""
-    from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
-    from tube_scout.services.ytdlp_errors import FingerprintExtractError
+    from tube_scout.services.audio_fingerprint import (
+        FingerprintExtractError,
+        extract_chromaprint_fingerprint,
+    )
 
     audio = tmp_path / "corrupt.mp3"
     audio.write_bytes(b"\x00" * 10)
