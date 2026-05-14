@@ -32,7 +32,6 @@ from typing import Any
 import pytest
 import typer
 
-
 # ─── (a) AuditWriter import surface ───────────────────────────────────────────
 
 

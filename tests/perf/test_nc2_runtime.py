@@ -22,11 +22,10 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
 
 PERF_FIXTURE_ENV = "TUBE_SCOUT_PERF_FIXTURE_200_VIDEO"
 PROFESSOR_ENV = "TUBE_SCOUT_PERF_PROFESSOR"
@@ -103,7 +102,7 @@ def test_sc002_nc2_200_video_wall_clock(tmp_path: Path) -> None:
     )
     elapsed = time.monotonic() - start
 
-    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    timestamp = datetime.now(UTC).isoformat(timespec="seconds")
     record = (
         f"| {timestamp} | {fixture_db} | {professor} | {channel_alias} | "
         f"{result.total_pairs_generated} | {result.pairs_analyzed} | "
