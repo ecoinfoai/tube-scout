@@ -8,20 +8,20 @@
 
 ## 0. 환경 설정 (1회)
 
-### 0.1 devShell 의존성 추가
+### 0.1 devShell 선택
 
-`flake.nix` 의 devShell에 다음 system packages 신규 추가 (spec 012의 chromaprint/ffmpeg는 이미 보유):
+`flake.nix` 는 두 개의 devShell을 제공한다:
 
-```nix
-buildInputs = with pkgs; [
-  python311
-  chromaprint        # spec 012
-  ffmpeg            # spec 012
-  zlib              # spec 012
-  stdenv.cc.cc.lib  # spec 012
-  cudnn             # 신규 — faster-whisper GPU
-  cuda-nvrtc        # 신규 — 동상
-];
+- `devShells.default` (CPU): `chromaprint`, `ffmpeg`, `zlib`, `stdenv.cc.cc.lib`. faster-whisper의 CPU/int8 경로면 충분.
+- `devShells.gpu` (unfree 허용 필요): default의 모든 것 + `cudaPackages.cudnn` + `cudaPackages.cuda_nvrtc`. faster-whisper GPU 경로(cuda:0 / cuda:1 워커 풀)에 필수.
+
+```bash
+# CPU/디버깅
+nix develop
+
+# 운영 GPU 서버
+NIXPKGS_ALLOW_UNFREE=1 nix develop --impure .#gpu
+# 또는 .envrc.local에 `use flake .#gpu` 한 줄 + direnv allow
 ```
 
 ### 0.2 Python 의존성
@@ -71,14 +71,19 @@ ls Takeout/'YouTube 및 YouTube Music'/
 ### 0.5 자교 alias 등록 확인
 
 ```bash
-tube-scout admin channel list
-# nursing  UCxxxxxxxxxxxxxxxxxxxxxx  ...
+tube-scout admin list
+# nursing  ...
 ```
 
-미등록 시:
+미등록 시 (학과 등록 + agenix env 매핑 — spec 008):
 
 ```bash
-tube-scout admin channel add --alias nursing --channel-id UCxxxxxx... [--title "간호학과"]
+tube-scout admin add-department \
+    --alias nursing \
+    --display "간호학과" \
+    --channel-id-env  TUBE_SCOUT_CHANNEL_ID_NURSING \
+    --client-secret-env TUBE_SCOUT_CLIENT_SECRET_NURSING \
+    --api-key-env TUBE_SCOUT_API_KEY_NURSING
 ```
 
 ---
