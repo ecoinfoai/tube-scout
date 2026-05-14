@@ -24,11 +24,10 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
 
 PERF_GPU_PROD_ENV = "TUBE_SCOUT_PERF_GPU_PROD"
 AUDIO_CACHE_ENV = "TUBE_SCOUT_PERF_AUDIO_CACHE"
@@ -168,7 +167,7 @@ def test_sc002_sc010_asr_throughput_prod_gpu() -> None:
         else 0.0
     )
 
-    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    timestamp = datetime.now(UTC).isoformat(timespec="seconds")
     record = (
         f"| {timestamp} | {fixture_db} | {n_workers} | "
         f"{','.join(str(d) for d in device_indices)} | {model_size} | "

@@ -38,11 +38,8 @@ from __future__ import annotations
 import json
 import multiprocessing
 import os
-import signal
 import sqlite3
 import stat
-import sys
-import textwrap
 import threading
 import time
 from pathlib import Path
@@ -50,7 +47,6 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -348,6 +344,7 @@ class TestAnalyzeReportRace:
         is empty (analyze has not yet written anything). The report CLI
         MUST exit non-zero and explain that analyze should be run first."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         db = tmp_path / "content_reuse.db"
@@ -399,6 +396,7 @@ class TestAnalyzeReportRace:
         raise a labelled DB busy/locked error — NEVER a jinja2 template
         crash from None values."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         db = tmp_path / "content_reuse.db"
