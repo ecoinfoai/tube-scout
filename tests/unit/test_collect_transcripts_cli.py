@@ -1,8 +1,7 @@
-"""T018 RED — collect transcripts CLI --source flag 6 scenarios."""
+"""collect transcripts CLI --source flag scenarios (spec 013 Phase 5: api/asr)."""
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from typer.testing import CliRunner
 
 from tube_scout.cli.main import app
@@ -35,39 +34,14 @@ def test_source_default_is_api(tmp_path) -> None:
     assert captured.get("source") == "api"
 
 
-def test_env_sets_ytdlp_source(tmp_path) -> None:
-    """Scenario 2: env TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE=ytdlp, no flag → source='ytdlp'."""
-    captured: dict = {}
-
-    def fake_dispatch(source, **kwargs):
-        captured["source"] = source
-
-    env = {**os.environ, "TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE": "ytdlp"}
-
-    with patch(
-        "tube_scout.cli.collect.dispatch_transcript_source",
-        side_effect=fake_dispatch,
-    ), patch(
-        "tube_scout.cli.collect.resolve_alias_to_channel_id",
-        return_value="UC_TEST_CHANNEL_ID",
-    ):
-        result = runner.invoke(
-            app,
-            ["collect", "transcripts", "--channel", "test-alias"],
-            env=env,
-        )
-
-    assert captured.get("source") == "ytdlp"
-
-
 def test_flag_overrides_env(tmp_path) -> None:
-    """Scenario 3: --source api + env=ytdlp → flag wins → source='api'."""
+    """Explicit --source api wins over a stale env default."""
     captured: dict = {}
 
     def fake_dispatch(source, **kwargs):
         captured["source"] = source
 
-    env = {**os.environ, "TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE": "ytdlp"}
+    env = {**os.environ, "TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE": "api"}
 
     with patch(
         "tube_scout.cli.collect.dispatch_transcript_source",
@@ -76,7 +50,7 @@ def test_flag_overrides_env(tmp_path) -> None:
         "tube_scout.cli.collect.resolve_alias_to_channel_id",
         return_value="UC_TEST_CHANNEL_ID",
     ):
-        result = runner.invoke(
+        runner.invoke(
             app,
             ["collect", "transcripts", "--source", "api", "--channel", "test-alias"],
             env=env,
@@ -108,23 +82,3 @@ def test_unknown_channel_alias_exit_5() -> None:
     assert result.exit_code == 5
 
 
-def test_ytdlp_source_invokes_fetch_caption(tmp_path) -> None:
-    """Scenario 6: --source ytdlp dispatches to fetch_caption_via_ytdlp."""
-    captured: dict = {}
-
-    def fake_dispatch(source, **kwargs):
-        captured["source"] = source
-
-    with patch(
-        "tube_scout.cli.collect.dispatch_transcript_source",
-        side_effect=fake_dispatch,
-    ), patch(
-        "tube_scout.cli.collect.resolve_alias_to_channel_id",
-        return_value="UC_TEST_CHANNEL_ID",
-    ):
-        result = runner.invoke(
-            app,
-            ["collect", "transcripts", "--source", "ytdlp", "--channel", "test-alias"],
-        )
-
-    assert captured.get("source") == "ytdlp"
