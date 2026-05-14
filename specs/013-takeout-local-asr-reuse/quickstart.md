@@ -153,7 +153,7 @@ tube-scout collect process-audio \
 tube-scout collect audio-extract --channel nursing --all-takeout --audio-cache-dir ./audio_cache/
 
 # 지문만 (WAV 입력)
-tube-scout collect fingerprint --source local --channel nursing --input-kind wav_16k --all-takeout
+tube-scout collect fingerprint --channel nursing --input-kind wav_16k --all-takeout
 
 # ASR만 (WAV 입력)
 tube-scout collect transcripts --source asr --channel nursing --preset poc-laptop --all-takeout
@@ -324,11 +324,7 @@ ssh user@prod-gpu-server "tail -f tube-scout/logs/asr-*.log"
 
 검증:
 
-```bash
-# admin web을 실행해도 takeout / asr 메뉴는 없음
-tube-scout web start &
-curl http://localhost:8000/  # 메뉴 목록에 takeout/asr 항목 0건
-```
+본 spec은 `tube-scout` CLI에 `web` 서브명령을 신설하지 않는다. 관리자 web UI 자체는 spec 008에서 별도 프로세스로 기동되며 (그쪽 quickstart 참조), spec 013 신규 menu(`takeout` / `asr` 등)는 web UI에 노출되지 않는다 — 운영자는 본 quickstart §1~§7의 CLI 흐름만 사용한다.
 
 ---
 
