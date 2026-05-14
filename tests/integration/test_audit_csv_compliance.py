@@ -98,7 +98,7 @@ def test_transcripts_audit_csv_column_order_and_append_only(tmp_path: Path) -> N
         "video_id": "aaaaaaaaaaa",
         "result": "success",
         "reason": "captured",
-        "source": "ytdlp:manual",
+        "source": "captions_api_manual",
         "timestamp": ts,
         "cookies_source": "brave",
     }

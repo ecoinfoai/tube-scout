@@ -30,8 +30,6 @@ _SOURCE_TYPE_MAP: dict[str, str] = {
     "whisper": "asr",
     "captions_api": "api",
     "transcript_api": "api",
-    "ytdlp:auto": "api",
-    "ytdlp:manual": "api",
     "manual": "manual",
 }
 

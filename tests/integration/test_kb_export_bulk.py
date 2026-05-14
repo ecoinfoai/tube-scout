@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 
-def _make_transcript(transcripts_dir: Path, video_id: str, source: str = "ytdlp:auto") -> None:
+def _make_transcript(transcripts_dir: Path, video_id: str, source: str = "captions_api_auto") -> None:
     data = {
         "video_id": video_id,
         "source": source,

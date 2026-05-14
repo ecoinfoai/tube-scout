@@ -32,7 +32,7 @@ def test_append_transcript_row_creates_file_with_header(tmp_path):
         "video_id": "abc12345678",
         "result": "success",
         "reason": "captured",
-        "source": "ytdlp:manual",
+        "source": "captions_api_manual",
         "timestamp": "2026-05-09T12:00:00+09:00",
         "cookies_source": "brave",
     }
@@ -54,7 +54,7 @@ def test_append_transcript_row_appends_not_overwrites(tmp_path):
         "video_id": "vid00000001",
         "result": "success",
         "reason": "captured",
-        "source": "ytdlp:auto",
+        "source": "captions_api_auto",
         "timestamp": "2026-05-09T12:00:00+09:00",
         "cookies_source": "brave",
     }

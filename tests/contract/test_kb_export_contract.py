@@ -10,7 +10,7 @@ import pytest
 def _make_transcript_json(tmp_path: Path, video_id: str = "vid001") -> Path:
     data = {
         "video_id": video_id,
-        "source": "ytdlp:auto",
+        "source": "captions_api_auto",
         "fetched_at": "2026-01-01T00:00:00+00:00",
         "segments": [
             {"start": 0.0, "end": 3.0, "text": "안녕하세요"},

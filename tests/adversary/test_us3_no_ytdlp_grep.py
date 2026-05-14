@@ -96,6 +96,9 @@ EXCLUDED_FILES: frozenset[str] = frozenset(
     {
         # SELF: this file's literals are the assertion vocabulary.
         "tests/adversary/test_us3_no_ytdlp_grep.py",
+        # T087 RED regression test references the forbidden module paths as
+        # the very assertion vocabulary (parametrized importlib targets).
+        "tests/integration/test_phase4_legacy_removal.py",
     }
 )
 
