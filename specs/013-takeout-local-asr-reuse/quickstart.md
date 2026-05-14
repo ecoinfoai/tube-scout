@@ -336,7 +336,7 @@ curl http://localhost:8000/  # 메뉴 목록에 takeout/asr 항목 0건
 
 | 증상 | 점검 |
 |---|---|
-| `collect takeout` 이 거절 | alias 등록 확인 (`tube-scout admin channel list`) |
+| `collect takeout` 이 거절 | alias 등록 확인 (`tube-scout admin list`) |
 | 매핑 자동화율 낮음 | `_ambiguous_mappings.csv` 검토, `_manual_mappings.csv` 보강 |
 | WAV 추출 실패 | ffmpeg 설치 확인 (`which ffmpeg`), mp4 파일 무결성 (`ffprobe <path>`) |
 | 지문 산출 실패 | chromaprint 설치 확인 (`which fpcalc`) + LD_LIBRARY_PATH (devShell shellHook이 자동 처리) |
