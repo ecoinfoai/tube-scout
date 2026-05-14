@@ -49,321 +49,17 @@ def dispatch_transcript_source(
     source: str,
     **kwargs: object,
 ) -> None:
-    """Dispatch transcript collection to api or ytdlp backend.
+    """Dispatch transcript collection to the api backend.
 
     Args:
-        source: 'api' or 'ytdlp'.
+        source: Reserved; only 'api' remains after spec 013 Phase 5.
         **kwargs: Backend-specific arguments passed through.
     """
-    if source == "ytdlp":
-        _dispatch_ytdlp_transcripts(**kwargs)
-    else:
-        _dispatch_api_transcripts(**kwargs)
-
-
-def _dispatch_ytdlp_transcripts(  # noqa: C901
-    channel: str | None = None,
-    all_channels: object = False,
-    force: bool = False,
-    cookies_browser: str | None = "brave",
-    cookies_path: str | None = None,
-    sleep_seconds: tuple[float, float] = (30.0, 60.0),
-    audit_writer: object = None,
-    project_dir: str = "./projects",
-    **kwargs: object,
-) -> None:
-    """Fetch captions via yt-dlp for a channel or all channels.
-
-    Pipeline per video:
-      fetch_caption_via_ytdlp → srv3_to_transcript_json → atomic JSON write
-      → audit_writer.append_transcript_row
-
-    Args:
-        channel: Channel alias to process.
-        all_channels: If True, process all registered channels.
-        force: If True, re-fetch even when transcript JSON exists.
-        cookies_browser: Browser for yt-dlp --cookies-from-browser.
-        cookies_path: Path to 0600 cookies.txt, overrides cookies_browser.
-        sleep_seconds: (min, max) sleep between yt-dlp calls.
-        audit_writer: AuditWriter for transcripts_audit.csv rows.
-        **kwargs: Ignored extra args from dispatch_transcript_source.
-    """
-    import datetime
-    import json
-    import os
-    import tempfile
-
-    from tube_scout.services.audit_writer import AuditWriter
-    from tube_scout.services.srv3_parser import Srv3ParseError, pick_priority_track, srv3_to_transcript_json
-    from tube_scout.services.ytdlp_adapter import fetch_caption_via_ytdlp, validate_video_id
-    from tube_scout.services.ytdlp_errors import YtdlpError
-
-    # AT-5.3: empty string alias is same as unregistered (PS-A-12)
-    if channel is not None and not channel.strip():
-        raise KeyError("Channel alias must not be empty.")
-
-    mgr = resolve_project(project_dir, None, producer=False)
-    project_dir = Path(mgr.project_dir)
-    transcript_dir = project_dir / "01_collect" / "transcripts"
-    transcript_dir.mkdir(parents=True, exist_ok=True)
-
-    _audit: AuditWriter = audit_writer if isinstance(audit_writer, AuditWriter) else AuditWriter(project_dir)  # type: ignore[assignment]
-
-    cookies_path_obj = Path(cookies_path) if cookies_path else None
-    cookies_src = f"file:{cookies_path}" if cookies_path else f"browser:{cookies_browser or 'brave'}"
-
-    def _process_channel(alias: str, channel_id: str) -> None:
-        channel_dir = project_dir / "01_collect" / "channels" / channel_id
-        meta_path = channel_dir / "videos_meta.json"
-        if not meta_path.exists():
-            console.print(
-                f"[yellow]No videos_meta.json for channel '{alias}'. "
-                "Run `tube-scout collect videos` first.[/yellow]"
-            )
-            return
-
-        videos_data = read_json(meta_path) or []
-        video_ids = [v["video_id"] for v in videos_data if "video_id" in v]
-
-        ts_now = datetime.datetime.now(tz=datetime.UTC).isoformat()
-
-        for video_id in video_ids:
-            # AT-11.3: reject path-injection video_ids before building any paths
-            try:
-                validate_video_id(video_id)
-            except ValueError:
-                console.print(f"  [yellow]skip invalid video_id {video_id!r}[/yellow]")
-                continue
-
-            json_path = transcript_dir / f"{video_id}.json"
-            if not force and json_path.exists():
-                _audit.append_transcript_row({
-                    "video_id": video_id,
-                    "result": "skip",
-                    "reason": "skip_existing",
-                    "source": "",
-                    "timestamp": ts_now,
-                    "cookies_source": cookies_src,
-                })
-                continue
-
-            try:
-                manual_path, auto_path = fetch_caption_via_ytdlp(
-                    video_url=f"https://youtu.be/{video_id}",
-                    output_dir=transcript_dir,
-                    cookies_browser=cookies_browser,
-                    cookies_path=cookies_path_obj,
-                    sleep_seconds=sleep_seconds,
-                )
-            except YtdlpError as exc:
-                _audit.append_transcript_row({
-                    "video_id": video_id,
-                    "result": "fail",
-                    "reason": type(exc).__name__,
-                    "source": "",
-                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
-                    "cookies_source": cookies_src,
-                })
-                console.print(f"  [red]yt-dlp error {video_id}: {exc}[/red]")
-                continue
-
-            track = pick_priority_track(manual_path, auto_path)
-            if track is None:
-                _audit.append_transcript_row({
-                    "video_id": video_id,
-                    "result": "skip",
-                    "reason": "no_captions_available",
-                    "source": "",
-                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
-                    "cookies_source": cookies_src,
-                })
-                continue
-
-            chosen_path, source_value = track
-            try:
-                transcript = srv3_to_transcript_json(
-                    chosen_path.read_text(encoding="utf-8"),
-                    video_id=video_id,
-                    source=source_value,
-                )
-            except Srv3ParseError as exc:
-                _audit.append_transcript_row({
-                    "video_id": video_id,
-                    "result": "fail",
-                    "reason": "srv3_parse_error",
-                    "source": source_value,
-                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
-                    "cookies_source": cookies_src,
-                })
-                console.print(f"  [yellow]srv3 parse error {video_id}: {exc}[/yellow]")
-                continue
-
-            # Atomic JSON write
-            fd, tmp_name = tempfile.mkstemp(dir=transcript_dir, suffix=".tmp")
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    json.dump(transcript, f, ensure_ascii=False, indent=2)
-                os.replace(tmp_name, json_path)
-            except Exception:
-                try:
-                    os.unlink(tmp_name)
-                except OSError:
-                    pass
-                raise
-
-            _audit.append_transcript_row({
-                "video_id": video_id,
-                "result": "success",
-                "reason": "fetched",
-                "source": source_value,
-                "timestamp": transcript.get("fetched_at", datetime.datetime.now(tz=datetime.UTC).isoformat()),
-                "cookies_source": cookies_src,
-            })
-
-    if all_channels:
-        from tube_scout.services.auth import load_registry
-        registry = load_registry()
-        for alias, entry in registry.items():
-            channel_id = getattr(entry, "channel_id", None) or resolve_alias_to_channel_id(alias)
-            _process_channel(alias, channel_id)
-    elif channel:
-        channel_id = resolve_alias_to_channel_id(channel)
-        _process_channel(channel, channel_id)
-    else:
-        console.print(
-            "[yellow]_dispatch_ytdlp_transcripts: pass --channel or --all-channels.[/yellow]"
-        )
+    _dispatch_api_transcripts(**kwargs)
 
 
 def _dispatch_api_transcripts(**kwargs: object) -> None:
     """Data API transcript backend — delegates to existing spec 010 logic."""
-
-
-def dispatch_audio_fingerprint(
-    channel: str | None = None,
-    all_channels: object = False,
-    force: bool = False,
-    audio_temp: Path | None = None,
-    db_path: Path | None = None,
-    video_ids: list[str] | None = None,
-    cookies_browser: str = "brave",
-    cookies_path: str | None = None,
-    sleep_seconds: tuple[float, float] = (30.0, 60.0),
-    audit_writer: object = None,
-    current_video_id_ref: list[str] | None = None,
-    **kwargs: object,
-) -> None:
-    """Dispatch audio extraction + fingerprint + DB persist pipeline.
-
-    Args:
-        channel: Channel alias to process.
-        all_channels: If True, process all registered channels.
-        force: If True, overwrite existing fingerprint rows.
-        audio_temp: Directory for temporary audio files.
-        db_path: Path to content_reuse.db SQLite database.
-        video_ids: Explicit list of video IDs to process (overrides channel lookup).
-        cookies_browser: Browser name for yt-dlp cookie extraction.
-        cookies_path: Optional path to cookies.txt file.
-        sleep_seconds: (min, max) sleep range between yt-dlp calls.
-        audit_writer: AuditWriter instance for fingerprint_audit.csv rows.
-        current_video_id_ref: Mutable single-element list updated to the
-            in-progress video_id (for SIGINT handler interrupted row).
-        **kwargs: Additional arguments (ignored).
-    """
-    import datetime
-
-    from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
-    from tube_scout.services.ytdlp_adapter import fetch_audio_via_ytdlp
-    from tube_scout.services.ytdlp_errors import FingerprintExtractError
-    from tube_scout.storage.content_db import (
-        audio_fingerprint_exists,
-        insert_audio_fingerprint,
-    )
-
-    if video_ids is None:
-        console.print(
-            "[yellow]dispatch_audio_fingerprint: video_ids not provided; "
-            "pass --channel or an explicit video_ids list.[/yellow]"
-        )
-        return
-
-    cookies_src = "file" if cookies_path else "brave"
-
-    from tube_scout.services.ytdlp_adapter import validate_video_id
-
-    for video_id in video_ids:
-        # FIX-11 (AT-11.3): path injection prevention — validate before any filesystem op
-        try:
-            validate_video_id(video_id)
-        except ValueError as _ve:
-            console.print(f"[yellow]Skipping invalid video_id {video_id!r}: {_ve}[/yellow]")
-            continue
-
-        # FIX-4 + AT-NEW-6: slice assignment handles both empty list (G-4 [] init)
-        # and pre-populated list — IndexError-free.
-        if current_video_id_ref is not None:
-            current_video_id_ref[:] = [video_id]
-
-        already_done = (
-            db_path is not None and audio_fingerprint_exists(db_path, video_id)
-        )
-        if not force and already_done:
-            if audit_writer is not None and hasattr(audit_writer, "append_fingerprint_row"):
-                audit_writer.append_fingerprint_row({
-                    "video_id": video_id,
-                    "result": "skip",
-                    "reason": "skip_existing",
-                    "duration_sec": None,
-                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
-                    "cookies_source": cookies_src,
-                })
-            continue
-
-        audio_path: Path | None = None
-        try:
-            temp_dir = audio_temp if audio_temp is not None else Path(".")
-            audio_path = fetch_audio_via_ytdlp(
-                video_url=f"https://youtu.be/{video_id}",
-                output_dir=temp_dir,
-                cookies_browser=cookies_browser,
-                cookies_path=Path(cookies_path) if cookies_path else None,
-                sleep_seconds=sleep_seconds,
-            )
-            try:
-                fp_bytes, duration = extract_chromaprint_fingerprint(audio_path)
-            except FingerprintExtractError as fp_err:
-                console.print(
-                    f"  [yellow]fingerprint skip {video_id}: {fp_err}[/yellow]"
-                )
-                if audit_writer is not None and hasattr(
-                    audit_writer, "append_fingerprint_row"
-                ):
-                    audit_writer.append_fingerprint_row({
-                        "video_id": video_id,
-                        "result": "fail",
-                        "reason": "fpcalc_failed",
-                        "duration_sec": None,
-                        "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
-                        "cookies_source": cookies_src,
-                    })
-                continue
-            if db_path is not None:
-                extracted_at = datetime.datetime.now(tz=datetime.UTC).isoformat()
-                insert_audio_fingerprint(
-                    db_path, video_id, fp_bytes, duration, extracted_at
-                )
-            if audit_writer is not None and hasattr(audit_writer, "append_fingerprint_row"):
-                audit_writer.append_fingerprint_row({
-                    "video_id": video_id,
-                    "result": "success",
-                    "reason": "captured",
-                    "duration_sec": duration,
-                    "timestamp": datetime.datetime.now(tz=datetime.UTC).isoformat(),
-                    "cookies_source": cookies_src,
-                })
-        finally:
-            if audio_path is not None:
-                audio_path.unlink(missing_ok=True)
 
 
 def _is_valid_cached_transcript(path: Path) -> bool:
@@ -1092,7 +788,7 @@ def collect_transcripts_command(
         None,
         "--source",
         help=(
-            "Transcript source: 'api', 'ytdlp', or 'asr'. "
+            "Transcript source: 'api' or 'asr'. "
             "Default: env TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE or 'api'."
         ),
     ),
@@ -1247,14 +943,6 @@ def collect_transcripts_command(
             audio_cache_dir=asr_audio_cache_dir,
             data_dir=data_dir,
             db_path_str=asr_db_path_str,
-        )
-        return
-
-    # Dispatch to ytdlp backend — return early
-    if resolved_source == "ytdlp":
-        dispatch_transcript_source(
-            resolved_source, channel=channel, all_channels=all_channels,
-            project_dir=project_dir,
         )
         return
 
@@ -2101,177 +1789,6 @@ def build_signal_handler(
     return _handler
 
 
-def collect_audio_command(
-    channel: str | None = typer.Option(
-        None,
-        "--channel",
-        help="Channel alias.",
-    ),
-    all_channels: bool = typer.Option(
-        False,
-        "--all-channels",
-        help="Process all registered self-channels.",
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force",
-        help="Re-extract even if fingerprint exists.",
-    ),
-    cookies_browser: str | None = typer.Option(
-        None,
-        "--cookies-browser",
-        help="Override cookies browser (default: brave).",
-    ),
-    cookies_file: str | None = typer.Option(
-        None,
-        "--cookies-file",
-        help="Override cookies.txt path.",
-    ),
-    sleep_min: float = typer.Option(
-        30.0,
-        "--sleep-min",
-        help="Min sleep between calls (seconds).",
-    ),
-    sleep_max: float = typer.Option(
-        60.0,
-        "--sleep-max",
-        help="Max sleep between calls (seconds).",
-    ),
-    project_dir: str = typer.Option(
-        "./projects",
-        "--project-dir",
-        help="Projects root directory (AT-NEW-1 fix).",
-    ),
-) -> None:
-    """Extract audio, compute chromaprint fingerprint, delete audio temp file.
-
-    Constitution V: audio files are never persisted (deleted in finally block).
-    """
-    import signal as _signal
-
-    from tube_scout.services.audit_writer import AuditWriter
-
-    # FIX-10 (AT-5.3): reject explicitly-empty channel alias before falsy `if channel:` check
-    if channel is not None and not channel.strip():
-        console.print("[red]Error: --channel value must not be empty.[/red]")
-        raise typer.Exit(code=2)
-
-    if channel and all_channels is True:
-        console.print(
-            "[red]Error: --channel and --all-channels are mutually exclusive.[/red]"
-        )
-        raise typer.Exit(code=2)
-
-    if channel:
-        try:
-            resolve_alias_to_channel_id(channel)
-        except KeyError:
-            console.print(
-                f"[red]Error: Channel alias '{channel}' is not registered. "
-                "Run `tube-scout auth --channel <alias>` to register.[/red]"
-            )
-            raise typer.Exit(code=5)
-
-    if all_channels is True:
-        from tube_scout.services.auth import load_registry
-        registry = load_registry()
-        if not registry:
-            console.print(
-                "[red]Error: No registered channels found. "
-                "Register a channel with `tube-scout auth --channel <alias>`.[/red]"
-            )
-            raise typer.Exit(code=5)
-
-    # FIX-1: resolve project dir for proper paths
-    from tube_scout.storage.content_db import migrate_to_v3
-
-    mgr = resolve_project(project_dir, None, producer=False)
-    project_dir = Path(mgr.project_dir)
-
-    # FIX-3: audio_temp under project 01_collect (B-X1-7)
-    audio_temp_path = project_dir / "01_collect" / "audio_temp"
-    audio_temp_path.mkdir(parents=True, exist_ok=True)
-
-    # FIX-2: audit_writer with correct project dir
-    audit = AuditWriter(project_dir)
-
-    # FIX-1 + AT-NEW-3: db_path from project, migrate idempotent (CREATE TABLE IF NOT EXISTS)
-    db_path = project_dir / "02_analyze" / "content" / "content_reuse.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    migrate_to_v3(db_path)
-
-    # FIX-1 + AT-NEW-2: resolve video_ids from channel alias OR all-channels
-    resolved_video_ids: list[str] | None = None
-    if channel:
-        channel_id = resolve_alias_to_channel_id(channel)
-        channel_dir = project_dir / "01_collect" / "channels" / channel_id
-        meta_path = channel_dir / "videos_meta.json"
-        if meta_path.exists():
-            videos_data = read_json(meta_path) or []
-            resolved_video_ids = [v["video_id"] for v in videos_data if "video_id" in v]
-        else:
-            console.print(
-                f"[yellow]No videos_meta.json for channel '{channel}'. "
-                "Run `tube-scout collect videos` first.[/yellow]"
-            )
-            raise typer.Exit(code=1)
-    # G-4: empty list = no video in flight; handler guards on non-empty ref[0]
-    current_video_id_ref: list[str] = []
-    cookies_src = f"file:{cookies_file}" if cookies_file else f"browser:{cookies_browser or 'brave'}"
-    _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref, cookies_source=cookies_src)
-    _signal.signal(_signal.SIGINT, _handler)
-    _signal.signal(_signal.SIGTERM, _handler)
-
-    if channel:
-        dispatch_audio_fingerprint(
-            channel=channel,
-            all_channels=False,
-            force=force,
-            cookies_browser=cookies_browser,
-            cookies_path=cookies_file,
-            sleep_seconds=(sleep_min, sleep_max),
-            audio_temp=audio_temp_path,
-            db_path=db_path,
-            video_ids=resolved_video_ids,
-            audit_writer=audit,
-            current_video_id_ref=current_video_id_ref,
-        )
-    elif all_channels is True:
-        # G-2: dispatch per-channel for isolation (not one aggregated call)
-        from tube_scout.services.auth import load_registry
-        registry = load_registry()
-        for alias in registry:
-            try:
-                ch_id = resolve_alias_to_channel_id(alias)
-            except KeyError:
-                continue
-            ch_dir = project_dir / "01_collect" / "channels" / ch_id
-            ch_meta = ch_dir / "videos_meta.json"
-            if not ch_meta.exists():
-                console.print(
-                    f"[yellow]Channel '{alias}' has no videos_meta.json — skipping.[/yellow]"
-                )
-                continue
-            ch_videos = read_json(ch_meta) or []
-            ch_video_ids = [v["video_id"] for v in ch_videos if "video_id" in v]
-            try:
-                dispatch_audio_fingerprint(
-                    channel=alias,
-                    all_channels=False,
-                    force=force,
-                    cookies_browser=cookies_browser,
-                    cookies_path=cookies_file,
-                    sleep_seconds=(sleep_min, sleep_max),
-                    audio_temp=audio_temp_path,
-                    db_path=db_path,
-                    video_ids=ch_video_ids,
-                    audit_writer=audit,
-                    current_video_id_ref=current_video_id_ref,
-                )
-            except Exception as _exc:
-                console.print(f"[yellow]Channel '{alias}' failed: {_exc}. Continuing.[/yellow]")
-
-
 def _collect_fingerprint_local(
     channel: str | None,
     video_ids_str: str,
@@ -2435,60 +1952,25 @@ def collect_fingerprint_command(
         "--channel",
         help="Channel alias.",
     ),
-    all_channels: bool = typer.Option(
-        False,
-        "--all-channels",
-        help="Process all registered self-channels.",
-    ),
     force: bool = typer.Option(
         False,
         "--force",
         help="Re-extract even if fingerprint exists.",
     ),
-    cookies_browser: str | None = typer.Option(
-        None,
-        "--cookies-browser",
-        help="Override cookies browser (default: brave).",
-    ),
-    cookies_file: str | None = typer.Option(
-        None,
-        "--cookies-file",
-        help="Override cookies.txt path.",
-    ),
-    sleep_min: float = typer.Option(
-        30.0,
-        "--sleep-min",
-        help="Min sleep between calls (seconds).",
-    ),
-    sleep_max: float = typer.Option(
-        60.0,
-        "--sleep-max",
-        help="Max sleep between calls (seconds).",
-    ),
-    project_dir: str = typer.Option(
-        "./projects",
-        "--project-dir",
-        help="Projects root directory (AT-NEW-1 fix).",
-    ),
-    source: str = typer.Option(
-        "ytdlp",
-        "--source",
-        help="Input source: 'ytdlp' (spec 012, default) or 'local' (spec 013 Takeout mp4/wav).",
-    ),
     input_kind: str = typer.Option(
         "mp4",
         "--input-kind",
-        help="Input kind for --source local: 'mp4', 'wav_16k', or 'wav_22k'.",
+        help="Input kind: 'mp4', 'wav_16k', or 'wav_22k'.",
     ),
     video_ids_str: str = typer.Option(
         "",
         "--video-ids",
-        help="Comma-separated video IDs (--source local only).",
+        help="Comma-separated video IDs.",
     ),
     all_takeout: bool = typer.Option(
         False,
         "--all-takeout",
-        help="Process all video_metadata rows (--source local only).",
+        help="Process all video_metadata rows for the channel.",
     ),
     audio_cache_dir: str = typer.Option(
         "/tmp/tube-scout-audio",
@@ -2498,156 +1980,29 @@ def collect_fingerprint_command(
     data_dir: str = typer.Option(
         "./data",
         "--data-dir",
-        help="Work root for channel data directories (--source local only).",
+        help="Work root for channel data directories.",
     ),
     db_path_local_str: str = typer.Option(
         "",
         "--db-path",
-        help="Path to content_reuse.db (--source local; defaults to <data-dir>/content_reuse.db).",
+        help="Path to content_reuse.db (defaults to <data-dir>/content_reuse.db).",
     ),
 ) -> None:
-    """Extract chromaprint fingerprint from audio. Supports yt-dlp (spec 012) and local Takeout (spec 013).
+    """Extract chromaprint fingerprint from local Takeout mp4 or cached wav.
 
-    --source local: FR-013~FR-015 (spec 013). Exit codes: 0=success, 2=alias/selection
-    error, 5=one or more fpcalc failures.
-    --source ytdlp: spec 012 flow (unchanged).
+    FR-013~FR-015 (spec 013). Exit codes: 0=success, 2=alias/selection error,
+    5=one or more fpcalc failures.
     """
-    if source == "local":
-        _collect_fingerprint_local(
-            channel=channel,
-            video_ids_str=video_ids_str,
-            all_takeout=all_takeout,
-            input_kind=input_kind,
-            audio_cache_dir=audio_cache_dir,
-            force=force,
-            data_dir=data_dir,
-            db_path_local_str=db_path_local_str,
-        )
-        return
-
-    import signal as _signal
-
-    from tube_scout.services.audit_writer import AuditWriter
-
-    # FIX-10 (AT-5.3): reject explicitly-empty channel alias before falsy `if channel:` check
-    if channel is not None and not channel.strip():
-        console.print("[red]Error: --channel value must not be empty.[/red]")
-        raise typer.Exit(code=2)
-
-    if channel and all_channels is True:
-        console.print(
-            "[red]Error: --channel and --all-channels are mutually exclusive.[/red]"
-        )
-        raise typer.Exit(code=2)
-
-    if channel:
-        try:
-            resolve_alias_to_channel_id(channel)
-        except KeyError:
-            console.print(
-                f"[red]Error: Channel alias '{channel}' is not registered. "
-                "Run `tube-scout auth --channel <alias>` to register.[/red]"
-            )
-            raise typer.Exit(code=5)
-
-    if all_channels is True:
-        from tube_scout.services.auth import load_registry
-        registry = load_registry()
-        if not registry:
-            console.print(
-                "[red]Error: No registered channels found. "
-                "Register a channel with `tube-scout auth --channel <alias>`.[/red]"
-            )
-            raise typer.Exit(code=5)
-
-    # FIX-1: resolve project dir for proper paths
-    from tube_scout.storage.content_db import migrate_to_v3
-
-    mgr = resolve_project(project_dir, None, producer=False)
-    project_dir = Path(mgr.project_dir)
-
-    # FIX-3: audio_temp under project 01_collect (B-X1-7)
-    audio_temp_path = project_dir / "01_collect" / "audio_temp"
-    audio_temp_path.mkdir(parents=True, exist_ok=True)
-
-    # FIX-2: audit_writer with correct project dir
-    audit = AuditWriter(project_dir)
-
-    # FIX-1 + AT-NEW-3: db_path from project, migrate idempotent (CREATE TABLE IF NOT EXISTS)
-    db_path = project_dir / "02_analyze" / "content" / "content_reuse.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    migrate_to_v3(db_path)
-
-    # FIX-1 + AT-NEW-2: resolve video_ids from channel alias OR all-channels
-    resolved_video_ids: list[str] | None = None
-    if channel:
-        channel_id = resolve_alias_to_channel_id(channel)
-        channel_dir = project_dir / "01_collect" / "channels" / channel_id
-        meta_path = channel_dir / "videos_meta.json"
-        if meta_path.exists():
-            videos_data = read_json(meta_path) or []
-            resolved_video_ids = [v["video_id"] for v in videos_data if "video_id" in v]
-        else:
-            console.print(
-                f"[yellow]No videos_meta.json for channel '{channel}'. "
-                "Run `tube-scout collect videos` first.[/yellow]"
-            )
-            raise typer.Exit(code=1)
-    # G-4: empty list = no video in flight; handler guards on non-empty ref[0]
-    current_video_id_ref: list[str] = []
-    cookies_src = f"file:{cookies_file}" if cookies_file else f"browser:{cookies_browser or 'brave'}"
-    _handler = build_signal_handler(audio_temp_path, audit, current_video_id_ref, cookies_source=cookies_src)
-    _signal.signal(_signal.SIGINT, _handler)
-    _signal.signal(_signal.SIGTERM, _handler)
-
-    if channel:
-        dispatch_audio_fingerprint(
-            channel=channel,
-            all_channels=False,
-            force=force,
-            cookies_browser=cookies_browser,
-            cookies_path=cookies_file,
-            sleep_seconds=(sleep_min, sleep_max),
-            audio_temp=audio_temp_path,
-            db_path=db_path,
-            video_ids=resolved_video_ids,
-            audit_writer=audit,
-            current_video_id_ref=current_video_id_ref,
-        )
-    elif all_channels is True:
-        # G-2: dispatch per-channel for isolation (not one aggregated call)
-        from tube_scout.services.auth import load_registry
-        registry = load_registry()
-        for alias in registry:
-            try:
-                ch_id = resolve_alias_to_channel_id(alias)
-            except KeyError:
-                continue
-            ch_dir = project_dir / "01_collect" / "channels" / ch_id
-            ch_meta = ch_dir / "videos_meta.json"
-            if not ch_meta.exists():
-                console.print(
-                    f"[yellow]Channel '{alias}' has no videos_meta.json — skipping.[/yellow]"
-                )
-                continue
-            ch_videos = read_json(ch_meta) or []
-            ch_video_ids = [v["video_id"] for v in ch_videos if "video_id" in v]
-            try:
-                dispatch_audio_fingerprint(
-                    channel=alias,
-                    all_channels=False,
-                    force=force,
-                    cookies_browser=cookies_browser,
-                    cookies_path=cookies_file,
-                    sleep_seconds=(sleep_min, sleep_max),
-                    audio_temp=audio_temp_path,
-                    db_path=db_path,
-                    video_ids=ch_video_ids,
-                    audit_writer=audit,
-                    current_video_id_ref=current_video_id_ref,
-                )
-            except Exception as _exc:
-                console.print(f"[yellow]Channel '{alias}' failed: {_exc}. Continuing.[/yellow]")
+    _collect_fingerprint_local(
+        channel=channel,
+        video_ids_str=video_ids_str,
+        all_takeout=all_takeout,
+        input_kind=input_kind,
+        audio_cache_dir=audio_cache_dir,
+        force=force,
+        data_dir=data_dir,
+        db_path_local_str=db_path_local_str,
+    )
 
 
 def collect_process_audio_command(  # noqa: C901
