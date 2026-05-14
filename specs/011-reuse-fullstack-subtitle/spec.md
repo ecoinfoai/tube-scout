@@ -2,8 +2,8 @@
 
 **Feature Branch**: `011-reuse-fullstack-subtitle`
 **Created**: 2026-05-09
-**Status**: Draft
-**Input**: idea/idea-2026-05-09-roadmap.md — tube-scout v0.4 자막 풀스택 출시. spec 007의 동일 교수·교과목·주차·차시 매칭 한계를 넘어, (1) nC2 cross-pair 매칭, (2) 시간축 지표 I-6/I-7/I-8, (3) Layer A/B/C/D 4계층 false-positive 방어, (4) 재활용 4 패턴 분리 검출을 추가한다. Cross-professor (spec 012), 외부 corpus (spec 013), 음원·프레임 신호 (v0.5+ spec X/Y/Z) 는 본 spec 의 scope OUT.
+**Status**: Closed (merged to master 2026-05-09; 핵심 산출물 `services/nc2_matcher.py` / `layer_defense.py` / `pattern_classifier.py` / `phrase_whitelist.py` master 영속, 시간축 지표 I-6/I-7/I-8 및 4계층 방어는 spec 013 Phase 3 에서 보고서 출력까지 확장 운영)
+**Input**: idea/idea-2026-05-09-roadmap.md (2026-05-15 archive 됨 — `_archive/yt-dlp-pivot-20260512/` 보존) — spec 007의 동일 교수·교과목·주차·차시 매칭 한계를 넘어, (1) nC2 cross-pair 매칭, (2) 시간축 지표 I-6/I-7/I-8, (3) Layer A/B/C/D 4계층 false-positive 방어, (4) 재활용 4 패턴 분리 검출을 추가한다. Cross-professor / 외부 corpus / 음원·프레임 신호는 본 spec 의 scope OUT.
 
 ## Clarifications
 
