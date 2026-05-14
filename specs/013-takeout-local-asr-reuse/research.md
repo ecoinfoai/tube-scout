@@ -97,21 +97,21 @@
 
 ## R-5. 단일 의심 점수(aggregate suspicion score) 형식
 
-**Unknown 원천**: C-3 (clarification) "Multi-axis 한시 + 30일 후 가중치 합산 commit". Phase 3 출시 시점 보고서 구조 동결 필요.
+**Unknown 원천**: C-3 (clarification) "Multi-axis 한시 + 라벨링 누적 후 가중치 합산 commit". Phase 3 머지 시점 보고서 구조 동결 필요. (당초 "30일" 시한 표현은 2026-05-15 결정으로 제거 — 시한 없음, 데이터 누적 자체가 트리거.)
 
-**Decision**: Phase 3 보고서는 multi-axis 정렬(`--sort-by <metric>`), per-metric 임계 컷(`--appendix-threshold-<metric>`), per-metric 분포 히스토그램. Single aggregate score 컬럼 미생성. 30일 누적 후 spec follow-up에서 다음 commit:
+**Decision**: Phase 3 보고서는 multi-axis 정렬(`--sort-by <metric>`), per-metric 임계 컷(`--appendix-threshold-<metric>`), per-metric 분포 히스토그램. Single aggregate score 컬럼 미생성. 충분한 라벨링 데이터 누적 후 spec follow-up에서 다음 commit:
 - 가중치 합산 공식 (예: `score = 0.30·i2 + 0.25·i6 + 0.15·i7 + 0.15·i8 + 0.15·audio_fp_norm`)
 - `comparison_results.aggregate_suspicion_score` 컬럼 ALTER ADD
 - `--appendix-threshold <0..1>` 단일 옵션 도입
-- 기존 per-metric 옵션 deprecated 표시(2 release 후 제거)
+- 기존 per-metric 옵션 deprecated 표시 (2 minor 후 제거)
 
 **Rationale**:
-- C-3 옵션 D 채택 — appendix-threshold 정책(FR-038)이 이미 30일 한시 운영을 명시했으므로 점수 정의도 정렬.
-- 30일 데이터로 axis별 변별력 확인 후 가중치 결정이 데이터 기반 의사결정에 부합.
-- Phase 3 출시 시점에 임의 가중치를 commit하면 30일 후 변경 시 보고서 비교성 손상.
+- C-3 옵션 D 채택 — appendix-threshold 정책(FR-038)이 이미 calibration 한시 운영을 명시했으므로 점수 정의도 정렬.
+- 라벨링 데이터로 axis별 변별력 확인 후 가중치 결정이 데이터 기반 의사결정에 부합.
+- Phase 3 머지 시점에 임의 가중치를 commit하면 차후 변경 시 보고서 비교성 손상.
 
-**Measurement plan (30일 후)**:
-1. 30일 누적 운영자 검토 결과(`review_status='CONFIRMED_DUPLICATE'` vs `'FALSE_POSITIVE'`)와 각 axis 점수 분포 비교.
+**Measurement plan (라벨링 누적 후)**:
+1. 누적 운영자 검토 결과(`review_status='CONFIRMED_DUPLICATE'` vs `'FALSE_POSITIVE'`)와 각 axis 점수 분포 비교.
 2. ROC curve / Logistic regression으로 axis별 가중치 도출.
 3. 결과는 별도 idea 또는 spec amendment로 commit.
 
@@ -476,7 +476,7 @@ for segment in segments:
 | ASR throughput prod GPU pool | SC-002, SC-010 | Phase 2 (GPU 서버 인계 시) | `_workspace/measurement/asr_throughput_prod_phase2.md` |
 | nC2 분석 wall-clock 200영상 | SC-002 | Phase 3 | `_workspace/measurement/nc2_runtime_phase3.md` |
 | Audio fp hamming 임계 (re-recorded 패턴) | FR-031, R-9 | Phase 3 | `_workspace/measurement/audio_fp_threshold_phase3.md` |
-| Aggregate score 가중치 공식 | FR-036/038, C-3, R-5 | Phase 3 후 30일 | spec follow-up amendment |
+| Aggregate score 가중치 공식 | FR-036/038, C-3, R-5 | 라벨링 누적 후 (시한 없음) | spec follow-up amendment |
 
 각 측정은 별도 task로 `tasks.md`에 분리되며, 결과는 spec.md FR · SC 또는 spec follow-up amendment에 commit한다.
 

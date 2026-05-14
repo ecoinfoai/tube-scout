@@ -213,16 +213,16 @@ tube-scout report content-reuse \
 
 **산출**: `projects/{job-id}/03_report/정광석_nC2_report.html` + `정광석_nC2_report.pdf`.
 
-### 4.1 첫 30일 운영 (default)
+### 4.1 Calibration 구간 운영 (default)
 
 ```bash
 # 부록 임계 미설정 — 모든 쌍 부록 진입 + 분포 히스토그램 본문 포함
 tube-scout report content-reuse --channel nursing --professor "정광석" --mode M-nC2
 ```
 
-운영자가 본문 분포 히스토그램으로 axis별 변별력 관찰 → 30일 후 임계값 결정.
+운영자가 본문 분포 히스토그램으로 axis별 변별력 관찰 → 충분한 라벨링 데이터(`comparison_results.review_status`) 누적 후 임계값 결정. (시한 없음 per 2026-05-15 결정.)
 
-### 4.2 운영 첫 30일 이후
+### 4.2 Calibration 종료 후 (임계 확정 운영)
 
 ```bash
 # 운영자가 직접 결정한 per-metric 임계
@@ -358,4 +358,4 @@ Phase 1·2·3 진행 중 운영자가 측정 후 spec follow-up amendment에 com
 | ASR throughput prod GPU pool | Phase 2 | `_workspace/measurement/asr_throughput_prod_phase2.md` |
 | nC2 분석 wall-clock | Phase 3 | `_workspace/measurement/nc2_runtime_phase3.md` |
 | Audio fp hamming 임계 (re-recorded) | Phase 3 | `_workspace/measurement/audio_fp_threshold_phase3.md` |
-| Aggregate score 가중치 공식 | Phase 3 +30일 | spec follow-up amendment |
+| Aggregate score 가중치 공식 | 라벨링 데이터 누적 후 (시한 없음) | spec follow-up amendment |

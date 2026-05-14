@@ -430,7 +430,7 @@ class ReusePatternLabel(StrEnum):
 
 **source_type_pair 값**: lexically ordered pair — `'asr-asr'`, `'api-api'`, `'asr-api'`(asr이 sorted 먼저), `'manual-asr'`, `'manual-api'`. 비교 대칭 보장.
 
-**Single aggregate score (C-3 deferred)**: `aggregate_suspicion_score` 컬럼 본 spec 미생성. 30일 운영 후 spec follow-up에서 ALTER ADD COLUMN.
+**Single aggregate score (C-3 deferred)**: `aggregate_suspicion_score` 컬럼 본 spec 미생성. 라벨링 데이터 충분 누적 후 spec follow-up에서 ALTER ADD COLUMN (시한 없음 per 2026-05-15 결정).
 
 **Boundary**: B-2, B-4.
 
@@ -571,4 +571,4 @@ def migrate_to_v4(db_path: Path) -> None:
 - enum 확장 3건 (`VALID_PROCESSING_STATUSES` +2, `ReusePatternLabel` +2, `VALID_MATCH_CONFIDENCES` 신규).
 - Audit CSV 8 stage frozen fieldnames 동결.
 - Migration 함수 1개 (`migrate_to_v4`).
-- 단일 의심 점수(`aggregate_suspicion_score`) 미생성 — C-3 deferred, 30일 후 follow-up amendment에서 ALTER ADD.
+- 단일 의심 점수(`aggregate_suspicion_score`) 미생성 — C-3 deferred, 라벨링 누적 후 follow-up amendment에서 ALTER ADD (시한 없음).

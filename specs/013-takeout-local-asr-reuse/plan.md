@@ -7,7 +7,7 @@
 **Selected Clarifications** (`./spec.md` §Clarifications):
 - C-1 데이터 보존: mp4 영구, WAV 비영구(통합 모드 즉시 삭제), 자막 JSON 영구
 - C-2 Audit logging: spec 012 `audit_writer` 인프라 계승·확장, 단계별 CSV 분리
-- C-3 단일 의심 점수: Multi-axis 한시 운영 + 30일 후 가중치 합산 공식 후속 commit
+- C-3 단일 의심 점수: Multi-axis 한시 운영 + 라벨링 데이터 충분 누적 시 가중치 합산 공식 후속 commit (시한 없음)
 - C-4 Progress reporting: `sys.stdout.isatty()` 자동 감지 (TTY=rich.progress, 비-TTY=structured log)
 - C-5 `--retry-failed`: `asr_failed` → `asr_in_progress` 직접 atomic 전이, claim predicate 확장
 
@@ -15,9 +15,9 @@
 
 ## Summary
 
-자교 채널의 Google Takeout export를 입력으로 받아 (1) 채널 메타·영상 메타·mp4↔video_id 매핑을 SQLite v4 / JSON 이중 적재하고, (2) mp4에서 16 kHz mono WAV를 한 번만 추출해 음원 지문(chromaprint, spec 012 master 재사용)과 STT(local faster-whisper, 신규)가 공유하는 입력으로 사용하며, (3) ASR 출력 + YouTube Data API caption(공개 채널)을 공통 Text Normalizer로 정규화한 뒤 spec 011 미완 분석 파이프라인(I-6~I-8 시간축 지표 + M-nC2 매칭 모드 + 4계층 오탐 방어 + 4패턴 분류 + 신설 2패턴)을 완성한다. 한 교수 단위 M-nC2 비교 결과는 spec 006 report bundle 인프라를 확장한 PDF/HTML 보고서로 출력되며, multi-axis 정렬 · per-metric 임계 컷 · 분포 히스토그램으로 운영 첫 30일을 운영자가 직접 calibrate한 뒤 가중치 합산 공식을 spec follow-up에서 commit한다. KB 입력 export는 자막 JSON을 깨끗한 평문(txt/md/jsonl)으로 변환하는 독립 CLI로 분리되며, Phase 4에서 spec 012 yt-dlp surface 전체가 코드베이스에서 완전 삭제된다(공기관 운영 적합성 사유).
+자교 채널의 Google Takeout export를 입력으로 받아 (1) 채널 메타·영상 메타·mp4↔video_id 매핑을 SQLite v4 / JSON 이중 적재하고, (2) mp4에서 16 kHz mono WAV를 한 번만 추출해 음원 지문(chromaprint, spec 012 master 재사용)과 STT(local faster-whisper, 신규)가 공유하는 입력으로 사용하며, (3) ASR 출력 + YouTube Data API caption(공개 채널)을 공통 Text Normalizer로 정규화한 뒤 spec 011 미완 분석 파이프라인(I-6~I-8 시간축 지표 + M-nC2 매칭 모드 + 4계층 오탐 방어 + 4패턴 분류 + 신설 2패턴)을 완성한다. 한 교수 단위 M-nC2 비교 결과는 spec 006 report bundle 인프라를 확장한 PDF/HTML 보고서로 출력되며, multi-axis 정렬 · per-metric 임계 컷 · 분포 히스토그램으로 운영자가 calibration 기간 동안 직접 임계를 조정한 뒤, 충분한 라벨링 데이터 누적 시 가중치 합산 공식을 spec follow-up에서 commit한다. KB 입력 export는 자막 JSON을 깨끗한 평문(txt/md/jsonl)으로 변환하는 독립 CLI로 분리되며, Phase 4에서 spec 012 yt-dlp surface 전체가 코드베이스에서 완전 삭제된다(공기관 운영 적합성 사유).
 
-기술 접근: 로컬 STT는 faster-whisper(CTranslate2 백엔드, int8 양자화) 기본, hallucination 방어 4종을 코드 강제. 워커 풀(`prod-a6000-pool`)은 SQLite `processing_status` 테이블을 큐로 사용하는 두 Python 프로세스(cuda:0 / cuda:1 전담), atomic claim 트랜잭션 패턴(C-5). audit logging은 spec 012 `services/audit_writer.py`를 cross-stage 일반화 모듈로 재배치(`services/audit_writer.py`는 Phase 4에도 유지). progress는 환경 자동 감지(C-4). 보고서 단일 의심 점수는 multi-axis로 30일 한시 운영(C-3). v4 마이그레이션은 `migrate_to_v4()` 함수 한 번 호출로 멱등 적용.
+기술 접근: 로컬 STT는 faster-whisper(CTranslate2 백엔드, int8 양자화) 기본, hallucination 방어 4종을 코드 강제. 워커 풀(`prod-a6000-pool`)은 SQLite `processing_status` 테이블을 큐로 사용하는 두 Python 프로세스(cuda:0 / cuda:1 전담), atomic claim 트랜잭션 패턴(C-5). audit logging은 spec 012 `services/audit_writer.py`를 cross-stage 일반화 모듈로 재배치(`services/audit_writer.py`는 Phase 4에도 유지). progress는 환경 자동 감지(C-4). 보고서 단일 의심 점수는 multi-axis 한시 운영(C-3, 시한 없음). v4 마이그레이션은 `migrate_to_v4()` 함수 한 번 호출로 멱등 적용.
 
 ---
 

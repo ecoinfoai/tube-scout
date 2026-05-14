@@ -133,7 +133,7 @@ def passes_appendix(pair: ComparisonResultRow, t: AppendixThresholds) -> bool:
     return False
 ```
 
-운영 첫 30일 임계 미설정 시(`appendix_thresholds`가 모두 None) → 모든 쌍 부록 진입. spec.md FR-038 default.
+Calibration 구간 임계 미설정 시(`appendix_thresholds`가 모두 None) → 모든 쌍 부록 진입. spec.md FR-038 default.
 
 ---
 

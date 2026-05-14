@@ -2,8 +2,8 @@
 
 **Feature Branch**: `013-takeout-local-asr-reuse`
 **Created**: 2026-05-13
-**Status**: Draft
-**Target Release**: v0.5.0 (운영자 결정 — Phase 1~4 단위 머지, 최종 Phase 4에서 v0.5.0 release)
+**Status**: Phase 6 closed (internal milestone tag `v0.5.0`, 2026-05-14)
+**Target Milestone**: 내부 milestone `v0.5.0` (운영자 결정 — Phase 1~4 단위 머지)
 **Idea Doc**: `idea/idea-2026-05-12-takeout-knowledge-base.md`
 **선행 결정**:
 - `memory/project_takeout_pivot_20260512.md` — yt-dlp 영구 폐기, Google Takeout export 전환 (NON-NEGOTIABLE)
@@ -18,7 +18,7 @@
 
 - Q: Takeout 원본 mp4 · WAV · 자막 JSON 의 데이터 보존 정책은? → A: mp4 영구 보존(acquisition 원본 — Takeout 재신청 비용 큼), WAV 비영구(통합 모드 즉시 삭제, `--keep-audio` 시만 보존), raw/normalized 자막 JSON 영구 보존(분석·KB export 재실행 입력)
 - Q: Audit logging surface와 format은? → A: spec 012 master의 `audit_writer` 인프라(append-only CSV, frozen fieldnames) 계승·확장. 단계별 분리: `01_collect/{stage}_audit.csv` (stage ∈ {`takeout_ingest`, `audio_extract`, `transcripts`, `fingerprint`, `normalize`, `analyze`, `report`, `kb_export`}). Phase 4에서 audit_writer는 yt-dlp surface와 분리되어 cross-stage 일반화 모듈로 재배치.
-- Q: 단일 의심 점수(aggregate suspicion score) 공식은? → A: Multi-axis 한시 운영 후 가중 합산 후속 commit. Phase 3 출시 시점에는 single aggregate score 없이 multi-axis(`--sort-by <metric>`)로 보고서 정렬, `--appendix-threshold` 도 single-metric 임계(예: `--appendix-threshold-i2-cosine 0.85`) 형태. 30일 누적 후 가중치 합산 공식을 spec follow-up에서 commit, 그 시점에 통합 `--appendix-threshold <0..1>` 로 전환.
+- Q: 단일 의심 점수(aggregate suspicion score) 공식은? → A: Multi-axis 한시 운영 후 가중 합산 후속 commit. Phase 3 머지 시점에는 single aggregate score 없이 multi-axis(`--sort-by <metric>`)로 보고서 정렬, `--appendix-threshold` 도 single-metric 임계(예: `--appendix-threshold-i2-cosine 0.85`) 형태. 충분한 라벨링 데이터(`review_status` 누적)가 확보된 후 가중치 합산 공식을 spec follow-up에서 commit, 그 시점에 통합 `--appendix-threshold <0..1>` 로 전환. (당초 "30일 후" 트리거는 2026-05-15 결정으로 제거 — 데이터 누적 자체가 트리거.)
 - Q: 장시간 작업(19,900쌍 분석 / 200영상 ASR) 진행 상황 표시 형식은? → A: 환경 자동 감지(`sys.stdout.isatty()`). TTY 환경에선 rich.progress 진행률 바(현재 video_id / pair_index, ETA, 완료 비율), 비-TTY(cron · nohup · ssh detach) 환경에선 structured stdout log line(`[stage] video_id N/total elapsed=Xs ETA=Ys`)을 매 영상 또는 매 N쌍 주기로 출력.
 - Q: `--retry-failed` 시 워커 풀의 상태 전이는? → A: `asr_failed` → `asr_in_progress` 직접 atomic 전이. `--retry-failed` 플래그는 단지 워커의 claim predicate를 `status IN ('collected','asr_failed') AND caption_source IS NULL` 로 확장하는 단일 변경이며, 별도 state reset 단계는 없다. 두 워커가 동시에 retry 시도해도 단일 SQLite 트랜잭션이 단일 워커만 성공시킨다(멱등).
 
@@ -45,7 +45,7 @@
 3. **Given** 매핑 결과 중 일부가 ambiguous로 분류되었을 때, **When** 운영자가 `01_collect/_ambiguous_mappings.csv` 를 편집하여 한 행에 한 video_id로 정리한 뒤 ingestion을 재실행하면, **Then** 운영자 결정이 그대로 반영되고 자동 매핑 단계는 우회된다.
 4. **Given** 비공개 영상이 ASR 처리 도중 워커 1개가 실패할 때, **When** `processing_status` 가 `asr_failed` 로 기록된 뒤 운영자가 `--retry-failed` 로 재실행하면, **Then** 실패 row만 재시도되고 나머지 영상은 영향받지 않는다.
 5. **Given** 보고서 본문이 생성될 때, **When** 운영자가 텍스트 톤을 점검하면, **Then** "재활용 확정", "위반" 등 단정적 라벨이 한 건도 없고 모든 의심 표현은 "의심 근거", "검토 우선순위 상위", "주의 필요" 같은 보류형으로 일관된다.
-6. **Given** 보고서 부록 임계가 명시되지 않은 상태로 운영 첫 30일 구간일 때, **When** 보고서를 생성하면, **Then** 부록에는 임계 컷이 적용되지 않고 분포 히스토그램이 함께 출력되어 운영자가 임계 기준을 직접 결정할 수 있는 자료를 제공한다.
+6. **Given** 보고서 부록 임계가 명시되지 않은 calibration 구간일 때, **When** 보고서를 생성하면, **Then** 부록에는 임계 컷이 적용되지 않고 분포 히스토그램이 함께 출력되어 운영자가 임계 기준을 직접 결정할 수 있는 자료를 제공한다.
 
 ---
 
@@ -207,7 +207,7 @@
 - **FR-035**: System MUST generate a per-professor M-nC2 reuse report as both PDF and HTML (or operator-selectable via `--format pdf | html | both`) using an extension of the spec 006 report bundle infrastructure with a new template `professor_nC2_report.html`.
 - **FR-036**: Report body MUST contain: cover page (channel, professor name, period, video count, pair count, generation timestamp), channel summary (subject distribution, year-over-year trend), per-metric distribution chart (one histogram per axis in `{i2_cosine, i6_longest_contiguous, i7_distribution_dispersion, i8_position_diversity, audio_fp_hamming}` — replaces "single aggregate suspicion grade chart" until weighted-sum is committed), top-K suspect pair list (K=50 default, operator-tunable; sort axis selected via `--sort-by <metric>`), pattern statistics (4 base patterns + 2 new patterns), and 4-layer false-positive defense application breakdown. A single aggregate "suspicion score" column MUST NOT be reported until the weighted-sum formula is committed in a spec follow-up.
 - **FR-037**: Report tone MUST be reservation-form ("의심 근거", "검토 우선순위 상위", "주의 필요"); definitive verdict language ("재활용 확정", "위반") MUST NOT appear. Each suspect pair entry MUST present both quantitative evidence (which metric / which score) AND counter-evidence (which defense layer applied with what effect).
-- **FR-038**: Report appendix MUST contain per-pair 1:1 detail pages for pairs exceeding operator-configurable per-metric thresholds (`--appendix-threshold-<metric> <value>`, one option per axis: `i2-cosine`, `i6-longest-contiguous`, `i7-distribution-dispersion`, `i8-position-diversity`, `audio-fp-hamming`). A pair MUST enter the appendix if ANY one specified threshold is exceeded (OR semantics). For the first 30 days of operation, all per-metric thresholds MUST default to "no threshold + per-metric distribution histogram included in the body" so that the operator can calibrate per-axis thresholds before they are fixed. Once the weighted-sum aggregate score formula is committed in a spec follow-up, this option set MUST be replaced by a single `--appendix-threshold <0..1>` against the aggregate score.
+- **FR-038**: Report appendix MUST contain per-pair 1:1 detail pages for pairs exceeding operator-configurable per-metric thresholds (`--appendix-threshold-<metric> <value>`, one option per axis: `i2-cosine`, `i6-longest-contiguous`, `i7-distribution-dispersion`, `i8-position-diversity`, `audio-fp-hamming`). A pair MUST enter the appendix if ANY one specified threshold is exceeded (OR semantics). During the calibration period (operator-defined, no fixed cutoff date), all per-metric thresholds MUST default to "no threshold + per-metric distribution histogram included in the body" so that the operator can calibrate per-axis thresholds before they are fixed. Once the weighted-sum aggregate score formula is committed in a spec follow-up, this option set MUST be replaced by a single `--appendix-threshold <0..1>` against the aggregate score.
 - **FR-039**: Each detail page MUST include the time-axis alignment view (matched-region color highlight on both captions), full time-axis profile chart, and audio-fingerprint alignment visualization.
 
 #### I. 자막 KB Export (Phase 4)
@@ -237,7 +237,7 @@
 
 #### M. 데이터 보존 정책 (Cross-phase, Compliance)
 
-- **FR-053**: System MUST preserve Takeout-origin mp4 files indefinitely as the authoritative acquisition source (re-requesting a Takeout export from Google takes multiple days and is not a routine recovery path). Deletion of mp4 files MUST be operator-explicit (no automatic cleanup); the spec does not provide a `--prune-mp4` command in this release.
+- **FR-053**: System MUST preserve Takeout-origin mp4 files indefinitely as the authoritative acquisition source (re-requesting a Takeout export from Google takes multiple days and is not a routine recovery path). Deletion of mp4 files MUST be operator-explicit (no automatic cleanup); the spec does not provide a `--prune-mp4` command in this iteration.
 - **FR-054**: System MUST treat WAV extraction artifacts as non-persistent (retention policy) — in the integrated `collect process-audio` mode, the per-video WAV MUST be deleted immediately after the [fingerprint → STT] cycle completes. In the standalone `collect audio-extract` mode, WAV files accumulate in `--audio-cache-dir` until the operator clears the cache. The `--keep-audio` flag MUST override deletion in both modes for debugging. (FR-011 defines the operator-facing mode interface; this requirement covers retention only.)
 - **FR-055**: System MUST preserve raw transcripts (`01_collect/transcripts/<video_id>.json`) and normalized transcripts (`01_collect/transcripts_normalized/<video_id>.json`) indefinitely as the re-execution input for analysis (`analyze content-reuse`) and KB export (`transcript export`). Deletion MUST be operator-explicit.
 - **FR-056**: System MUST NOT introduce automatic retention timers, time-based purges, or `--retention-days` style policies in this spec. Future retention policy (if compliance requirements evolve) MUST be added via a separate idea/spec.
@@ -297,7 +297,7 @@
 - **이중 GPU 정책**: A6000 ×2 동시 활용은 비동기 워커 풀(cuda:0 / cuda:1 각 전담 프로세스)로 구현하며 모델 단위 sharding은 inter-GPU 통신 비용 때문에 채택하지 않는다.
 - **`fingerprint_input_policy` 기본값 미확정**: Phase 1 실측 항목. 본 spec에서 기본값을 즉시 정하지 않고 측정 결과로 확정한다는 약속만 둔다. 이는 hidden technical risk가 아니라 명시적 측정 dependency.
 - **Evidence Score 가중치 · 임계값**: 본 spec에 명시된 +40 / +30 / +25 / +5 / +5 가중치와 65 / 40 임계는 Phase 1 출발점이며 실측 자동화율을 토대로 spec 016 후속 업데이트에서 튜닝한다.
-- **부록 임계 정책 + 단일 의심 점수**: Phase 3 출시 시점에는 single aggregate suspicion score를 정의하지 않는다. 보고서는 multi-axis(`--sort-by <metric>`) 정렬과 per-metric 분포 히스토그램으로 운영하며, 부록 컷은 axis별 임계(`--appendix-threshold-<metric>`, OR semantics)로 통제한다. 30일 누적 운영 데이터로 가중치 합산 공식을 spec follow-up에서 commit하면, 그 시점에 axis별 옵션 집합이 단일 `--appendix-threshold <0..1>` 로 전환된다.
+- **부록 임계 정책 + 단일 의심 점수**: Phase 3 머지 시점에는 single aggregate suspicion score를 정의하지 않는다. 보고서는 multi-axis(`--sort-by <metric>`) 정렬과 per-metric 분포 히스토그램으로 운영하며, 부록 컷은 axis별 임계(`--appendix-threshold-<metric>`, OR semantics)로 통제한다. 충분한 라벨링 데이터(`comparison_results.review_status` 누적)가 확보되면 가중치 합산 공식을 spec follow-up에서 commit하고, 그 시점에 axis별 옵션 집합이 단일 `--appendix-threshold <0..1>` 로 전환된다. (당초 "30일 후" 시한부 트리거는 2026-05-15 결정으로 제거 — 데이터 누적 자체가 트리거이며 시한·"출시" 개념 없음.)
 - **외부 커뮤니케이션**: 본 spec의 Takeout 전환 사실은 YouTube · Google 등 외부 제출물에 노출하지 않는다(메모리 `feedback_external_comms_no_takeout`). YouTube Data API quota 회신은 별도 트랙으로 진행 — 본 spec과 독립.
 - **자막 출처 단일성**: 한 video_id는 ASR 출처와 API caption 출처 중 하나만 갖는다. 동시 보유는 정책 위반이며 자동 우선순위 룰은 도입하지 않는다(운영자 결정 요구).
 - **데이터 보존**: mp4(acquisition 원본)와 raw/normalized 자막 JSON은 영구 보존, WAV는 휘발성(통합 모드 즉시 삭제, 분리 모드 캐시 누적). 자동 retention 타이머·시간 기반 purge는 본 spec에 도입하지 않는다. 비공개 영상 데이터 컴플라이언스 요구가 진화하면 별도 idea로 분리.
