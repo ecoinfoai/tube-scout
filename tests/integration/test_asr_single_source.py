@@ -7,12 +7,9 @@ FR-019: mp4-absent video_id → ASR skip + audit reason=no_mp4_in_archive.
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 _PYTHON = sys.executable
 
@@ -28,6 +25,7 @@ class TestYoutubeSourceDeprecated:
     def test_source_youtube_exits_with_code_2(self, tmp_path: Path) -> None:
         """--source youtube must exit 2, not 0 or 1."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         runner = CliRunner()
@@ -45,6 +43,7 @@ class TestYoutubeSourceDeprecated:
     ) -> None:
         """--source youtube output must contain '2026-05-12' deprecation text."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         runner = CliRunner()
@@ -60,6 +59,7 @@ class TestYoutubeSourceDeprecated:
     def test_source_youtube_asr_not_invoked(self, tmp_path: Path) -> None:
         """ASR transcription must not be invoked when --source youtube is given."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         asr_called = []
@@ -97,6 +97,7 @@ class TestDefaultSourceIsAsr:
     def test_no_source_flag_resolves_to_asr(self) -> None:
         """Omitting --source must route to ASR dispatch, not API dispatch."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         api_called = []
@@ -134,6 +135,7 @@ class TestDefaultSourceIsAsr:
     def test_explicit_source_asr_routes_to_asr(self) -> None:
         """Explicit --source asr must also route to ASR dispatch."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         asr_called = []
@@ -171,8 +173,7 @@ class TestMp4AbsentAudit:
     def test_no_mp4_video_skipped_with_audit_row(self, tmp_path: Path) -> None:
         """video_id with no mp4 symlink must be skipped; audit must record it."""
         import csv
-        import sqlite3
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         from tube_scout.services.takeout_ingest import ingest_takeout
 
@@ -246,6 +247,7 @@ class TestCollectTranscriptsContract:
     def test_source_youtube_exit_2(self) -> None:
         """--source youtube → exit 2 (FR-018 deprecation)."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         runner = CliRunner()
@@ -260,6 +262,7 @@ class TestCollectTranscriptsContract:
     def test_missing_channel_exits_nonzero(self) -> None:
         """--channel omitted → non-zero exit (typer required argument)."""
         from typer.testing import CliRunner
+
         from tube_scout.cli.main import app
 
         runner = CliRunner()

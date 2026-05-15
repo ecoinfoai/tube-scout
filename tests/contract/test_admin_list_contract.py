@@ -13,8 +13,6 @@ import json
 import subprocess
 from pathlib import Path
 
-import pytest
-
 
 def _run(args: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
     import os
@@ -103,7 +101,6 @@ class TestAdminListContract:
             }
         ])
 
-        import os
         env = {
             "TUBE_SCOUT_TOKENS_DIR": str(tokens_dir),
             "TUBE_SCOUT_CHANNEL_ID_NURSING": "UCdepts_different_999",
@@ -143,7 +140,6 @@ class TestAdminListContract:
             }
         ])
 
-        import os
         env = {
             "TUBE_SCOUT_TOKENS_DIR": str(tokens_dir),
             "TUBE_SCOUT_CHANNEL_ID_NURSING": "UCnursing001",  # same → ok

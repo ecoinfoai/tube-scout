@@ -12,8 +12,6 @@ import json
 import subprocess
 from pathlib import Path
 
-import pytest
-
 
 def _run(args: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
     import os
@@ -119,7 +117,6 @@ class TestAdminListConsistency:
             }
         ])
 
-        import os
         env = {
             "TUBE_SCOUT_TOKENS_DIR": str(tokens_dir),
             # channel_id_env points to a different value → mismatch
@@ -198,7 +195,6 @@ class TestAdminListBlockingAnalysis:
                         "UCnurse_channels_001", "제목", "ko", "비공개",
                         "처리됨", "2026-01-01T00:00:00+00:00"])
 
-        import os
         env = {
             "TUBE_SCOUT_TOKENS_DIR": str(tokens_dir),
             # Different channel_id → mismatch

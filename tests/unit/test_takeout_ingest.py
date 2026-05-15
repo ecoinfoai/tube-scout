@@ -17,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # helpers: minimal fixture builders matching real Takeout CSV format
 # ---------------------------------------------------------------------------
@@ -205,7 +204,9 @@ class TestDefect6ChannelMissingColumn:
     """T010 — missing '채널 제목(원본)' raises explicit ValueError, not silent None."""
 
     def test_missing_title_column_raises_value_error(self, tmp_path: Path) -> None:
-        from tube_scout.services.takeout_ingest import _parse_channel_csv  # type: ignore[attr-defined]
+        from tube_scout.services.takeout_ingest import (
+            _parse_channel_csv,  # type: ignore[attr-defined]
+        )
 
         bad_csv = tmp_path / "채널.csv"
         with bad_csv.open("w", encoding="utf-8", newline="") as f:
@@ -217,7 +218,9 @@ class TestDefect6ChannelMissingColumn:
             _parse_channel_csv(bad_csv)
 
     def test_missing_channel_id_column_raises_value_error(self, tmp_path: Path) -> None:
-        from tube_scout.services.takeout_ingest import _parse_channel_csv  # type: ignore[attr-defined]
+        from tube_scout.services.takeout_ingest import (
+            _parse_channel_csv,  # type: ignore[attr-defined]
+        )
 
         bad_csv = tmp_path / "채널.csv"
         with bad_csv.open("w", encoding="utf-8", newline="") as f:
