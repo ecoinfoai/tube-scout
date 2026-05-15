@@ -27,6 +27,7 @@ FINGERPRINT_FIELDNAMES: tuple[str, ...] = (
 TAKEOUT_INGEST_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason",
     "mp4_filename", "match_confidence", "score", "timestamp",
+    "raw_value", "elapsed_ms",
 )
 AUDIO_EXTRACT_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason",
@@ -124,11 +125,27 @@ class AuditWriter:
                 f"row['result'] must be one of {sorted(VALID_RESULTS)}, "
                 f"got {row.get('result')!r}"
             )
+        if stage == "takeout_ingest":
+            row = {"raw_value": "", "elapsed_ms": 0, **row}
         self._append_row(
             self._collect_dir / f"{stage}_audit.csv",
             STAGE_FIELDNAMES[stage],
             row,
         )
+
+    def append_takeout_ingest_row(self, row: dict) -> None:
+        """Append a row to takeout_ingest_audit.csv.
+
+        Args:
+            row: Dict with keys matching TAKEOUT_INGEST_FIELDNAMES.
+                raw_value defaults to "" and elapsed_ms to 0 if absent (FR-023 shim).
+        """
+        row = {
+            "raw_value": "",
+            "elapsed_ms": 0,
+            **row,
+        }
+        self.append_row("takeout_ingest", row)
 
     def append_transcript_row(self, row: dict) -> None:
         """Append a row to transcripts_audit.csv.
