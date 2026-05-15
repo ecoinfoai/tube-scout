@@ -14,7 +14,7 @@ import re
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -47,6 +47,13 @@ _VIDEO_CSV_REQUIRED = {
     "근사치 길이(밀리초)", "채널 ID", "카테고리", "공개상태", "오디오 언어",
 }
 _CHANNEL_CSV_REQUIRED = {"채널 ID", "채널 이름"}
+
+# R-4 / FR-005: Korean privacy labels from Takeout CSV → canonical English values
+_PRIVACY_MAPPING: dict[str, Literal["public", "unlisted", "private"]] = {
+    "공개": "public",
+    "일부 공개": "unlisted",
+    "비공개": "private",
+}
 
 
 # ---------------------------------------------------------------------------
