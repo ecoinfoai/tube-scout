@@ -289,6 +289,11 @@ def assemble_channel_work_dir(
 ) -> Path:
     """Assemble per-channel unified work dir with mp4 symlinks (or copies).
 
+    Idempotency guarantee (FR-020): existing symlinks are detected via
+    ``dest.exists() or dest.is_symlink()`` and skipped.  Only mp4 files
+    absent from the work dir are added, so repeated calls with the same or
+    overlapping archive parts never duplicate or overwrite links.
+
     Args:
         takeout_dir: Takeout root.
         channel_alias: spec 003 alias.
@@ -296,7 +301,7 @@ def assemble_channel_work_dir(
         use_symlinks: True=symlink (POSIX), False=copy.
 
     Returns:
-        Channel work_dir path (`work_root/<alias>/`).
+        Channel work_dir path (``work_root/<alias>/``).
 
     Raises:
         OSError: Symlink creation failed.
@@ -592,14 +597,21 @@ def _persist_metadata(
 ) -> int:
     """Persist channel and video metadata using INSERT OR IGNORE.
 
+    Idempotency guarantee (R-8 first-write-wins): video_metadata uses
+    ``INSERT OR IGNORE`` so duplicate video_id rows from a later archive
+    part are silently discarded — the original title/duration/privacy are
+    preserved.  channel_metadata uses ``ON CONFLICT DO UPDATE`` limited to
+    ``takeout_root_hint`` and ``ingested_at`` so channel title is also
+    never overwritten.
+
     Args:
-        db_path: SQLite database path.
+        db_path: SQLite database path (v4 schema required).
         channel_meta: Channel metadata to upsert.
-        video_list: List of video metadata to insert.
+        video_list: List of video metadata to insert (duplicates ignored).
         channel_alias: Alias for the channel record.
 
     Returns:
-        Number of newly inserted video rows.
+        Number of newly inserted video rows (0 on pure duplicate ingest).
     """
     now_iso = datetime.datetime.now(tz=datetime.UTC).isoformat()
     new_videos = 0
