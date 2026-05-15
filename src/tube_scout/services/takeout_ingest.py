@@ -155,7 +155,9 @@ def _parse_takeout_full(
     channel_dir = yt_dir / _CHANNEL_SUBDIR
 
     # Parse 채널.csv
-    channel_csv_files = list(channel_dir.glob("채널.csv")) if channel_dir.exists() else []
+    channel_csv_files = (
+        list(channel_dir.glob("채널.csv")) if channel_dir.exists() else []
+    )
     if not channel_csv_files:
         raise FileNotFoundError(
             f"채널.csv not found under {channel_dir}"
@@ -176,7 +178,7 @@ def _parse_takeout_full(
 
     seen: dict[str, VideoMetadata] = {}
     pending_unknown_privacy_rows: list[dict] = []
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
 
     for csv_path in video_csv_files:
         # 결함 8: skip ignored-category files that happen to match broader glob
@@ -247,7 +249,7 @@ def _parse_channel_csv(csv_path: Path) -> ChannelMetadata:
     Raises:
         ValueError: Required columns missing.
     """
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     with csv_path.open(encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         if reader.fieldnames is None:
@@ -367,7 +369,7 @@ def ingest_takeout(
     yt_dir = candidate_a if candidate_a.exists() else candidate_b
 
     ignored_csv_count = 0
-    now_iso = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    now_iso = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
     audit_writer = AuditWriter(work_root / channel_alias)
 
@@ -409,7 +411,9 @@ def ingest_takeout(
                     })
 
     # Step 2: Parse metadata CSVs
-    channel_meta, video_list, pending_unknown_privacy_rows = _parse_takeout_full(takeout_dir)
+    channel_meta, video_list, pending_unknown_privacy_rows = (
+        _parse_takeout_full(takeout_dir)
+    )
 
     channel_meta = channel_meta.model_copy(update={"channel_alias": channel_alias})
 
@@ -505,7 +509,9 @@ def ingest_takeout(
     # Step 6: Write channel_meta.json + videos_meta.json atomic
     work_dir = work_root / channel_alias
     work_dir.mkdir(parents=True, exist_ok=True)
-    _write_json_atomic(work_dir / "channel_meta.json", channel_meta.model_dump(mode="json"))
+    _write_json_atomic(
+        work_dir / "channel_meta.json", channel_meta.model_dump(mode="json")
+    )
     _write_json_atomic(
         work_dir / "videos_meta.json",
         [v.model_dump(mode="json") for v in video_list],
@@ -586,11 +592,11 @@ def _persist_metadata(
     Returns:
         Number of newly inserted video rows.
     """
-    now_iso = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    now_iso = datetime.datetime.now(tz=datetime.UTC).isoformat()
     new_videos = 0
 
     with sqlite3.connect(db_path) as conn:
-        # Upsert channel_metadata (UPDATE only takeout_root_hint + ingested_at on conflict)
+        # Upsert channel_metadata: on conflict update root_hint + ingested_at only
         conn.execute(
             """
             INSERT INTO channel_metadata
