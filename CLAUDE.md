@@ -1,6 +1,6 @@
 # tube-scout Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-13
+Auto-generated from all feature plans. Last updated: 2026-05-15
 
 ## Active Technologies
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, pydantic v2, nbformat, anthropic (new), openai (new), statsmodels (new — ARIMA), prophet (new), transformers + torch (new — KoBERT/KoELECTRA) (002-v2-analytics-expansion)
@@ -22,6 +22,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-13
 - 기존 spec 007 `02_analyze/content/content_reuse.db`(SQLite) + `embeddings.parquet`(polars) + caption JSON. 신규 테이블 5개 추가, 신규 storage 엔진 도입 없음. (011-reuse-fullstack-subtitle)
 - Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, jinja2, plotly, weasyprint(optional `pdf`), chromaprint/ffmpeg 재사용. 신규 PyPI: `faster-whisper>=1.0.0` (CTranslate2 backend, int8 양자화, GPU/CPU 분기). 신규 Nix: `cudnn`, `cuda-nvrtc` (faster-whisper GPU 런타임). optional extra `asr`로 분리. (013-takeout-local-asr-reuse)
 - SQLite v4 마이그레이션 — `channel_metadata`, `video_metadata` 신규 테이블 + `processing_status` (+`match_confidence`, `caption_source_detail`) + `quality_results` (+`asr_quality_flags` JSON) + `comparison_results` (+`audio_fp_*`, `source_type_pair`) ALTER. JSON(channel_meta, videos_meta) 이중 적재. 임시 WAV는 비영구(통합 모드 즉시 삭제, C-1). (013-takeout-local-asr-reuse)
+- Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, faster-whisper (≥1.0.0, [asr] optional extra), CTranslate2 4.x, ffmpeg (chromaprint 패키지에 동봉). agenix 환경변수는 OAuth 흐름에서만 선택적 사용. **신규 PyPI 의존성 0건** — 기존 [asr] / [dev] / 기본 surface 안에서 모두 처리. (016-takeout-ingest-rebuild)
+- SQLite v4 (스키마 변경 없음 — spec 013 의 channel_metadata + video_metadata + processing_status + quality_results + comparison_results 보존), JSON atomic write (channel_meta.json, videos_meta.json, channels.json, departments.json), 적재 audit CSV (`audit_writer.py` 의 stage `takeout_ingest`). (016-takeout-ingest-rebuild)
 
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, statsmodels/prophet (001-lecture-video-analytics)
 
@@ -63,9 +65,9 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 016-takeout-ingest-rebuild: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, faster-whisper (≥1.0.0, [asr] optional extra), CTranslate2 4.x, ffmpeg (chromaprint 패키지에 동봉). agenix 환경변수는 OAuth 흐름에서만 선택적 사용. **신규 PyPI 의존성 0건** — 기존 [asr] / [dev] / 기본 surface 안에서 모두 처리.
 - 013-takeout-local-asr-reuse (internal milestone tag `v0.5.0`, 2026-05-14; Phase 6 closed): Takeout-based local ASR + lecture-video reuse detection + KB transcript export. Adds `faster-whisper>=1.0.0` (CTranslate2 backend, int8/float16) behind the new `[asr]` optional extra. SQLite migration v3 → v4: 2 new tables (`channel_metadata`, `video_metadata`) + 4 ALTER columns (`processing_status.match_confidence`, `processing_status.caption_source_detail`, `quality_results.asr_quality_flags`, `comparison_results.audio_fp_*` / `source_type_pair`). 9 new CLI commands: `collect takeout`, `collect audio-extract`, `collect process-audio`, `collect transcripts --source asr`, `collect fingerprint --source local`, `process normalize-transcripts`, `analyze content-reuse`, `report content-reuse`, `transcript export`/`export-bulk`. New services: `takeout_ingest.py`, `audio_extract.py`, `asr.py`, `text_normalizer.py`, `worker_pool.py`, `progress_reporter.py`, `evidence_score.py`. New reporting template `professor_nC2_report.html` (multi-axis Phase 3, aggregate-score deferred — weight commit trigger = `comparison_results.review_status` 라벨링 누적, 시한 없음 per 2026-05-15 decision). audit_writer.py generalized to 8 stages. C-3/C-4/C-5 clarifications drive multi-axis report sort, TTY auto-detect progress, atomic claim retry-failed. Phase 5 fully removes the previous-generation media adapter surface (public-sector ops policy, FR-046). `flake.nix` splits into `devShells.default` (CPU) and `devShells.gpu` (unfree opt-in, adds `cudaPackages.cudnn` + `cudaPackages.cuda_nvrtc`).
 - 013-takeout-local-asr-reuse: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`)
-- 012 media adapter (v0.4.0, removed in spec 013): Predecessor media-adapter spec — provided 3 CLI subcommands and SQLite v3 schema (`audio_fingerprint` table). The chromaprint pipeline (`services/audio_fingerprint.py` plus `chromaprint`, `ffmpeg`, `zlib`, `stdenv.cc.cc.lib` in `flake.nix`) is retained by spec 013; the rest of the adapter surface is deleted (FR-046).
 
 
 <!-- MANUAL ADDITIONS START -->
