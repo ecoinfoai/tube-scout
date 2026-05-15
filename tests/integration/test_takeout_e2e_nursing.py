@@ -95,10 +95,10 @@ class TestNursingTakeoutE2E:
         )
 
     def test_audit_ignored_csv_count(self, ingest_result) -> None:
-        """26 ignored CSV directories/files (동영상 녹화 + 동영상 텍스트 + others)."""
+        """30 ignored items = meta_dir 26 (동영상 텍스트 ×13 + 동영상 녹화 ×13) + yt_dir top-level 4 (구독정보/댓글/시청 기록/재생목록)."""
         result, work_root, db_path = ingest_result
-        assert result.ignored_csv_count == 26, (
-            f"Expected ignored_csv_count=26, got {result.ignored_csv_count}"
+        assert result.ignored_csv_count == 30, (
+            f"Expected ignored_csv_count=30, got {result.ignored_csv_count}"
         )
 
     def test_elapsed_seconds_positive(self, ingest_result) -> None:
