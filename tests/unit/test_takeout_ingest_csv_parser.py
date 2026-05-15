@@ -1,9 +1,11 @@
 """T026 RED — takeout_ingest CSV parser unit tests (spec 013).
+T005 RED — _PRIVACY_MAPPING constant in takeout_ingest module (R-4, FR-005).
 
 Covers:
  - split CSV (동영상.csv + 동영상(1).csv + ...) merge + dedup by video_id
  - duration_ms → duration_sec conversion
  - channel_id extraction from 채널.csv
+ - _PRIVACY_MAPPING Korean→English privacy status translation
 """
 
 from __future__ import annotations
@@ -182,3 +184,25 @@ def test_missing_required_column_raises_value_error(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         parse_takeout_csv_metadata(takeout_root)
+
+
+# ─── T005 RED: _PRIVACY_MAPPING constant ─────────────────────────────────────
+
+def test_privacy_mapping_exists():
+    from tube_scout.services.takeout_ingest import _PRIVACY_MAPPING
+
+    assert isinstance(_PRIVACY_MAPPING, dict)
+
+
+def test_privacy_mapping_korean_to_english():
+    from tube_scout.services.takeout_ingest import _PRIVACY_MAPPING
+
+    assert _PRIVACY_MAPPING["공개"] == "public"
+    assert _PRIVACY_MAPPING["일부 공개"] == "unlisted"
+    assert _PRIVACY_MAPPING["비공개"] == "private"
+
+
+def test_privacy_mapping_covers_all_three_statuses():
+    from tube_scout.services.takeout_ingest import _PRIVACY_MAPPING
+
+    assert set(_PRIVACY_MAPPING.values()) == {"public", "unlisted", "private"}
