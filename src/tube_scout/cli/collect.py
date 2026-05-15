@@ -788,8 +788,8 @@ def collect_transcripts_command(
         None,
         "--source",
         help=(
-            "Transcript source: 'api' or 'asr'. "
-            "Default: env TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE or 'api'."
+            "Transcript source: 'asr' (default) or 'youtube' (deprecated, exit 2). "
+            "Default: env TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE or 'asr'."
         ),
     ),
     prefer_captions_api: bool = typer.Option(
@@ -905,8 +905,19 @@ def collect_transcripts_command(
 
         raise typer.Exit(code=2)
 
-    # Resolve --source flag > env > default 'api'
-    resolved_source = source or os.environ.get(_ENV_TRANSCRIPT_SOURCE) or "api"
+    # Resolve --source flag > env > default 'asr' (FR-017: asr is the sole path)
+    resolved_source = source or os.environ.get(_ENV_TRANSCRIPT_SOURCE) or "asr"
+
+    # FR-018: --source youtube is deprecated and blocked (2026-05-12 decision)
+    if resolved_source == "youtube":
+        console.print(
+            "ERROR: --source youtube 는 2026-05-12 결정으로 폐기되었습니다.\n"
+            "       Takeout 단독 운영 모델에서는 자막을\n"
+            "       faster-whisper ASR 로 직접 생성합니다.\n"
+            "       --source asr 가 기본값이므로 옵션을 생략하거나 "
+            "명시적으로 --source asr 를 사용하세요."
+        )
+        raise typer.Exit(code=2)
 
     # Channel alias gate for unknown aliases (exit 5) — before any backend call
     if channel:
@@ -923,9 +934,6 @@ def collect_transcripts_command(
     if resolved_source == "asr":
         if not channel:
             console.print("[red]--channel is required for --source asr.[/red]")
-            raise typer.Exit(code=2)
-        if not asr_preset:
-            console.print("[red]--preset is required for --source asr.[/red]")
             raise typer.Exit(code=2)
         _collect_transcripts_asr(
             channel=channel,
