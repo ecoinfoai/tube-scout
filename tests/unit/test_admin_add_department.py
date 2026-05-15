@@ -66,7 +66,12 @@ class TestAddDepartmentNoOAuthEnv:
         )
         assert dept_file.exists(), "departments.json must be created"
         data = json.loads(dept_file.read_text(encoding="utf-8"))
-        entries = data if isinstance(data, list) else list(data.values())
+        if isinstance(data, list):
+            entries = data
+        elif isinstance(data, dict) and "departments" in data:
+            entries = data["departments"]
+        else:
+            entries = list(data.values())
         match = next((e for e in entries if e.get("alias") == "nursing2"), None)
         assert match is not None, "nursing2 entry must exist in departments.json"
         assert match.get("channel_id_env") is None, (
@@ -152,7 +157,12 @@ class TestAddDepartmentFullOAuth:
         dept_file = tokens_dir / "departments.json"
         assert dept_file.exists(), "departments.json must be created"
         data = json.loads(dept_file.read_text(encoding="utf-8"))
-        entries = data if isinstance(data, list) else list(data.values())
+        if isinstance(data, list):
+            entries = data
+        elif isinstance(data, dict) and "departments" in data:
+            entries = data["departments"]
+        else:
+            entries = list(data.values())
         match = next((e for e in entries if e.get("alias") == "nursingt"), None)
         assert match is not None, "nursingt entry must exist"
         assert match.get("channel_id_env") == "TUBE_SCOUT_CHANNEL_ID_NURSINGT", (

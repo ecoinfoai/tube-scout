@@ -54,7 +54,12 @@ class TestAdminAddDepartmentContract:
         dept_file = tokens_dir / "departments.json"
         assert dept_file.exists()
         data = json.loads(dept_file.read_text(encoding="utf-8"))
-        entries = data if isinstance(data, list) else list(data.values())
+        if isinstance(data, list):
+            entries = data
+        elif isinstance(data, dict) and "departments" in data:
+            entries = data["departments"]
+        else:
+            entries = list(data.values())
         entry = next(e for e in entries if e.get("alias") == "dept-a")
         assert entry["channel_id_env"] is None, "channel_id_env must be null (Combination A)"
         assert entry["client_secret_env"] is None

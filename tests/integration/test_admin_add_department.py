@@ -18,6 +18,7 @@ def cli_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Configure CONFIG/STATE dirs + the agenix env vars used by the test alias."""
     monkeypatch.setenv("TUBE_SCOUT_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("TUBE_SCOUT_CONFIG_DIR", str(tmp_path / "cfg"))
+    monkeypatch.delenv("TUBE_SCOUT_TOKENS_DIR", raising=False)
     monkeypatch.setenv("TUBE_SCOUT_CHANNEL_ID_PHYS", "UCxxxxxxxxxxxxxx")
     monkeypatch.setenv("TUBE_SCOUT_CLIENT_SECRET_PHYS", "client-secret-blob")
     monkeypatch.setenv("TUBE_SCOUT_API_KEY_PHYS", "api-key-blob")

@@ -54,9 +54,10 @@ class Department(BaseModel):
 
     alias: AliasStr
     display_name: DisplayNameStr
-    channel_id_env: ChannelIdEnvStr
-    client_secret_env: ClientSecretEnvStr
-    api_key_env: ApiKeyEnvStr
+    # FR-012: nullable for Takeout-only registrations (no OAuth env configured)
+    channel_id_env: ChannelIdEnvStr | None = None
+    client_secret_env: ClientSecretEnvStr | None = None
+    api_key_env: ApiKeyEnvStr | None = None
     registered_at: AwareDatetime
     last_used_at: AwareDatetime | None = None
 
