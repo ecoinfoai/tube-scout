@@ -1,6 +1,7 @@
 """Unit tests for AuditWriter (spec 012, FR-015, data-model E-5).
 
 T010 RED — 6 scenarios for CSV append, header, atomic write, and fieldnames.
+T004 RED — raw_value and elapsed_ms columns in TAKEOUT_INGEST_FIELDNAMES (FR-023).
 """
 
 import csv
@@ -126,3 +127,59 @@ def test_audit_writer_creates_parent_dirs(tmp_path):
     writer.append_transcript_row(row)
 
     assert (deep_path / "01_collect" / "transcripts_audit.csv").exists()
+
+
+# ─── T004 RED: raw_value + elapsed_ms in TAKEOUT_INGEST_FIELDNAMES ───────────
+
+def test_takeout_ingest_fieldnames_contains_raw_value_and_elapsed_ms():
+    from tube_scout.services.audit_writer import TAKEOUT_INGEST_FIELDNAMES
+
+    assert "raw_value" in TAKEOUT_INGEST_FIELDNAMES
+    assert "elapsed_ms" in TAKEOUT_INGEST_FIELDNAMES
+
+
+def test_takeout_ingest_row_with_raw_value_and_elapsed_ms_written(tmp_path):
+    from tube_scout.services.audit_writer import AuditWriter
+
+    writer = AuditWriter(tmp_path)
+    row = {
+        "video_id": "abc12345678",
+        "result": "success",
+        "reason": "matched",
+        "mp4_filename": "video.mp4",
+        "match_confidence": "high",
+        "score": "0.95",
+        "timestamp": "2026-05-15T00:00:00+09:00",
+        "raw_value": "원본_제목.mp4",
+        "elapsed_ms": 123,
+    }
+    writer.append_row("takeout_ingest", row)
+
+    csv_path = tmp_path / "01_collect" / "takeout_ingest_audit.csv"
+    assert csv_path.exists()
+    rows = list(csv.DictReader(csv_path.open()))
+    assert rows[0]["raw_value"] == "원본_제목.mp4"
+    assert rows[0]["elapsed_ms"] == "123"
+
+
+def test_takeout_ingest_row_backward_compat_default_values(tmp_path):
+    """Existing callers without raw_value/elapsed_ms must still succeed."""
+    from tube_scout.services.audit_writer import AuditWriter
+
+    writer = AuditWriter(tmp_path)
+    row = {
+        "video_id": "abc12345678",
+        "result": "success",
+        "reason": "matched",
+        "mp4_filename": "video.mp4",
+        "match_confidence": "high",
+        "score": "0.95",
+        "timestamp": "2026-05-15T00:00:00+09:00",
+        # raw_value and elapsed_ms intentionally omitted
+    }
+    writer.append_row("takeout_ingest", row)
+
+    csv_path = tmp_path / "01_collect" / "takeout_ingest_audit.csv"
+    rows = list(csv.DictReader(csv_path.open()))
+    assert rows[0]["raw_value"] == ""
+    assert rows[0]["elapsed_ms"] == "0"
