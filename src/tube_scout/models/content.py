@@ -261,7 +261,7 @@ class ChannelMetadata(BaseModel):
     Attributes:
         channel_id: YouTube channel ID (UCxxxx...).
         channel_alias: spec 003 alias resolver key.
-        title: Channel display name.
+        title: Channel display name (required, non-empty).
         country: ISO 3166-1 alpha-2 country code.
         privacy_status: Channel privacy setting.
         source: Data origin.
@@ -271,7 +271,7 @@ class ChannelMetadata(BaseModel):
 
     channel_id: str = Field(..., min_length=1)
     channel_alias: str = Field(..., min_length=1)
-    title: str | None = None
+    title: str = Field(..., min_length=1)
     country: str | None = Field(None, max_length=2)
     privacy_status: Literal["public", "unlisted", "private"] | None = None
     source: Literal["takeout", "api", "manual"]

@@ -1,4 +1,8 @@
-"""Tests for content reuse detection Pydantic models."""
+"""Tests for content reuse detection Pydantic models.
+
+T006 RED — ChannelMetadata title required + privacy_status enum (FR-006).
+T007 RED — VideoMetadata title required + privacy_status enum + duration_seconds>=0 (FR-006).
+"""
 
 from datetime import UTC, datetime
 
@@ -7,12 +11,16 @@ from pydantic import ValidationError
 
 from tube_scout.models.content import (
     CaptionFingerprint,
+    ChannelMetadata,
     ComparisonResult,
     ProcessingStatus,
     QualityCheckResult,
     SuspicionGrade,
     SuspicionScore,
+    VideoMetadata,
 )
+
+_NOW = datetime(2026, 5, 15, tzinfo=UTC)
 
 
 class TestProcessingStatus:
@@ -302,3 +310,114 @@ class TestSuspicionScore:
         assert SuspicionGrade.HIGH == "high"
         assert SuspicionGrade.MODERATE == "moderate"
         assert SuspicionGrade.NORMAL == "normal"
+
+
+# ─── T006 RED: ChannelMetadata validators ────────────────────────────────────
+
+class TestChannelMetadataValidators:
+    """T006 — ChannelMetadata title required + privacy_status enum constraint."""
+
+    def test_title_none_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ChannelMetadata(
+                channel_id="UCx",
+                channel_alias="test",
+                title=None,
+                source="takeout",
+                ingested_at=_NOW,
+            )
+
+    def test_title_empty_string_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ChannelMetadata(
+                channel_id="UCx",
+                channel_alias="test",
+                title="",
+                source="takeout",
+                ingested_at=_NOW,
+            )
+
+    def test_title_valid_accepted(self) -> None:
+        ch = ChannelMetadata(
+            channel_id="UCx",
+            channel_alias="test",
+            title="간호학과 채널",
+            source="takeout",
+            ingested_at=_NOW,
+        )
+        assert ch.title == "간호학과 채널"
+
+    def test_privacy_status_invalid_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            ChannelMetadata(
+                channel_id="UCx",
+                channel_alias="test",
+                title="채널",
+                source="takeout",
+                ingested_at=_NOW,
+                privacy_status="restricted",
+            )
+
+    def test_privacy_status_valid_values(self) -> None:
+        for status in ("public", "unlisted", "private", None):
+            ch = ChannelMetadata(
+                channel_id="UCx",
+                channel_alias="test",
+                title="채널",
+                source="takeout",
+                ingested_at=_NOW,
+                privacy_status=status,
+            )
+            assert ch.privacy_status == status
+
+
+# ─── T007 RED: VideoMetadata validators ──────────────────────────────────────
+
+class TestVideoMetadataValidators:
+    """T007 — VideoMetadata title required + privacy_status + duration>=0."""
+
+    def test_title_empty_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            VideoMetadata(
+                video_id="abcdefghijk",
+                channel_id="UCx",
+                title="",
+                source="takeout",
+                ingested_at=_NOW,
+            )
+
+    def test_duration_negative_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            VideoMetadata(
+                video_id="abcdefghijk",
+                channel_id="UCx",
+                title="제목",
+                source="takeout",
+                ingested_at=_NOW,
+                duration_seconds=-1.0,
+            )
+
+    def test_privacy_status_invalid_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            VideoMetadata(
+                video_id="abcdefghijk",
+                channel_id="UCx",
+                title="제목",
+                source="takeout",
+                ingested_at=_NOW,
+                privacy_status="restricted",
+            )
+
+    def test_valid_video_metadata_accepted(self) -> None:
+        vm = VideoMetadata(
+            video_id="abcdefghijk",
+            channel_id="UCx",
+            title="제목",
+            source="takeout",
+            ingested_at=_NOW,
+            privacy_status="private",
+            duration_seconds=3600.0,
+        )
+        assert vm.title == "제목"
+        assert vm.privacy_status == "private"
+        assert vm.duration_seconds == 3600.0
