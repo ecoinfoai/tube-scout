@@ -20,37 +20,40 @@ import pytest
 # helpers
 # ---------------------------------------------------------------------------
 
+_VIDEO_HEADER = [
+    "동영상 ID", "근사치 길이(밀리초)", "동영상 오디오 언어", "동영상 카테고리",
+    "동영상 설명(원본) 언어", "채널 ID", "동영상 제목(원본)", "동영상 제목(원본) 언어",
+    "개인 정보 보호", "동영상 상태", "동영상 생성 타임스탬프",
+]
+_CHANNEL_HEADER = ["채널 ID", "채널 국가", "채널 태그 1", "채널 제목(원본)", "채널 공개 상태"]
+
+
 def _make_video_row(
     video_id: str,
     title: str = "제목",
     duration_ms: int = 3600000,
     channel_id: str = "UCfake0001",
-    privacy: str = "unlisted",
-) -> list[str]:
-    return [
-        video_id,
-        title,
-        f"https://www.youtube.com/watch?v={video_id}",
-        "2026-04-01T09:00:00Z",
-        str(duration_ms),
-        channel_id,
-        "Education",
-        privacy,
-        "ko",
-    ]
+    privacy: str = "일부 공개",
+) -> dict:
+    return {
+        "동영상 ID": video_id,
+        "근사치 길이(밀리초)": str(duration_ms),
+        "동영상 오디오 언어": "ko",
+        "동영상 카테고리": "교육",
+        "동영상 설명(원본) 언어": "ko",
+        "채널 ID": channel_id,
+        "동영상 제목(원본)": title,
+        "동영상 제목(원본) 언어": "ko",
+        "개인 정보 보호": privacy,
+        "동영상 상태": "처리됨",
+        "동영상 생성 타임스탬프": "2026-04-01T09:00:00+00:00",
+    }
 
 
-_VIDEO_HEADER = [
-    "동영상 ID", "동영상 제목", "동영상 URL", "동영상 생성 타임스탬프",
-    "근사치 길이(밀리초)", "채널 ID", "카테고리", "공개상태", "오디오 언어",
-]
-_CHANNEL_HEADER = ["채널 ID", "채널 이름", "채널 URL", "채널 핸들", "국가", "비공개 상태"]
-
-
-def _write_video_csv(path: Path, rows: list[list[str]]) -> None:
+def _write_video_csv(path: Path, rows: list[dict]) -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(_VIDEO_HEADER)
+        writer = csv.DictWriter(f, fieldnames=_VIDEO_HEADER)
+        writer.writeheader()
         writer.writerows(rows)
 
 
@@ -58,8 +61,7 @@ def _write_channel_csv(path: Path, channel_id: str = "UCfake0001") -> None:
     with path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(_CHANNEL_HEADER)
-        writer.writerow([channel_id, "Test Ch", f"https://www.youtube.com/channel/{channel_id}",
-                         "@testch", "KR", "공개"])
+        writer.writerow([channel_id, "KR", "태그", "Test Ch", "공개"])
 
 
 def _make_takeout_dir(tmp_path: Path) -> tuple[Path, Path, Path]:

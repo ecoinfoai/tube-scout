@@ -1,2 +1,2 @@
-채널 ID,채널 이름,채널 URL,채널 핸들,국가,비공개 상태
-UCfakeAnonChan0123456789,Test Channel,https://www.youtube.com/channel/UCfakeAnonChan0123456789,@testchannel,KR,일부공개
+채널 ID,채널 국가,채널 태그 1,채널 제목(원본),채널 공개 상태
+UCfakeAnonChan0123456789,KR,태그,Test Channel,공개

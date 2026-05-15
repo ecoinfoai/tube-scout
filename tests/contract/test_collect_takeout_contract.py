@@ -90,14 +90,21 @@ def _make_valid_takeout(tmp_path: Path, channel_id: str = "UCtest001") -> Path:
 @pytest.fixture()
 def registered_alias_env(tmp_path):
     """Provide a temporary channels.json with 'testch' alias registered."""
-    import json, os
-    config_dir = tmp_path / "config"
-    config_dir.mkdir()
-    channels_json = config_dir / "channels.json"
+    import json
+    tokens_dir = tmp_path / "tokens"
+    tokens_dir.mkdir()
+    channels_json = tokens_dir / "channels.json"
     channels_json.write_text(json.dumps({
-        "channels": [{"alias": "testch", "channel_id": "UCtest001"}]
+        "testch": {
+            "alias": "testch",
+            "channel_id": "UCtest001",
+            "channel_name": "Test Channel",
+            "registered_at": "2026-01-01T00:00:00Z",
+            "last_used_at": "2026-01-01T00:00:00Z",
+            "token_path": str(tokens_dir / "testch_token.json"),
+        }
     }), encoding="utf-8")
-    return {"TUBE_SCOUT_CONFIG_DIR": str(config_dir)}
+    return {"TUBE_SCOUT_TOKENS_DIR": str(tokens_dir)}
 
 
 class TestCollectTakeoutErrorCases:

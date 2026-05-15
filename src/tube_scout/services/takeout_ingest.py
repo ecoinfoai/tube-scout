@@ -13,6 +13,7 @@ import os
 import re
 import sqlite3
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -42,11 +43,18 @@ _META_SUBDIR = "동영상 메타데이터"
 _CHANNEL_SUBDIR = "채널"
 _VIDEO_SUBDIR = "동영상"
 
+# Minimum required columns — real Takeout export (결함 4 fix: drop absent URL column)
 _VIDEO_CSV_REQUIRED = {
-    "동영상 ID", "동영상 제목", "동영상 URL", "동영상 생성 타임스탬프",
-    "근사치 길이(밀리초)", "채널 ID", "카테고리", "공개상태", "오디오 언어",
+    "동영상 ID",
+    "동영상 제목(원본)",
+    "근사치 길이(밀리초)",
+    "채널 ID",
+    "개인 정보 보호",
+    "동영상 생성 타임스탬프",
 }
-_CHANNEL_CSV_REQUIRED = {"채널 ID", "채널 이름"}
+
+# Real Takeout channel CSV required columns (결함 3 fix)
+_CHANNEL_CSV_REQUIRED = {"채널 ID", "채널 제목(원본)"}
 
 # R-4 / FR-005: Korean privacy labels from Takeout CSV → canonical English values
 _PRIVACY_MAPPING: dict[str, Literal["public", "unlisted", "private"]] = {
@@ -73,6 +81,9 @@ class IngestResult(BaseModel):
     unmapped_filenames: int
     ignored_csv_count: int
     dry_run: bool
+    mp4_present_count: int = 0
+    mp4_absent_count: int = 0
+    elapsed_seconds: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -99,16 +110,47 @@ def parse_takeout_csv_metadata(
     """Parse Takeout export metadata CSVs.
 
     Args:
-        takeout_dir: Takeout decompressed root (contains "YouTube 및 YouTube Music/").
+        takeout_dir: Takeout decompressed root. Supports two layouts:
+            (a) archive root containing a ``Takeout/`` sub-directory, or
+            (b) the ``Takeout/`` directory itself (contains
+            ``YouTube 및 YouTube Music/`` directly).
 
     Returns:
         (channel_meta, video_meta_list) tuple, video_meta deduped by video_id.
+        Unknown-privacy rows are silently dropped; use _parse_takeout_full()
+        internally when audit emission is required.
 
     Raises:
         FileNotFoundError: Required CSVs not found under takeout_dir.
         ValueError: Required columns absent from CSV.
     """
-    yt_dir = takeout_dir / _YT_SUBDIR
+    channel_meta, videos, _ = _parse_takeout_full(takeout_dir)
+    return channel_meta, videos
+
+
+def _parse_takeout_full(
+    takeout_dir: Path,
+) -> tuple[ChannelMetadata, list[VideoMetadata], list[dict]]:
+    """Internal parser that also returns unknown-privacy rows for audit.
+
+    Returns:
+        (channel_meta, video_list, pending_unknown_privacy_rows) — the third
+        element is a list of {"video_id": ..., "raw_value": ...} dicts for rows
+        whose privacy label was not found in _PRIVACY_MAPPING.
+    """
+    # 결함 12: yt_dir 자동 탐색 — archive root 또는 Takeout/ 자체 모두 허용
+    candidate_a = takeout_dir / "Takeout" / _YT_SUBDIR
+    candidate_b = takeout_dir / _YT_SUBDIR
+    if candidate_a.exists():
+        yt_dir = candidate_a
+    elif candidate_b.exists():
+        yt_dir = candidate_b
+    else:
+        raise FileNotFoundError(
+            f"Neither '{takeout_dir}/Takeout/{_YT_SUBDIR}' "
+            f"nor '{takeout_dir}/{_YT_SUBDIR}' exists"
+        )
+
     meta_dir = yt_dir / _META_SUBDIR
     channel_dir = yt_dir / _CHANNEL_SUBDIR
 
@@ -120,19 +162,26 @@ def parse_takeout_csv_metadata(
         )
     channel_meta = _parse_channel_csv(channel_csv_files[0])
 
-    # Parse all 동영상*.csv files (split CSV support)
+    # Parse all 동영상*.csv files (split CSV support) — 결함 8 fix: exact glob union
     if not meta_dir.exists():
         raise FileNotFoundError(f"동영상 메타데이터 directory not found: {meta_dir}")
-    video_csv_files = sorted(meta_dir.glob("동영상*.csv"))
+
+    video_csv_files = sorted(
+        set(meta_dir.glob("동영상.csv")) | set(meta_dir.glob("동영상(*).csv"))
+    )
     if not video_csv_files:
         raise FileNotFoundError(
             f"No 동영상*.csv files found under {meta_dir}"
         )
 
     seen: dict[str, VideoMetadata] = {}
+    pending_unknown_privacy_rows: list[dict] = []
     now = datetime.datetime.now(tz=datetime.timezone.utc)
 
     for csv_path in video_csv_files:
+        # 결함 8: skip ignored-category files that happen to match broader glob
+        if _is_ignored(csv_path.name):
+            continue
         with csv_path.open(encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
             if reader.fieldnames is None:
@@ -158,19 +207,24 @@ def parse_takeout_csv_metadata(
                         )
                     except ValueError:
                         created_at = None
-                privacy = row["공개상태"].strip()
-                if privacy not in ("public", "unlisted", "private"):
-                    privacy_status = None
-                else:
-                    privacy_status = privacy  # type: ignore[assignment]
+
+                # 결함 7 / FR-005: Korean privacy → English via _PRIVACY_MAPPING
+                raw_privacy = row["개인 정보 보호"].strip()
+                privacy_status = _PRIVACY_MAPPING.get(raw_privacy)
+                if privacy_status is None:
+                    # Unknown privacy value — skip row, accumulate for audit
+                    pending_unknown_privacy_rows.append(
+                        {"video_id": video_id, "raw_value": raw_privacy}
+                    )
+                    continue
 
                 vm = VideoMetadata(
                     video_id=video_id,
                     channel_id=channel_meta.channel_id,
-                    title=row["동영상 제목"].strip(),
+                    title=row["동영상 제목(원본)"].strip(),
                     duration_seconds=duration_ms / 1000.0,
-                    language=row["오디오 언어"].strip() or None,
-                    category=row["카테고리"].strip() or None,
+                    language=row.get("동영상 오디오 언어", "").strip() or None,
+                    category=row.get("동영상 카테고리", "").strip() or None,
                     privacy_status=privacy_status,
                     created_at=created_at,
                     source="takeout",
@@ -178,7 +232,7 @@ def parse_takeout_csv_metadata(
                 )
                 seen[video_id] = vm
 
-    return channel_meta, list(seen.values())
+    return channel_meta, list(seen.values()), pending_unknown_privacy_rows
 
 
 def _parse_channel_csv(csv_path: Path) -> ChannelMetadata:
@@ -206,8 +260,8 @@ def _parse_channel_csv(csv_path: Path) -> ChannelMetadata:
             return ChannelMetadata(
                 channel_id=row["채널 ID"].strip(),
                 channel_alias="__unknown__",
-                title=row.get("채널 이름", "").strip() or None,
-                country=row.get("국가", "").strip()[:2] or None,
+                title=row["채널 제목(원본)"].strip() or None,
+                country=row.get("채널 국가", "").strip()[:2] or None,
                 source="takeout",
                 ingested_at=now,
             )
@@ -242,7 +296,12 @@ def assemble_channel_work_dir(
     video_dir = work_dir / _VIDEO_SUBDIR
     video_dir.mkdir(parents=True, exist_ok=True)
 
-    src_video_dir = takeout_dir / _YT_SUBDIR / _VIDEO_SUBDIR
+    # Resolve yt_dir using the same auto-discovery logic
+    candidate_a = takeout_dir / "Takeout" / _YT_SUBDIR
+    candidate_b = takeout_dir / _YT_SUBDIR
+    yt_dir = candidate_a if candidate_a.exists() else candidate_b
+
+    src_video_dir = yt_dir / _VIDEO_SUBDIR
     if not src_video_dir.exists():
         return work_dir
 
@@ -289,6 +348,8 @@ def ingest_takeout(
         ValueError: alias not registered.
         FileNotFoundError: takeout_dir path error.
     """
+    _t_start = time.monotonic()
+
     if not takeout_dir.exists():
         raise FileNotFoundError(f"takeout_dir not found: {takeout_dir}")
 
@@ -300,13 +361,17 @@ def ingest_takeout(
             f"Available aliases: {sorted(registry)}"
         )
 
-    # Detect and audit ignored categories (FR-008)
-    yt_dir = takeout_dir / _YT_SUBDIR
+    # Resolve yt_dir
+    candidate_a = takeout_dir / "Takeout" / _YT_SUBDIR
+    candidate_b = takeout_dir / _YT_SUBDIR
+    yt_dir = candidate_a if candidate_a.exists() else candidate_b
+
     ignored_csv_count = 0
     now_iso = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
 
     audit_writer = AuditWriter(work_root / channel_alias)
 
+    # Detect and audit ignored categories under yt_dir top-level (FR-008)
     if yt_dir.exists():
         for item in yt_dir.iterdir():
             if _is_ignored(item.name):
@@ -320,11 +385,48 @@ def ingest_takeout(
                         "match_confidence": "n/a",
                         "score": 0,
                         "timestamp": now_iso,
+                        "raw_value": "",
+                        "elapsed_ms": 0,
+                    })
+
+    # Detect and audit ignored category files inside meta_dir (결함 8, FR-011)
+    meta_dir = yt_dir / _META_SUBDIR
+    if meta_dir.exists():
+        for item in meta_dir.iterdir():
+            if _is_ignored(item.name):
+                ignored_csv_count += 1
+                if not dry_run:
+                    audit_writer.append_row("takeout_ingest", {
+                        "video_id": "n/a",
+                        "result": "skip",
+                        "reason": "ignored_by_policy",
+                        "mp4_filename": item.name,
+                        "match_confidence": "n/a",
+                        "score": 0,
+                        "timestamp": now_iso,
+                        "raw_value": "",
+                        "elapsed_ms": 0,
                     })
 
     # Step 2: Parse metadata CSVs
-    channel_meta, video_list = parse_takeout_csv_metadata(takeout_dir)
+    channel_meta, video_list, pending_unknown_privacy_rows = _parse_takeout_full(takeout_dir)
+
     channel_meta = channel_meta.model_copy(update={"channel_alias": channel_alias})
+
+    # Audit unknown privacy rows (결함 7, FR-005)
+    if not dry_run:
+        for entry in pending_unknown_privacy_rows:
+            audit_writer.append_row("takeout_ingest", {
+                "video_id": entry["video_id"],
+                "result": "skip",
+                "reason": "unknown_privacy_value",
+                "mp4_filename": "n/a",
+                "match_confidence": "n/a",
+                "score": 0,
+                "timestamp": now_iso,
+                "raw_value": entry["raw_value"],
+                "elapsed_ms": 0,
+            })
 
     # Step 3+4: Evidence score mapping for mp4 files
     src_video_dir = yt_dir / _VIDEO_SUBDIR
@@ -352,7 +454,32 @@ def ingest_takeout(
                     "match_confidence": decision.confidence or "none",
                     "score": decision.score,
                     "timestamp": now_iso,
+                    "raw_value": "",
+                    "elapsed_ms": int((time.monotonic() - _t_start) * 1000),
                 })
+
+    # Count mp4-present vs mp4-absent (FR-022)
+    mapped_video_ids = set(vid for vid in mp4_video_id_map.values() if vid)
+    mp4_present_count = len(mapped_video_ids)
+    mp4_absent_count = 0
+
+    for vm in video_list:
+        if vm.video_id not in mapped_video_ids:
+            mp4_absent_count += 1
+            if not dry_run:
+                audit_writer.append_row("takeout_ingest", {
+                    "video_id": vm.video_id,
+                    "result": "skip",
+                    "reason": "no_mp4_in_archive",
+                    "mp4_filename": "n/a",
+                    "match_confidence": "n/a",
+                    "score": 0,
+                    "timestamp": now_iso,
+                    "raw_value": "",
+                    "elapsed_ms": int((time.monotonic() - _t_start) * 1000),
+                })
+
+    elapsed_seconds = time.monotonic() - _t_start
 
     if dry_run:
         return IngestResult(
@@ -366,6 +493,9 @@ def ingest_takeout(
             unmapped_filenames=unmapped_count,
             ignored_csv_count=ignored_csv_count,
             dry_run=True,
+            mp4_present_count=mp4_present_count,
+            mp4_absent_count=mp4_absent_count,
+            elapsed_seconds=elapsed_seconds,
         )
 
     # Step 5: Persist to SQLite v4
@@ -384,6 +514,8 @@ def ingest_takeout(
     # Step 7: Assemble work_dir with mp4 symlinks
     assemble_channel_work_dir(takeout_dir, channel_alias, work_root, use_symlinks)
 
+    elapsed_seconds = time.monotonic() - _t_start
+
     return IngestResult(
         channel_id=channel_meta.channel_id,
         channel_alias=channel_alias,
@@ -395,6 +527,9 @@ def ingest_takeout(
         unmapped_filenames=unmapped_count,
         ignored_csv_count=ignored_csv_count,
         dry_run=False,
+        mp4_present_count=mp4_present_count,
+        mp4_absent_count=mp4_absent_count,
+        elapsed_seconds=elapsed_seconds,
     )
 
 

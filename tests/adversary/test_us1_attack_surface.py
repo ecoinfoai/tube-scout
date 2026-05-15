@@ -32,10 +32,11 @@ _CHANNEL_DIR = "채널"
 _VIDEO_DIR = "동영상"
 
 VIDEO_CSV_COLS = [
-    "동영상 ID", "동영상 제목", "동영상 URL", "동영상 생성 타임스탬프",
-    "근사치 길이(밀리초)", "채널 ID", "카테고리", "공개상태", "오디오 언어",
+    "동영상 ID", "근사치 길이(밀리초)", "동영상 오디오 언어", "동영상 카테고리",
+    "동영상 설명(원본) 언어", "채널 ID", "동영상 제목(원본)", "동영상 제목(원본) 언어",
+    "개인 정보 보호", "동영상 상태", "동영상 생성 타임스탬프",
 ]
-CHANNEL_CSV_COLS = ["채널 ID", "채널 이름", "국가"]
+CHANNEL_CSV_COLS = ["채널 ID", "채널 국가", "채널 태그 1", "채널 제목(원본)", "채널 공개 상태"]
 
 
 def _make_registry() -> dict:
@@ -74,12 +75,12 @@ def _build_takeout(
     with (yt / _CHANNEL_DIR / "채널.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(CHANNEL_CSV_COLS)
-        w.writerow([channel_id, "Adversary Channel", "KR"])
+        w.writerow([channel_id, "KR", "태그", "Adversary Channel", "공개"])
 
     if video_rows is None:
         video_rows = [[
-            "vidADV00001", "Week 1", f"https://youtube.com/watch?v=vidADV00001",
-            "2026-01-01T00:00:00Z", "60000", channel_id, "Education", "public", "ko",
+            "vidADV00001", "60000", "ko", "교육", "ko",
+            channel_id, "Week 1", "ko", "비공개", "처리됨", "2026-01-01T00:00:00+00:00",
         ]]
 
     with (yt / _META_DIR / "동영상.csv").open("w", encoding="utf-8", newline="") as f:
@@ -105,7 +106,7 @@ def test_attack_a_malformed_csv_bytes(tmp_path: Path) -> None:
     with (yt / _CHANNEL_DIR / "채널.csv").open("w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(CHANNEL_CSV_COLS)
-        w.writerow([_CHANNEL_ID, "Adversary Channel", "KR"])
+        w.writerow([_CHANNEL_ID, "KR", "태그", "Adversary Channel", "공개"])
 
     # Write binary garbage — not valid UTF-8 CSV
     (yt / _META_DIR / "동영상.csv").write_bytes(b"\xff\xfe\x00\x01INVALID\xba\xad\xf0\x0d")
@@ -139,12 +140,12 @@ def test_attack_b_duplicate_video_id_in_csv(tmp_path: Path) -> None:
     root = tmp_path / "takeout"
     # Two rows with same video_id
     dup_rows = [
-        ["vidDUP00001", "Lecture A", "https://youtube.com/watch?v=vidDUP00001",
-         "2026-01-01T00:00:00Z", "60000", _CHANNEL_ID, "Education", "public", "ko"],
-        ["vidDUP00001", "Lecture A duplicate", "https://youtube.com/watch?v=vidDUP00001",
-         "2026-01-02T00:00:00Z", "60000", _CHANNEL_ID, "Education", "public", "ko"],
-        ["vidDUP00002", "Lecture B", "https://youtube.com/watch?v=vidDUP00002",
-         "2026-01-01T00:00:00Z", "60000", _CHANNEL_ID, "Education", "public", "ko"],
+        ["vidDUP00001", "60000", "ko", "교육", "ko", _CHANNEL_ID,
+         "Lecture A", "ko", "일부 공개", "처리됨", "2026-01-01T00:00:00+00:00"],
+        ["vidDUP00001", "60000", "ko", "교육", "ko", _CHANNEL_ID,
+         "Lecture A duplicate", "ko", "일부 공개", "처리됨", "2026-01-02T00:00:00+00:00"],
+        ["vidDUP00002", "60000", "ko", "교육", "ko", _CHANNEL_ID,
+         "Lecture B", "ko", "일부 공개", "처리됨", "2026-01-01T00:00:00+00:00"],
     ]
     _build_takeout(root, video_rows=dup_rows)
 
@@ -181,8 +182,8 @@ def test_attack_c_missing_mp4_relative_path(tmp_path: Path) -> None:
 
     root = tmp_path / "takeout"
     _build_takeout(root, video_rows=[
-        ["vidNOMP400001", "No MP4 Video", "https://youtube.com/watch?v=vidNOMP400001",
-         "2026-01-01T00:00:00Z", "60000", _CHANNEL_ID, "Education", "public", "ko"],
+        ["vidNOMP400001", "60000", "ko", "교육", "ko", _CHANNEL_ID,
+         "No MP4 Video", "ko", "비공개", "처리됨", "2026-01-01T00:00:00+00:00"],
     ])
 
     db_path = tmp_path / "reuse.db"
@@ -242,10 +243,10 @@ def test_attack_d_ambiguous_mapping_no_mp4_file(tmp_path: Path) -> None:
     root = tmp_path / "takeout"
     # Create CSV rows but no corresponding mp4 files in 동영상/
     _build_takeout(root, video_rows=[
-        ["vidAMB00001", "1-1.강의A", "https://youtube.com/watch?v=vidAMB00001",
-         "2026-01-01T00:00:00Z", "3600000", _CHANNEL_ID, "Education", "unlisted", "ko"],
-        ["vidAMB00002", "1-2.강의B", "https://youtube.com/watch?v=vidAMB00002",
-         "2026-01-08T00:00:00Z", "3600000", _CHANNEL_ID, "Education", "unlisted", "ko"],
+        ["vidAMB00001", "3600000", "ko", "교육", "ko", _CHANNEL_ID,
+         "1-1.강의A", "ko", "일부 공개", "처리됨", "2026-01-01T00:00:00+00:00"],
+        ["vidAMB00002", "3600000", "ko", "교육", "ko", _CHANNEL_ID,
+         "1-2.강의B", "ko", "일부 공개", "처리됨", "2026-01-08T00:00:00+00:00"],
     ])
     # Intentionally: no mp4 files placed in 동영상/ directory
 
@@ -280,8 +281,8 @@ def test_attack_e_concurrent_ingest_same_channel(tmp_path: Path) -> None:
 
     root = tmp_path / "takeout"
     _build_takeout(root, video_rows=[
-        ["vidCONC00001", "Concurrent Video", "https://youtube.com/watch?v=vidCONC00001",
-         "2026-01-01T00:00:00Z", "60000", _CHANNEL_ID, "Education", "public", "ko"],
+        ["vidCONC00001", "60000", "ko", "교육", "ko", _CHANNEL_ID,
+         "Concurrent Video", "ko", "공개", "처리됨", "2026-01-01T00:00:00+00:00"],
     ])
 
     db_path = tmp_path / "reuse.db"
