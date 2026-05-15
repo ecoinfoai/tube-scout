@@ -133,10 +133,17 @@ def _parse_takeout_full(
 ) -> tuple[ChannelMetadata, list[VideoMetadata], list[dict]]:
     """Internal parser that also returns unknown-privacy rows for audit.
 
+    Args:
+        takeout_dir: Takeout decompressed root (archive root or Takeout/ itself).
+
     Returns:
-        (channel_meta, video_list, pending_unknown_privacy_rows) — the third
-        element is a list of {"video_id": ..., "raw_value": ...} dicts for rows
-        whose privacy label was not found in _PRIVACY_MAPPING.
+        3-tuple of (channel_meta, video_list, pending_unknown_privacy_rows).
+        The third element is a list of {"video_id": ..., "raw_value": ...} dicts
+        for rows whose privacy label was not found in _PRIVACY_MAPPING.
+
+    Raises:
+        FileNotFoundError: Required directory or CSV not found.
+        ValueError: Required CSV columns absent or CSV malformed.
     """
     # 결함 12: yt_dir 자동 탐색 — archive root 또는 Takeout/ 자체 모두 허용
     candidate_a = takeout_dir / "Takeout" / _YT_SUBDIR
@@ -544,10 +551,12 @@ def ingest_takeout(
 # ---------------------------------------------------------------------------
 
 def _is_ignored(name: str) -> bool:
+    """Return True if the filename matches an ignored-category pattern."""
     return any(p.match(name) for p in _IGNORED_PATTERNS)
 
 
 def _ensure_v4(db_path: Path) -> None:
+    """Bootstrap or migrate SQLite DB to schema v4 in-place."""
     from tube_scout.storage.content_db import (
         ContentDB,
         migrate_to_v2,
@@ -651,6 +660,7 @@ def _persist_metadata(
 
 
 def _write_json_atomic(path: Path, data: Any) -> None:
+    """Write JSON to path atomically via a temp-file rename."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
     try:
