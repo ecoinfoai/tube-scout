@@ -673,7 +673,7 @@ def _collect_transcripts_asr(  # noqa: C901
 
     for video_id in video_ids:
         wav_path = cache_dir / f"{video_id}.wav"
-        ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+        ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
         if not wav_path.exists():
             console.print(f"[yellow]skip[/yellow] {video_id}: WAV not found {wav_path}")
@@ -713,8 +713,8 @@ def _collect_transcripts_asr(  # noqa: C901
             if cleanup_audio and wav_path.exists():
                 wav_path.unlink(missing_ok=True)
 
-        import tempfile as _tempfile
         import os as _os
+        import tempfile as _tempfile
         transcript = {
             "video_id": video_id,
             "source": result.caption_source_detail,
@@ -1859,7 +1859,7 @@ def _collect_fingerprint_local(
     any_failed = False
 
     for video_id, mp4_rel in rows:
-        ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+        ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
         if input_kind == "mp4":
             if mp4_rel is None:
@@ -2081,7 +2081,7 @@ def collect_process_audio_command(  # noqa: C901
     import sqlite3
 
     from tube_scout.services.asr import PRESET_TABLE, transcribe_audio
-    from tube_scout.services.audio_extract import WavLifecycle, extract_wav_16k_mono
+    from tube_scout.services.audio_extract import extract_wav_16k_mono
     from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
     from tube_scout.services.audit_writer import AuditWriter
     from tube_scout.services.progress_reporter import make_progress_reporter
@@ -2156,7 +2156,7 @@ def collect_process_audio_command(  # noqa: C901
 
     with make_progress_reporter("transcripts", total=len(rows)) as progress:
         for i, (video_id, mp4_rel) in enumerate(rows, start=1):
-            ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+            ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
             if mp4_rel is None:
                 console.print(f"[yellow]skip[/yellow] {video_id}: no mp4_relative_path")
@@ -2308,7 +2308,7 @@ def collect_takeout_command(
 
     from tube_scout.services.takeout_ingest import ingest_takeout
 
-    # FR-015: block collect if alias has a mismatch between channels.json and departments.json
+    # FR-015: block collect if alias has a mismatch between registries
     try:
         from tube_scout.services.auth import load_registry
         from tube_scout.web.repo.departments_repo import DepartmentsRepo
@@ -2338,7 +2338,9 @@ def collect_takeout_command(
     db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
 
     if not takeout_path.exists():
-        console.print(f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]")
+        console.print(
+            f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]"
+        )
         raise typer.Exit(code=1)
 
     try:
@@ -2482,7 +2484,7 @@ def collect_audio_extract_command(
 
     for video_id, mp4_rel in rows:
         wav_path = cache_dir / f"{video_id}.wav"
-        ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+        ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
         if mp4_rel is None:
             audit.append_row("audio_extract", {

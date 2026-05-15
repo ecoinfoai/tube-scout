@@ -230,7 +230,19 @@ def add_department(
         False, "--no-oauth-consent", help="OAuth 동의 흐름 건너뛰기"
     ),
 ) -> None:
-    """학과를 신규 등록한다 (departments.json 원자적 쓰기 + 선택적 OAuth)."""
+    """학과를 신규 등록한다 (departments.json 원자적 쓰기 + 선택적 OAuth).
+
+    Args:
+        alias: Department alias (lowercase alphanumeric + hyphens).
+        display: Korean display name (1~32 chars).
+        channel_id_env: agenix env-var name for channel ID (FR-012: optional).
+        client_secret_env: agenix env-var name for OAuth client secret (optional).
+        api_key_env: agenix env-var name for YouTube Data API key (optional).
+        no_oauth_consent: Skip the OAuth consent browser flow when True.
+
+    Raises:
+        typer.Exit: code 1 on validation failure, duplicate alias, or consent error.
+    """
     from tube_scout.services.auth import load_registry
     from tube_scout.web.repo.departments_repo import (
         DepartmentsRepo,
@@ -273,7 +285,8 @@ def add_department(
         if env_pattern_violations:
             first_field, first_value = env_pattern_violations[0]
             err_console.print(
-                f"[red]환경변수명 형식이 올바르지 않습니다 ({first_field}={first_value}). "
+                f"[red]환경변수명 형식이 올바르지 않습니다 "
+                f"({first_field}={first_value}). "
                 f"agenix 시크릿 매핑 패턴(TUBE_SCOUT_*)을 확인하세요.[/red]"
             )
             _record(
@@ -368,7 +381,7 @@ def add_department(
 # ---------------------------------------------------------------------------
 
 
-def _build_union_rows() -> list[dict]:
+def _build_union_rows() -> list[dict[str, str | None]]:
     """Build union of channels.json + departments.json with source/consistency.
 
     Returns:
@@ -424,7 +437,9 @@ def _build_union_rows() -> list[dict]:
 
         if consistency == "mismatch":
             dept = depts[a]
-            dept_id = os.environ.get(dept.channel_id_env) if dept.channel_id_env else None
+            dept_id = (
+                os.environ.get(dept.channel_id_env) if dept.channel_id_env else None
+            )
             err_console.print(
                 f"WARNING: alias '{a}' mismatch "
                 f"(channels.json={channels[a].channel_id}, "
@@ -446,7 +461,14 @@ def _build_union_rows() -> list[dict]:
 def list_departments(
     json_output: bool = typer.Option(False, "--json", help="JSON 출력"),
 ) -> None:
-    """등록된 학과 목록을 출력한다 (FR-014: channels.json + departments.json union)."""
+    """등록된 학과 목록을 출력한다 (FR-014: channels.json + departments.json union).
+
+    Args:
+        json_output: Emit raw JSON instead of a rich table when True.
+
+    Raises:
+        typer.Exit: Never raised; exits 0 on empty list.
+    """
     rows = _build_union_rows()
     if json_output:
         console.print(json.dumps(rows, ensure_ascii=False))
