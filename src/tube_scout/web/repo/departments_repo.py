@@ -50,9 +50,15 @@ class DepartmentsRepo:
 
         Args:
             path: Override the JSON file location for tests. Defaults to
-                ``${CONFIG_DIR}/departments.json``.
+                ``${TUBE_SCOUT_TOKENS_DIR}/departments.json`` when the env var
+                is set, otherwise ``${CONFIG_DIR}/departments.json``.
         """
-        self._path = path or (get_config_dir() / _FILENAME)
+        if path is not None:
+            self._path = path
+        else:
+            tokens_dir = os.environ.get("TUBE_SCOUT_TOKENS_DIR")
+            base = Path(tokens_dir) if tokens_dir else get_config_dir()
+            self._path = base / _FILENAME
         self._cached_mtime_ns: int | None = None
         self._cached_rows: list[Department] | None = None
 
@@ -125,12 +131,17 @@ class DepartmentsRepo:
             blob = json.loads(raw_text)
         except json.JSONDecodeError as exc:
             raise ValueError(f"departments.json is malformed JSON: {exc}") from exc
-        if not isinstance(blob, dict) or "departments" not in blob:
+        # Support both legacy {"departments": [...]} and flat list formats.
+        if isinstance(blob, dict) and "departments" in blob:
+            entries = blob["departments"]
+        elif isinstance(blob, list):
+            entries = blob
+        else:
             raise ValueError(
-                "departments.json must be an object with a 'departments' list"
+                "departments.json must be a list or an object with a 'departments' key"
             )
         rows = []
-        for entry in blob["departments"]:
+        for entry in entries:
             try:
                 rows.append(Department.model_validate(entry))
             except ValidationError:

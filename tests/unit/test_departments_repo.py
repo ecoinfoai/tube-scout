@@ -37,6 +37,7 @@ def _sample_dept_dict(alias: str = "physiology", display: str = "물리치료과
 def repo_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Redirect CONFIG_DIR to ``tmp_path`` and return the JSON file path."""
     monkeypatch.setenv("TUBE_SCOUT_CONFIG_DIR", str(tmp_path))
+    monkeypatch.delenv("TUBE_SCOUT_TOKENS_DIR", raising=False)
     return tmp_path / "departments.json"
 
 

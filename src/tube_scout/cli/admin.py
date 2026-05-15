@@ -217,59 +217,103 @@ def _check_envs_present(*names: str) -> list[str]:
 def add_department(
     alias: str = typer.Option(..., "--alias", help="학과 alias (영문 + 숫자 + 하이픈)"),
     display: str = typer.Option(..., "--display", help="한국어 표시명 (1~32자)"),
-    channel_id_env: str = typer.Option(
-        ..., "--channel-id-env", help="agenix 환경변수명"
+    channel_id_env: str | None = typer.Option(
+        None, "--channel-id-env", help="agenix 환경변수명 (FR-012: optional)"
     ),
-    client_secret_env: str = typer.Option(
-        ..., "--client-secret-env", help="agenix 환경변수명"
+    client_secret_env: str | None = typer.Option(
+        None, "--client-secret-env", help="agenix 환경변수명 (FR-012: optional)"
     ),
-    api_key_env: str = typer.Option(..., "--api-key-env", help="agenix 환경변수명"),
+    api_key_env: str | None = typer.Option(
+        None, "--api-key-env", help="agenix 환경변수명 (FR-012: optional)"
+    ),
     no_oauth_consent: bool = typer.Option(
         False, "--no-oauth-consent", help="OAuth 동의 흐름 건너뛰기"
     ),
 ) -> None:
     """학과를 신규 등록한다 (departments.json 원자적 쓰기 + 선택적 OAuth)."""
+    from tube_scout.services.auth import load_registry
     from tube_scout.web.repo.departments_repo import (
         DepartmentsRepo,
         DuplicateAliasError,
     )
 
-    # ADV-US3-14: env names MUST match agenix prefix patterns. Without
-    # this, an operator could map their channel secret onto
-    # TUBE_SCOUT_ADMIN_PASSWORD_BCRYPT or any unrelated env var.
-    env_pattern_violations = []
-    for field, value in (
-        ("channel_id_env", channel_id_env),
-        ("client_secret_env", client_secret_env),
-        ("api_key_env", api_key_env),
-    ):
-        if not _ENV_NAME_PATTERNS[field].fullmatch(value):
-            env_pattern_violations.append((field, value))
-    if env_pattern_violations:
-        first_field, first_value = env_pattern_violations[0]
+    # FR-013: OAuth env options must be all-or-nothing
+    oauth_opts = {
+        "channel-id-env": channel_id_env,
+        "client-secret-env": client_secret_env,
+        "api-key-env": api_key_env,
+    }
+    specified = [k for k, v in oauth_opts.items() if v is not None]
+    if specified and len(specified) < 3:
         err_console.print(
-            f"[red]환경변수명 형식이 올바르지 않습니다 ({first_field}={first_value}). "
-            f"agenix 시크릿 매핑 패턴(TUBE_SCOUT_*)을 확인하세요.[/red]"
+            f"[red]OAuth env options must be all-or-nothing "
+            f"(specified: {specified}). "
+            f"Omit all three for Takeout-only registration.[/red]"
         )
         _record(
             "add_department",
             target_alias=alias,
             result="failure",
-            detail=f"env-pattern: {first_field}={first_value}",
+            detail=f"partial-env: {specified}",
         )
         raise typer.Exit(code=1)
 
-    missing = _check_envs_present(channel_id_env, client_secret_env, api_key_env)
-    if missing:
+    use_oauth = len(specified) == 3
+
+    if use_oauth:
+        # ADV-US3-14: env names MUST match agenix prefix patterns.
+        env_pattern_violations = []
+        for field, value in (
+            ("channel_id_env", channel_id_env),
+            ("client_secret_env", client_secret_env),
+            ("api_key_env", api_key_env),
+        ):
+            if value is not None and not _ENV_NAME_PATTERNS[field].fullmatch(value):
+                env_pattern_violations.append((field, value))
+        if env_pattern_violations:
+            first_field, first_value = env_pattern_violations[0]
+            err_console.print(
+                f"[red]환경변수명 형식이 올바르지 않습니다 ({first_field}={first_value}). "
+                f"agenix 시크릿 매핑 패턴(TUBE_SCOUT_*)을 확인하세요.[/red]"
+            )
+            _record(
+                "add_department",
+                target_alias=alias,
+                result="failure",
+                detail=f"env-pattern: {first_field}={first_value}",
+            )
+            raise typer.Exit(code=1)
+
+        missing = _check_envs_present(channel_id_env, client_secret_env, api_key_env)
+        if missing:
+            err_console.print(
+                f"[red]환경변수 {missing[0]}가 정의되어 있지 않습니다. "
+                f"agenix 시크릿 등록을 먼저 완료하세요.[/red]"
+            )
+            _record(
+                "add_department",
+                target_alias=alias,
+                result="failure",
+                detail=f"missing env: {missing[0]}",
+            )
+            raise typer.Exit(code=1)
+
+    # FR-016: cross-registry duplicate check (channels.json)
+    try:
+        channels_registry = load_registry()
+    except Exception:
+        channels_registry = {}
+    if alias in channels_registry:
         err_console.print(
-            f"[red]환경변수 {missing[0]}가 정의되어 있지 않습니다. "
-            f"agenix 시크릿 등록을 먼저 완료하세요.[/red]"
+            f"[red]Alias '{alias}' already registered in channels.json "
+            f"with channel_id={channels_registry[alias].channel_id!r}. "
+            f"Resolve manually.[/red]"
         )
         _record(
             "add_department",
             target_alias=alias,
             result="failure",
-            detail=f"missing env: {missing[0]}",
+            detail="cross-registry duplicate",
         )
         raise typer.Exit(code=1)
 
@@ -304,7 +348,7 @@ def add_department(
         )
         raise typer.Exit(code=1)
 
-    if not no_oauth_consent:
+    if use_oauth and not no_oauth_consent:
         try:
             _run_oauth_consent(alias)
             _record("oauth_consent", target_alias=alias, result="success")
@@ -324,29 +368,88 @@ def add_department(
 # ---------------------------------------------------------------------------
 
 
+def _build_union_rows() -> list[dict]:
+    """Build union of channels.json + departments.json with source/consistency.
+
+    Returns:
+        List of dicts with keys: alias, display_name, channel_id, source,
+        consistency. Emits WARNING to stderr for each mismatch alias.
+    """
+    from tube_scout.services.auth import load_registry
+    from tube_scout.web.repo.departments_repo import DepartmentsRepo
+
+    try:
+        channels = load_registry()
+    except Exception:
+        channels = {}
+    depts = {d.alias: d for d in DepartmentsRepo().list_all()}
+
+    all_aliases = sorted(set(channels) | set(depts))
+    rows = []
+    for a in all_aliases:
+        in_channels = a in channels
+        in_depts = a in depts
+
+        if in_channels and in_depts:
+            source = "both"
+            dept = depts[a]
+            display_name = dept.display_name
+            ch_channel_id = channels[a].channel_id
+            # Resolve dept channel_id via env var
+            dept_channel_id = (
+                os.environ.get(dept.channel_id_env)
+                if dept.channel_id_env
+                else None
+            )
+            if dept_channel_id and ch_channel_id and dept_channel_id == ch_channel_id:
+                consistency = "ok"
+            elif dept.channel_id_env is None:
+                consistency = "ok"
+            else:
+                consistency = "mismatch"
+            channel_id = ch_channel_id
+        elif in_channels:
+            source = "channels"
+            display_name = channels[a].channel_name
+            channel_id = channels[a].channel_id
+            consistency = "ok"
+        else:
+            source = "departments"
+            dept = depts[a]
+            display_name = dept.display_name
+            channel_id = (
+                os.environ.get(dept.channel_id_env) if dept.channel_id_env else None
+            )
+            consistency = "ok"
+
+        if consistency == "mismatch":
+            dept = depts[a]
+            dept_id = os.environ.get(dept.channel_id_env) if dept.channel_id_env else None
+            err_console.print(
+                f"WARNING: alias '{a}' mismatch "
+                f"(channels.json={channels[a].channel_id}, "
+                f"departments.json={dept_id})",
+                highlight=False,
+            )
+
+        rows.append({
+            "alias": a,
+            "display_name": display_name,
+            "channel_id": channel_id,
+            "source": source,
+            "consistency": consistency,
+        })
+    return rows
+
+
 @admin_app.command("list")
 def list_departments(
     json_output: bool = typer.Option(False, "--json", help="JSON 출력"),
 ) -> None:
-    """등록된 학과 목록을 출력한다."""
-    from tube_scout.web.repo.departments_repo import DepartmentsRepo
-
-    rows = DepartmentsRepo().list_all()
+    """등록된 학과 목록을 출력한다 (FR-014: channels.json + departments.json union)."""
+    rows = _build_union_rows()
     if json_output:
-        payload = [
-            {
-                "alias": d.alias,
-                "display_name": d.display_name,
-                "registered_at": d.registered_at.isoformat()
-                if d.registered_at is not None
-                else None,
-                "last_used_at": d.last_used_at.isoformat()
-                if d.last_used_at is not None
-                else None,
-            }
-            for d in rows
-        ]
-        console.print(json.dumps(payload, ensure_ascii=False))
+        console.print(json.dumps(rows, ensure_ascii=False))
         return
     if not rows:
         console.print("등록된 학과가 없습니다.")
@@ -354,12 +457,17 @@ def list_departments(
     table = Table(title="등록된 학과")
     table.add_column("alias")
     table.add_column("display_name")
-    table.add_column("last_used_at")
-    for d in rows:
-        last = (
-            d.last_used_at.isoformat() if d.last_used_at is not None else "(이력 없음)"
+    table.add_column("channel_id")
+    table.add_column("source")
+    table.add_column("consistency")
+    for r in rows:
+        table.add_row(
+            r["alias"],
+            r["display_name"] or "",
+            r["channel_id"] or "—",
+            r["source"],
+            r["consistency"],
         )
-        table.add_row(d.alias, d.display_name, last)
     console.print(table)
 
 

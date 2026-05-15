@@ -2304,7 +2304,34 @@ def collect_takeout_command(
 
     FR-001/FR-002/FR-009 (spec 016). Exit codes: 0=success, 1=error.
     """
+    import os as _os
+
     from tube_scout.services.takeout_ingest import ingest_takeout
+
+    # FR-015: block collect if alias has a mismatch between channels.json and departments.json
+    try:
+        from tube_scout.services.auth import load_registry
+        from tube_scout.web.repo.departments_repo import DepartmentsRepo
+        channels_reg = load_registry()
+        depts_reg = {d.alias: d for d in DepartmentsRepo().list_all()}
+        if channel in channels_reg and channel in depts_reg:
+            dept = depts_reg[channel]
+            ch_channel_id = channels_reg[channel].channel_id
+            dept_channel_id = (
+                _os.environ.get(dept.channel_id_env) if dept.channel_id_env else None
+            )
+            if dept_channel_id and dept_channel_id != ch_channel_id:
+                console.print(
+                    f"[red]Error: alias '{channel}' mismatch between registries "
+                    f"(channels.json={ch_channel_id!r}, "
+                    f"departments.json env={dept_channel_id!r}). "
+                    f"Resolve the inconsistency before running collect.[/red]"
+                )
+                raise typer.Exit(code=1)
+    except typer.Exit:
+        raise
+    except Exception:
+        pass  # registry load failure is non-blocking for mismatch check
 
     takeout_path = Path(takeout_dir)
     work_root = Path(data_dir)
