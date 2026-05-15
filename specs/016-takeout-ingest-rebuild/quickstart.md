@@ -318,4 +318,5 @@ spec 016 구현 완료 후 운영자가 따라할 매뉴얼 체크:
 - [ ] `tube-scout collect transcripts` 가 옵션 없이 ASR 단일 경로로 동작 (SC-006).
 - [ ] `--source youtube` 명시 시 exit 2 + 명확 메시지 (SC-006).
 - [ ] IngestResult 출력에 `elapsed_seconds`, audit 에 `elapsed_ms` 가 양의 값 (SC-009).
+- [ ] 본 작업 머신 기준 dry-run ≤ 1770 s (~30 분) / real ingest ≤ 1820 s (~30 분) 안에 완료 (T064 SLA). 측정 근거: `_workspace/spec016_polish_baseline.md`.
 - [ ] 회귀 테스트 8 개 모두 PASS (SC-008).

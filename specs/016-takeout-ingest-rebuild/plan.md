@@ -24,7 +24,7 @@
 **Testing**: pytest (TDD RED-GREEN-REFACTOR), pytest-asyncio, pytest-httpx (web admin), pytest-cov. 본 spec 의 회귀 테스트는 결함 8 개 × failing-then-passing 매트릭스 + 측정/audit 컬럼 존재 검증.
 **Target Platform**: Linux (NixOS / Gentoo), Python 3.11 pinned. macOS 미지원, Windows 미지원. 검증 환경 = RTX 3060 (6 GB) + 표준 PC.
 **Project Type**: CLI tool (Typer). `cli/`, `services/`, `models/`, `storage/`, `reporting/`, `visualization/`, `web/` 6 모듈 그룹. 본 spec 은 그중 `cli/admin.py`, `cli/collect.py`, `services/takeout_ingest.py`, `services/audit_writer.py`, `web/repo/departments_repo.py` 만 수정.
-**Performance Goals**: 정량 임계는 본 spec 범위 밖 — 측정 의무만 spec 에 박힘 (SC-009). plan 첫 task 에서 baseline 측정 후 별도 검증 기준으로 추가. 가용성 기준은 SC-001 (간호학과 9 mp4 + 2554 메타 archive 적재가 처음부터 끝까지 0 exit code 로 완주).
+**Performance Goals**: 본 작업 머신(표준 PC + RTX 3060 6 GB) 기준 9 mp4 + 2554 메타 archive 적재 SLA = dry-run ≤ 1770 s (~30 분) · real ingest ≤ 1820 s (~30 분). 안전 마진 1.5× 가 baseline 평균(dry 1180 s, real 1213 s)에 곱해진 값. archive walk(mp4 본체 10 GB 디스크 read)가 wall clock 을 지배하며 SQLite INSERT 시간은 미미. 측정 근거 = `_workspace/spec016_polish_baseline.md` (T063). 가용성 기준은 SC-001 (간호학과 9 mp4 + 2554 메타 archive 적재가 처음부터 끝까지 0 exit code 로 완주).
 **Constraints**: PATCH 범위 유지 (새 기능 0 건, 새 모듈 0 건, 새 SQLite 컬럼 0 건). 모든 변경은 spec 003/008/013 의 시그니처와 스키마를 보존. 변경 표면은 Cross-Spec Boundaries 표의 B-3, B-5, B-7 의 "본 spec 의 가정 / 새로 생산하는 것" 열에 한정.
 **Scale/Scope**: 한 학과 = 2554 영상 (간호학과 실측). 22 학과 전체 = 수만 영상. archive part 1 묶음당 9 mp4 (검증 데이터 기준). 영상 본체와 메타 단위가 분리되어 한 archive 적재 단계의 데이터 크기는 메타 csv 약 400KB + mp4 본체 약 10 GB.
 
