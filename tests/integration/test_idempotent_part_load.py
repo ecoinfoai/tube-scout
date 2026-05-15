@@ -8,12 +8,9 @@ video_id present only in part-2 archive is appended on second call.
 from __future__ import annotations
 
 import csv
-import shutil
 import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 # ---------------------------------------------------------------------------
 # Shared fixture paths

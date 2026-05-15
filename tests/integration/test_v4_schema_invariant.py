@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import re
 import sqlite3
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -60,7 +59,9 @@ def _live_columns(conn: sqlite3.Connection, table: str) -> list[str]:
 def v4_db(tmp_path: Path) -> Path:
     """Create a minimal SQLite v4 database using the same bootstrap path as takeout_ingest."""
     db_path = tmp_path / "test_invariant.db"
-    from tube_scout.services.takeout_ingest import _ensure_v4  # type: ignore[attr-defined]
+    from tube_scout.services.takeout_ingest import (
+        _ensure_v4,  # type: ignore[attr-defined]
+    )
     _ensure_v4(db_path)
     return db_path
 

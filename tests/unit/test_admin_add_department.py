@@ -11,10 +11,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 from pathlib import Path
-
-import pytest
 
 
 def _run(args: list[str], env: dict | None = None) -> subprocess.CompletedProcess:
@@ -128,7 +125,6 @@ class TestAddDepartmentFullOAuth:
         tokens_dir = tmp_path / "tokens"
         tokens_dir.mkdir()
 
-        import os
         env = {
             "TUBE_SCOUT_TOKENS_DIR": str(tokens_dir),
             "TUBE_SCOUT_CHANNEL_ID_NURSINGT": "UCtest00001",

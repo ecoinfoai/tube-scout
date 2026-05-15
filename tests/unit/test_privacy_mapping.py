@@ -12,9 +12,6 @@ import csv
 from pathlib import Path
 from unittest import mock
 
-import pytest
-
-
 _REAL_CHANNEL_HEADER = [
     "채널 ID", "채널 국가", "채널 태그 1", "채널 제목(원본)", "채널 공개 상태",
 ]

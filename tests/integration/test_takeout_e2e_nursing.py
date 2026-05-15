@@ -10,7 +10,6 @@ Marked xfail at RED stage — GREEN once ingest_takeout() is fixed (T017+).
 
 from __future__ import annotations
 
-import csv
 import sqlite3
 from pathlib import Path
 
@@ -32,6 +31,7 @@ class TestNursingTakeoutE2E:
     def ingest_result(self, tmp_path_factory):
         """Run ingest_takeout() once for the whole class; return (result, work_root)."""
         from unittest.mock import MagicMock, patch
+
         from tube_scout.services.takeout_ingest import ingest_takeout
 
         work_root = tmp_path_factory.mktemp("nursing_work")
