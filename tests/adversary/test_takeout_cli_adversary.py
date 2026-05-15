@@ -45,10 +45,13 @@ _CHANNEL_DIR = "채널"
 _VIDEO_DIR = "동영상"
 
 VIDEO_CSV_COLS = [
-    "동영상 ID", "동영상 제목", "동영상 URL", "동영상 생성 타임스탬프",
-    "근사치 길이(밀리초)", "채널 ID", "카테고리", "공개상태", "오디오 언어",
+    "동영상 ID", "근사치 길이(밀리초)", "동영상 오디오 언어", "동영상 카테고리",
+    "동영상 설명(원본) 언어", "채널 ID", "동영상 제목(원본)", "동영상 제목(원본) 언어",
+    "개인 정보 보호", "동영상 상태", "동영상 생성 타임스탬프",
 ]
-CHANNEL_CSV_COLS = ["채널 ID", "채널 이름", "국가"]
+CHANNEL_CSV_COLS = ["채널 ID", "채널 국가", "채널 태그 1", "채널 제목(원본)", "채널 공개 상태"]
+
+_PRIVACY_MAP = {"public": "공개", "unlisted": "일부 공개", "private": "비공개"}
 
 
 def _write_csv(path: Path, header: list[str], rows: list[list[str]]) -> None:
@@ -80,7 +83,7 @@ def _build_takeout_skeleton(
     _write_csv(
         chan_dir / "채널.csv",
         CHANNEL_CSV_COLS,
-        [[channel_id, channel_name, "KR"]],
+        [[channel_id, "KR", "태그", channel_name, "공개"]],
     )
 
     if videos is None:
@@ -89,8 +92,8 @@ def _build_takeout_skeleton(
                 "video_id": "vidAAAAAAAA1",
                 "title": "Week 1 Lecture",
                 "duration_ms": "60000",
-                "created_at": "2026-01-01T00:00:00Z",
-                "category": "Education",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "category": "교육",
                 "privacy": "public",
                 "language": "ko",
             }
@@ -100,14 +103,16 @@ def _build_takeout_skeleton(
     for v in videos:
         rows.append([
             v["video_id"],
-            v["title"],
-            f"https://youtube.com/watch?v={v['video_id']}",
-            v.get("created_at", ""),
             v.get("duration_ms", "60000"),
-            channel_id,
-            v.get("category", "Education"),
-            v.get("privacy", "public"),
             v.get("language", "ko"),
+            v.get("category", "교육"),
+            "ko",
+            channel_id,
+            v["title"],
+            "ko",
+            v.get("privacy_raw") or _PRIVACY_MAP.get(v.get("privacy", "private"), "비공개"),
+            "처리됨",
+            v.get("created_at", "2026-01-01T00:00:00+00:00"),
         ])
     _write_csv(meta_dir / "동영상.csv", VIDEO_CSV_COLS, rows)
 
@@ -162,7 +167,7 @@ class TestPathLunatic:
                 "--data-dir", str(tmp_path / "data"),
             ],
         )
-        assert result.exit_code == 3, f"expected exit=3, got {result.exit_code}\nstdout={result.stdout}"
+        assert result.exit_code == 1, f"expected exit=1, got {result.exit_code}\nstdout={result.stdout}"
 
     def test_empty_takeout_dir_no_youtube_subdir(
         self, runner: CliRunner, tmp_path: Path, fake_registry
@@ -179,7 +184,7 @@ class TestPathLunatic:
                 "--data-dir", str(tmp_path / "data"),
             ],
         )
-        assert result.exit_code == 3, (
+        assert result.exit_code == 1, (
             f"empty takeout dir should be path error, got exit={result.exit_code}"
         )
 
@@ -240,7 +245,7 @@ class TestAliasInjection:
                 "--data-dir", str(tmp_path / "data"),
             ],
         )
-        assert result.exit_code == 2
+        assert result.exit_code == 1
 
     def test_empty_string_alias(
         self, runner: CliRunner, tmp_path: Path, fake_registry
@@ -256,8 +261,8 @@ class TestAliasInjection:
                 "--data-dir", str(tmp_path / "data"),
             ],
         )
-        # Empty alias is not in fake_registry → exit 2
-        assert result.exit_code == 2
+        # Empty alias is not in fake_registry → exit 1
+        assert result.exit_code == 1
 
     def test_alias_with_path_separator(
         self, runner: CliRunner, tmp_path: Path, fake_registry
@@ -274,9 +279,9 @@ class TestAliasInjection:
                 "--data-dir", str(data_root),
             ],
         )
-        # Not registered → exit 2. Critically, no '../escape' directory should
+        # Not registered → exit 1. Critically, no '../escape' directory should
         # have been created above data_root.
-        assert result.exit_code == 2
+        assert result.exit_code == 1
         escaped = data_root.parent / "escape"
         assert not escaped.exists(), (
             f"path-traversal alias created a directory outside --data-dir: {escaped}"
@@ -296,7 +301,7 @@ class TestAliasInjection:
                 "--data-dir", str(tmp_path / "data"),
             ],
         )
-        assert result.exit_code == 2, "Cyrillic homoglyph must not collide with Latin alias"
+        assert result.exit_code == 1, "Cyrillic homoglyph must not collide with Latin alias (alias error exits 1)"
 
 
 # ===========================================================================
@@ -315,7 +320,7 @@ class TestCsvDemolition:
         _write_csv(
             yt / _CHANNEL_DIR / "채널.csv",
             CHANNEL_CSV_COLS,
-            [["UCadversary00000000000", "Adv", "KR"]],
+            [["UCadversary00000000000", "KR", "태그", "Adv", "공개"]],
         )
         # Drop "오디오 언어"
         broken_cols = [c for c in VIDEO_CSV_COLS if c != "오디오 언어"]
@@ -350,7 +355,7 @@ class TestCsvDemolition:
         _write_csv(
             yt / _CHANNEL_DIR / "채널.csv",
             CHANNEL_CSV_COLS,
-            [["UCadversary00000000000", "Adv", "KR"]],
+            [["UCadversary00000000000", "KR", "태그", "Adv", "공개"]],
         )
         _write_csv(yt / _META_DIR / "동영상.csv", VIDEO_CSV_COLS, [])
         (yt / _VIDEO_DIR).mkdir(parents=True, exist_ok=True)
@@ -380,7 +385,7 @@ class TestCsvDemolition:
         _write_csv(
             yt / _CHANNEL_DIR / "채널.csv",
             CHANNEL_CSV_COLS,
-            [["UCadversary00000000000", "Adv", "KR"]],
+            [["UCadversary00000000000", "KR", "태그", "Adv", "공개"]],
         )
         _write_csv(yt / _META_DIR / "동영상.csv", VIDEO_CSV_COLS, [
             ["v1", "T", "u", "", "NOT_A_NUMBER", "UCadversary00000000000",
@@ -425,7 +430,7 @@ class TestCsvDemolition:
                 "--data-dir", str(tmp_path / "data"),
             ],
         )
-        assert result.exit_code == 3
+        assert result.exit_code == 1
 
 
 # ===========================================================================
@@ -586,7 +591,7 @@ class TestEvidenceScoreGaslighting:
         _write_csv(
             yt / _CHANNEL_DIR / "채널.csv",
             CHANNEL_CSV_COLS,
-            [["UCadversary00000000000", "Adv", "KR"]],
+            [["UCadversary00000000000", "KR", "태그", "Adv", "공개"]],
         )
         _write_csv(yt / _META_DIR / "동영상.csv", VIDEO_CSV_COLS, [])
         for i in range(5):
@@ -808,13 +813,16 @@ class TestPrivacyAndTimestamp:
     def test_invalid_privacy_status_falls_to_none(
         self, runner: CliRunner, tmp_path: Path, fake_registry
     ) -> None:
-        """Unknown privacy value ('garbage') maps to None — must not crash."""
+        """Unknown privacy value ('garbage') causes row skip — must not crash.
+
+        FR-005: unknown Korean privacy value → audit skip, video not persisted.
+        """
         videos = [{
             "video_id": "vid001AAAAA",
             "title": "Title A",
             "duration_ms": "1000",
-            "created_at": "2026-01-01T00:00:00Z",
-            "privacy": "garbage_value",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "privacy_raw": "예약 공개",  # unknown Korean value — not in _PRIVACY_MAPPING
         }]
         root = _build_takeout_skeleton(tmp_path / "tk", videos=videos)
         result = runner.invoke(
@@ -832,9 +840,9 @@ class TestPrivacyAndTimestamp:
             row = conn.execute(
                 "SELECT privacy_status FROM video_metadata WHERE video_id='vid001AAAAA'"
             ).fetchone()
-        assert row is not None
-        assert row[0] is None, (
-            f"invalid privacy must store as NULL, got {row[0]!r}"
+        # Unknown privacy → row skipped entirely, not stored in DB
+        assert row is None, (
+            f"unknown privacy must not be persisted, got {row!r}"
         )
 
     def test_malformed_created_at_falls_to_none(
@@ -911,7 +919,7 @@ class TestRequiredOptions:
         """Missing --takeout-dir must be Typer usage error (exit 2)."""
         result = runner.invoke(app, ["collect", "takeout", "--channel", "adv"])
         assert result.exit_code != 0
-        # Typer usage errors are exit 2
+        # Typer usage errors for missing required options exit 2
         assert result.exit_code == 2
 
     def test_missing_channel_flag(self, runner: CliRunner, tmp_path: Path, fake_registry) -> None:

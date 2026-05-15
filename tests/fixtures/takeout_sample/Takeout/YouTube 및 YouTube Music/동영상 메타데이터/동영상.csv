@@ -1,10 +1,10 @@
-동영상 ID,동영상 제목,동영상 URL,동영상 생성 타임스탬프,근사치 길이(밀리초),채널 ID,카테고리,공개상태,오디오 언어
-aaaaaaaaaaa,1-1.강의제목A,https://www.youtube.com/watch?v=aaaaaaaaaaa,2026-04-01T09:00:00Z,3600000,UCfakeAnonChan0123456789,Education,unlisted,ko
-bbbbbbbbbbb,1-2.강의제목B,https://www.youtube.com/watch?v=bbbbbbbbbbb,2026-04-08T09:00:00Z,2700000,UCfakeAnonChan0123456789,Education,unlisted,ko
-ccccccccccc,2-1.강의제목C,https://www.youtube.com/watch?v=ccccccccccc,2026-04-15T09:00:00Z,1800000,UCfakeAnonChan0123456789,Education,unlisted,ko
-ddddddddddd,2-2.강의제목D,https://www.youtube.com/watch?v=ddddddddddd,2026-04-22T09:00:00Z,3000000,UCfakeAnonChan0123456789,Education,private,ko
-eeeeeeeeeee,3-1.강의제목E,https://www.youtube.com/watch?v=eeeeeeeeeee,2026-04-29T09:00:00Z,2400000,UCfakeAnonChan0123456789,Education,unlisted,ko
-fffffffffff,3-2.강의제목F,https://www.youtube.com/watch?v=fffffffffff,2026-05-06T09:00:00Z,3300000,UCfakeAnonChan0123456789,Education,unlisted,ko
-ggggggggggg,5-1.홍길동,https://www.youtube.com/watch?v=ggggggggggg,2026-05-13T09:00:00Z,105000,UCfakeAnonChan0123456789,Education,unlisted,ko
-hhhhhhhhhhh,9-2.김영희,https://www.youtube.com/watch?v=hhhhhhhhhhh,2026-04-12T09:00:00Z,1309000,UCfakeAnonChan0123456789,Education,private,ko
-iiiiiiiiiii,19-2.박철수,https://www.youtube.com/watch?v=iiiiiiiiiii,2026-04-19T09:00:00Z,2948000,UCfakeAnonChan0123456789,Education,private,ko
+동영상 ID,근사치 길이(밀리초),동영상 오디오 언어,동영상 카테고리,동영상 설명(원본) 언어,채널 ID,동영상 제목(원본),동영상 제목(원본) 언어,개인 정보 보호,동영상 상태,동영상 생성 타임스탬프
+aaaaaaaaaaa,3600000,ko,교육,ko,UCfakeAnonChan0123456789,1-1.강의제목A,ko,일부 공개,처리됨,2026-04-01T09:00:00+00:00
+bbbbbbbbbbb,2700000,ko,교육,ko,UCfakeAnonChan0123456789,1-2.강의제목B,ko,일부 공개,처리됨,2026-04-08T09:00:00+00:00
+ccccccccccc,1800000,ko,교육,ko,UCfakeAnonChan0123456789,2-1.강의제목C,ko,일부 공개,처리됨,2026-04-15T09:00:00+00:00
+ddddddddddd,3000000,ko,교육,ko,UCfakeAnonChan0123456789,2-2.강의제목D,ko,비공개,처리됨,2026-04-22T09:00:00+00:00
+eeeeeeeeeee,2400000,ko,교육,ko,UCfakeAnonChan0123456789,3-1.강의제목E,ko,일부 공개,처리됨,2026-04-29T09:00:00+00:00
+fffffffffff,3300000,ko,교육,ko,UCfakeAnonChan0123456789,3-2.강의제목F,ko,일부 공개,처리됨,2026-05-06T09:00:00+00:00
+ggggggggggg,105000,ko,교육,ko,UCfakeAnonChan0123456789,5-1.홍길동,ko,일부 공개,처리됨,2026-05-13T09:00:00+00:00
+hhhhhhhhhhh,1309000,ko,교육,ko,UCfakeAnonChan0123456789,9-2.김영희,ko,비공개,처리됨,2026-04-12T09:00:00+00:00
+iiiiiiiiiii,2948000,ko,교육,ko,UCfakeAnonChan0123456789,19-2.박철수,ko,비공개,처리됨,2026-04-19T09:00:00+00:00

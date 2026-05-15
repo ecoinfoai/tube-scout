@@ -2302,8 +2302,7 @@ def collect_takeout_command(
 ) -> None:
     """Ingest Google Takeout export: parse CSV metadata, map mp4 to video_id, persist to SQLite.
 
-    FR-001/FR-002/FR-009 (spec 013). Exit codes: 0=success, 2=alias error,
-    3=path error, 4=DB migration error.
+    FR-001/FR-002/FR-009 (spec 016). Exit codes: 0=success, 1=error.
     """
     from tube_scout.services.takeout_ingest import ingest_takeout
 
@@ -2313,7 +2312,7 @@ def collect_takeout_command(
 
     if not takeout_path.exists():
         console.print(f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]")
-        raise typer.Exit(code=3)
+        raise typer.Exit(code=1)
 
     try:
         result = ingest_takeout(
@@ -2326,13 +2325,13 @@ def collect_takeout_command(
         )
     except ValueError as exc:
         console.print(f"[red]Alias error: {exc}[/red]")
-        raise typer.Exit(code=2) from exc
+        raise typer.Exit(code=1) from exc
     except FileNotFoundError as exc:
         console.print(f"[red]Path error: {exc}[/red]")
-        raise typer.Exit(code=3) from exc
+        raise typer.Exit(code=1) from exc
     except Exception as exc:
-        console.print(f"[red]DB migration or unexpected error: {exc}[/red]")
-        raise typer.Exit(code=4) from exc
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
 
     mode = "[dim](dry-run)[/dim]" if dry_run else ""
     console.print(

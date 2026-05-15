@@ -131,6 +131,7 @@ def test_c_eight_stage_frozen_fieldnames() -> None:
     assert TAKEOUT_INGEST_FIELDNAMES == (
         "video_id", "result", "reason",
         "mp4_filename", "match_confidence", "score", "timestamp",
+        "raw_value", "elapsed_ms",
     )
     assert AUDIO_EXTRACT_FIELDNAMES == (
         "video_id", "result", "reason",

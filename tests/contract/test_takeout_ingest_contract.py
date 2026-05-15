@@ -21,33 +21,53 @@ _YT_DIR = FIXTURE_TAKEOUT / "YouTube 및 YouTube Music"
 # helpers
 # ---------------------------------------------------------------------------
 
+_REAL_CHANNEL_HEADER = [
+    "채널 ID", "채널 국가", "채널 태그 1", "채널 제목(원본)", "채널 공개 상태",
+]
+_REAL_VIDEO_HEADER = [
+    "동영상 ID", "근사치 길이(밀리초)", "동영상 오디오 언어", "동영상 카테고리",
+    "동영상 설명(원본) 언어", "채널 ID", "동영상 제목(원본)", "동영상 제목(원본) 언어",
+    "개인 정보 보호", "동영상 상태", "동영상 생성 타임스탬프",
+]
+
+
 def _write_dup_video_csv(takeout_dir: Path) -> Path:
     """Return a takeout_dir containing a 동영상.csv with one duplicate video_id row."""
     yt = takeout_dir / "YouTube 및 YouTube Music"
     meta_dir = yt / "동영상 메타데이터"
     meta_dir.mkdir(parents=True, exist_ok=True)
     video_csv = meta_dir / "동영상.csv"
-    rows = [
-        ["동영상 ID", "동영상 제목", "동영상 URL", "동영상 생성 타임스탬프",
-         "근사치 길이(밀리초)", "채널 ID", "카테고리", "공개상태", "오디오 언어"],
-        ["dup0000001", "중복영상A", "https://www.youtube.com/watch?v=dup0000001",
-         "2026-04-01T09:00:00Z", "3600000", "UCdup000001", "Education", "unlisted", "ko"],
-        ["dup0000001", "중복영상A", "https://www.youtube.com/watch?v=dup0000001",
-         "2026-04-01T09:00:00Z", "3600000", "UCdup000001", "Education", "unlisted", "ko"],
-        ["dup0000002", "중복영상B", "https://www.youtube.com/watch?v=dup0000002",
-         "2026-04-02T09:00:00Z", "1800000", "UCdup000001", "Education", "unlisted", "ko"],
-    ]
     channel_dir = yt / "채널"
     channel_dir.mkdir(parents=True, exist_ok=True)
     channel_csv = channel_dir / "채널.csv"
     with channel_csv.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["채널 ID", "채널 이름", "채널 URL", "채널 핸들", "국가", "비공개 상태"])
-        writer.writerow(["UCdup000001", "Dup Channel", "https://www.youtube.com/channel/UCdup000001",
-                         "@duphandle", "KR", "공개"])
+        writer.writerow(_REAL_CHANNEL_HEADER)
+        writer.writerow(["UCdup000001", "KR", "태그", "Dup Channel", "공개"])
     with video_csv.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerows(rows)
+        writer = csv.DictWriter(f, fieldnames=_REAL_VIDEO_HEADER)
+        writer.writeheader()
+        for row_data in [
+            {"동영상 ID": "dup0000001", "근사치 길이(밀리초)": "3600000",
+             "동영상 오디오 언어": "ko", "동영상 카테고리": "교육",
+             "동영상 설명(원본) 언어": "ko", "채널 ID": "UCdup000001",
+             "동영상 제목(원본)": "중복영상A", "동영상 제목(원본) 언어": "ko",
+             "개인 정보 보호": "일부 공개", "동영상 상태": "처리됨",
+             "동영상 생성 타임스탬프": "2026-04-01T09:00:00+00:00"},
+            {"동영상 ID": "dup0000001", "근사치 길이(밀리초)": "3600000",
+             "동영상 오디오 언어": "ko", "동영상 카테고리": "교육",
+             "동영상 설명(원본) 언어": "ko", "채널 ID": "UCdup000001",
+             "동영상 제목(원본)": "중복영상A", "동영상 제목(원본) 언어": "ko",
+             "개인 정보 보호": "일부 공개", "동영상 상태": "처리됨",
+             "동영상 생성 타임스탬프": "2026-04-01T09:00:00+00:00"},
+            {"동영상 ID": "dup0000002", "근사치 길이(밀리초)": "1800000",
+             "동영상 오디오 언어": "ko", "동영상 카테고리": "교육",
+             "동영상 설명(원본) 언어": "ko", "채널 ID": "UCdup000001",
+             "동영상 제목(원본)": "중복영상B", "동영상 제목(원본) 언어": "ko",
+             "개인 정보 보호": "비공개", "동영상 상태": "처리됨",
+             "동영상 생성 타임스탬프": "2026-04-02T09:00:00+00:00"},
+        ]:
+            writer.writerow(row_data)
     return takeout_dir
 
 

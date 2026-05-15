@@ -239,14 +239,15 @@ class TestCsvBombDuringIngest:
         meta_dir.mkdir(parents=True)
 
         chan_default = (
-            "채널 ID,채널 이름,국가\n"
-            "UCadversary00000000000,Adv Channel,KR\n"
+            "채널 ID,채널 국가,채널 태그 1,채널 제목(원본),채널 공개 상태\n"
+            "UCadversary00000000000,KR,태그,Adv Channel,공개\n"
         )
         videos_default = (
-            "동영상 ID,동영상 제목,동영상 URL,동영상 생성 타임스탬프,"
-            "근사치 길이(밀리초),채널 ID,카테고리,공개상태,오디오 언어\n"
-            "vid_001,Title 1,https://yt/vid_001,2026-01-01T00:00:00+00:00,"
-            "60000,UCadversary00000000000,Education,public,ko\n"
+            "동영상 ID,근사치 길이(밀리초),동영상 오디오 언어,동영상 카테고리,"
+            "동영상 설명(원본) 언어,채널 ID,동영상 제목(원본),동영상 제목(원본) 언어,"
+            "개인 정보 보호,동영상 상태,동영상 생성 타임스탬프\n"
+            "vid_001,60000,ko,교육,ko,UCadversary00000000000,Title 1,ko,"
+            "비공개,처리됨,2026-01-01T00:00:00+00:00\n"
         )
         (chan_dir / "채널.csv").write_text(
             channels_csv_content if channels_csv_content is not None else chan_default,
@@ -261,16 +262,17 @@ class TestCsvBombDuringIngest:
     def test_truncated_video_csv_missing_required_column_raises_actionable(
         self, tmp_path: Path
     ) -> None:
-        """Vector b.1: 동영상.csv is truncated mid-header (missing
-        오디오 언어 column). Parser MUST raise ValueError naming the
-        missing column, not silently skip the file."""
+        """Vector b.1: 동영상.csv truncated (missing 동영상 제목(원본) column).
+        Parser MUST raise ValueError naming the missing column."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
+        # Real format but omit required '동영상 제목(원본)' column
         bad_videos = (
-            "동영상 ID,동영상 제목,동영상 URL,동영상 생성 타임스탬프,"
-            "근사치 길이(밀리초),채널 ID,카테고리,공개상태\n"
-            "vid_001,Title 1,https://yt/vid_001,2026-01-01T00:00:00+00:00,"
-            "60000,UCadversary00000000000,Education,public\n"
+            "동영상 ID,근사치 길이(밀리초),동영상 오디오 언어,동영상 카테고리,"
+            "동영상 설명(원본) 언어,채널 ID,동영상 제목(원본) 언어,"
+            "개인 정보 보호,동영상 상태,동영상 생성 타임스탬프\n"
+            "vid_001,60000,ko,교육,ko,UCadversary00000000000,ko,"
+            "비공개,처리됨,2026-01-01T00:00:00+00:00\n"
         )
         root = self._build_takeout(tmp_path, videos_csv_content=bad_videos)
 
@@ -278,9 +280,8 @@ class TestCsvBombDuringIngest:
             parse_takeout_csv_metadata(root)
 
         msg = str(excinfo.value)
-        assert "오디오 언어" in msg or "Missing required" in msg, (
-            f"Error must name the missing column ('오디오 언어') for the "
-            f"operator to fix the export. Got: {msg!r}"
+        assert "동영상 제목(원본)" in msg or "Missing required" in msg or "Missing columns" in msg, (
+            f"Error must name the missing column for the operator to fix the export. Got: {msg!r}"
         )
 
     def test_empty_videos_csv_dir_raises_filenotfound_not_silent(
@@ -295,7 +296,9 @@ class TestCsvBombDuringIngest:
         (yt / "채널").mkdir(parents=True)
         (yt / "동영상 메타데이터").mkdir(parents=True)
         (yt / "채널" / "채널.csv").write_text(
-            "채널 ID,채널 이름,국가\nUCx,Adv,KR\n", encoding="utf-8"
+            "채널 ID,채널 국가,채널 태그 1,채널 제목(원본),채널 공개 상태\n"
+            "UCx,KR,태그,Adv,공개\n",
+            encoding="utf-8",
         )
 
         with pytest.raises(FileNotFoundError) as excinfo:
