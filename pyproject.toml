@@ -96,6 +96,14 @@ dev = [
 [project.scripts]
 tube-scout = "tube_scout.cli.main:app"
 
+[tool.uv]
+# PEP 735 default-groups — auto-activate the `asr` + `dev` dependency
+# groups (see [dependency-groups] at the bottom of this file) on every
+# `uv sync` so faster-whisper and pytest stay installed without explicit
+# `--extra` flags. spec 016 FR-017 makes ASR the sole transcript path;
+# e2e tests + collect ingest both depend on it being present.
+default-groups = ["asr", "dev"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/tube_scout"]
 
@@ -163,8 +171,19 @@ ignore_missing_imports = true
 disable_error_code = ["no-untyped-call"]
 
 [dependency-groups]
+# Mirrors [project.optional-dependencies].asr so `uv sync` (via
+# [tool.uv].default-groups) installs faster-whisper without --extra asr.
+# [project.optional-dependencies] kept for external `pip install tube-scout[asr]`.
+asr = [
+    "faster-whisper>=1.0.0,<2.0.0",
+]
 dev = [
     "bandit>=1.9.4",
     "mypy>=1.20.0",
     "vulture>=2.16",
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-httpx>=0.30.0",
+    "ruff>=0.4.0",
 ]
