@@ -127,10 +127,20 @@ def load_manifest(
         ) from exc
     manifest = RetryManifest.from_dict(data)
     if expected_alias is not None and manifest.alias != expected_alias:
-        raise ValueError(
-            f"retry_pending.json alias mismatch: file has {manifest.alias!r}, "
-            f"expected {expected_alias!r}."
-        )
+        if manifest.alias == "":
+            # Backward compat: pre-fix manifests written without alias are
+            # migrated in place on first read (FR-018, contract retry-manifest §2).
+            manifest = RetryManifest(
+                schema_version=manifest.schema_version,
+                alias=expected_alias,
+                updated_at=manifest.updated_at,
+                entries=manifest.entries,
+            )
+        else:
+            raise ValueError(
+                f"retry_pending.json alias mismatch: file has {manifest.alias!r}, "
+                f"expected {expected_alias!r}."
+            )
     return manifest
 
 
