@@ -320,12 +320,22 @@ def assemble_channel_work_dir(
     if not src_video_dir.exists():
         return work_dir
 
+    takeout_dir_resolved = takeout_dir.resolve()
     for mp4 in src_video_dir.glob("*.mp4"):
         dest = video_dir / mp4.name
         if dest.exists() or dest.is_symlink():
             continue
         if use_symlinks:
-            dest.symlink_to(mp4.resolve())
+            target = mp4.resolve()
+            try:
+                target.relative_to(takeout_dir_resolved)
+            except ValueError:
+                raise ValueError(
+                    f"mp4 path '{mp4}' resolves to '{target}', "
+                    f"which is outside takeout_dir '{takeout_dir_resolved}'. "
+                    "Refusing to ingest — possible symlink escape (T-04)."
+                )
+            dest.symlink_to(target)
         else:
             import shutil
             shutil.copy2(mp4, dest)
@@ -550,24 +560,10 @@ def ingest_takeout(
     assemble_channel_work_dir(takeout_dir, channel_alias, work_root, use_symlinks)
 
     # Build absolute path → video_id map for unified ingest downstream.
-    # T-04: resolve() follows symlink chains — reject any symlink that escapes takeout_dir,
-    # regardless of whether it mapped to a video_id. Check all symlinks first, then build map.
+    # T-04 symlink containment is enforced at symlink creation in
+    # assemble_channel_work_dir, so pre-existing symlinks from prior
+    # multi-part ingest calls (FR-020) are trusted here.
     video_dir = work_dir / _VIDEO_SUBDIR
-    takeout_dir_resolved = takeout_dir.resolve()
-    if video_dir.exists():
-        for mp4_path in video_dir.iterdir():
-            if mp4_path.suffix != ".mp4":
-                continue
-            if mp4_path.is_symlink():
-                resolved = mp4_path.resolve()
-                try:
-                    resolved.relative_to(takeout_dir_resolved)
-                except ValueError:
-                    raise ValueError(
-                        f"mp4 path '{mp4_path}' resolves to '{resolved}', "
-                        f"which is outside takeout_dir '{takeout_dir_resolved}'. "
-                        "Refusing to ingest — possible symlink escape (T-04)."
-                    )
     abs_mp4_video_id_map: dict[str, str] = {}
     for filename, video_id in mp4_video_id_map.items():
         if video_id:
