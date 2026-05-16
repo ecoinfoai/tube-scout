@@ -2,9 +2,13 @@
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+if TYPE_CHECKING:
+    from tube_scout.services.takeout_ingest import IngestResult
 
 from tube_scout.models.reuse_v2 import LayerAttribution, ReusePatternLabel
 
@@ -313,3 +317,234 @@ class VideoMetadata(BaseModel):
     match_confidence: Literal["high", "medium", "ambiguous"] | None = None
     mp4_relative_path: str | None = None
     ingested_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# spec 017 E-5: FailureEntry
+# ---------------------------------------------------------------------------
+
+class FailureEntry(BaseModel):
+    """Single transcript or fingerprint stage failure for one video.
+
+    Ref: data-model.md §E-5.
+
+    Attributes:
+        video_id: YouTube video_id matching SQLite video_metadata.
+        title: Video title for operator display.
+        failed_stage: Stage that produced the failure.
+        failure_reason: Failure cause token (e.g. model_loading_failed).
+        attempted_at: UTC timestamp of the attempt.
+    """
+
+    video_id: str
+    title: str
+    failed_stage: Literal["transcript", "fingerprint"]
+    failure_reason: str
+    attempted_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# spec 017 E-2: TranscriptStageResult
+# ---------------------------------------------------------------------------
+
+class TranscriptStageResult(BaseModel):
+    """Transcript generation stage summary.
+
+    Ref: data-model.md §E-2.
+
+    Attributes:
+        success_count: Videos with transcripts successfully generated.
+        failure_count: Videos that failed transcript generation.
+        skipped_no_mp4_count: Videos auto-skipped due to absent mp4 (FR-008).
+        failures: Per-failure details; len must equal failure_count.
+        elapsed_seconds: Wall-clock time for this stage.
+    """
+
+    success_count: int = Field(..., ge=0)
+    failure_count: int = Field(..., ge=0)
+    skipped_no_mp4_count: int = Field(..., ge=0)
+    failures: list[FailureEntry] = Field(default_factory=list)
+    elapsed_seconds: float = Field(..., ge=0.0)
+
+    @model_validator(mode="after")
+    def _failures_length_matches_count(self) -> "TranscriptStageResult":
+        if len(self.failures) != self.failure_count:
+            raise ValueError(
+                f"len(failures)={len(self.failures)} must equal "
+                f"failure_count={self.failure_count}"
+            )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# spec 017 E-3: FingerprintStageResult
+# ---------------------------------------------------------------------------
+
+class FingerprintStageResult(BaseModel):
+    """Audio fingerprint extraction stage summary.
+
+    Ref: data-model.md §E-3. Structure mirrors TranscriptStageResult.
+
+    Attributes:
+        success_count: Videos with fingerprints successfully extracted.
+        failure_count: Videos that failed fingerprint extraction.
+        skipped_no_mp4_count: Videos auto-skipped due to absent mp4.
+        failures: Per-failure details; len must equal failure_count.
+        elapsed_seconds: Wall-clock time for this stage.
+    """
+
+    success_count: int = Field(..., ge=0)
+    failure_count: int = Field(..., ge=0)
+    skipped_no_mp4_count: int = Field(..., ge=0)
+    failures: list[FailureEntry] = Field(default_factory=list)
+    elapsed_seconds: float = Field(..., ge=0.0)
+
+    @model_validator(mode="after")
+    def _failures_length_matches_count(self) -> "FingerprintStageResult":
+        if len(self.failures) != self.failure_count:
+            raise ValueError(
+                f"len(failures)={len(self.failures)} must equal "
+                f"failure_count={self.failure_count}"
+            )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# spec 017 E-4: CleanupResult
+# ---------------------------------------------------------------------------
+
+class CleanupResult(BaseModel):
+    """Source video deletion stage result (--delete-source option).
+
+    Ref: data-model.md §E-4.
+
+    Attributes:
+        presented_failure_count: Rows shown in the first prompt failure table.
+        deletion_candidate_count: Candidates shown in the second confirmation prompt.
+        operator_response: Operator's reply to the deletion confirmation prompt.
+        deleted_count: mp4 files actually deleted.
+        failed_to_delete_count: mp4 files that failed deletion (file lock, I/O).
+        reclaimed_bytes: Disk space reclaimed in bytes.
+        elapsed_seconds: Wall-clock time for this stage.
+    """
+
+    presented_failure_count: int = Field(..., ge=0)
+    deletion_candidate_count: int = Field(..., ge=0)
+    operator_response: Literal["yes", "no", "timeout", "interrupted"]
+    deleted_count: int = Field(..., ge=0)
+    failed_to_delete_count: int = Field(..., ge=0)
+    reclaimed_bytes: int = Field(..., ge=0)
+    elapsed_seconds: float = Field(..., ge=0.0)
+
+    @model_validator(mode="after")
+    def _validate_deletion_counts(self) -> "CleanupResult":
+        if self.operator_response != "yes":
+            if self.deleted_count != 0 or self.failed_to_delete_count != 0:
+                raise ValueError(
+                    "deleted_count and failed_to_delete_count must be 0 "
+                    f"when operator_response={self.operator_response!r}"
+                )
+        total = self.deleted_count + self.failed_to_delete_count
+        if total > self.deletion_candidate_count:
+            raise ValueError(
+                "deleted_count + failed_to_delete_count must not "
+                "exceed deletion_candidate_count"
+            )
+        return self
+
+
+# ---------------------------------------------------------------------------
+# spec 017 E-6: RetryManifestDelta
+# ---------------------------------------------------------------------------
+
+class RetryManifestDelta(BaseModel):
+    """Change summary for the retry manifest file after one ingest call.
+
+    Ref: data-model.md §E-6.
+
+    Attributes:
+        added_count: Failures newly added to the manifest this call.
+        resolved_count: Previously failing videos resolved (now removed).
+        remaining_count: Entries remaining in the manifest after this call.
+        manifest_path: Absolute path to the manifest file.
+    """
+
+    added_count: int = Field(..., ge=0)
+    resolved_count: int = Field(..., ge=0)
+    remaining_count: int = Field(..., ge=0)
+    manifest_path: Path
+
+    model_config = {"arbitrary_types_allowed": True}
+
+
+# ---------------------------------------------------------------------------
+# spec 017 E-7: RetryManifestEntry
+# ---------------------------------------------------------------------------
+
+class RetryManifestEntry(BaseModel):
+    """Single entry in the retry_pending.json manifest.
+
+    Ref: data-model.md §E-7 Entry (RetryEntry).
+
+    Attributes:
+        video_id: YouTube video_id matching SQLite video_metadata.
+        title: Video title for operator identification.
+        failed_stage: Last stage that produced a failure.
+        failure_reason: Last failure cause token.
+        last_attempt_at: UTC timestamp of the last attempt.
+        attempt_count: Cumulative attempt count (minimum 1).
+    """
+
+    video_id: str
+    title: str
+    failed_stage: Literal["transcript", "fingerprint"]
+    failure_reason: str
+    last_attempt_at: datetime
+    attempt_count: int = Field(..., ge=1)
+
+
+# ---------------------------------------------------------------------------
+# spec 017 E-1: UnifiedIngestSummary
+# ---------------------------------------------------------------------------
+
+class UnifiedIngestSummary(BaseModel):
+    """Full result of a single collect ingest command invocation.
+
+    Ref: data-model.md §E-1.
+
+    Wraps IngestResult (spec 016 boundary B-7) together with transcript,
+    fingerprint, cleanup, and retry manifest results into one summary.
+
+    Attributes:
+        channel_alias: Department alias processed (e.g. nursing).
+        ingest_result: spec 016 takeout ingestion result (B-7 preserved).
+        transcript_result: Transcript stage result.
+        fingerprint_result: Fingerprint stage result.
+        cleanup_result: Source video deletion result; None if --delete-source not set.
+        retry_manifest_delta: Retry manifest update summary.
+        total_elapsed_seconds: Total wall-clock time for the unified command.
+        started_at: UTC start timestamp.
+        completed_at: UTC end timestamp.
+    """
+
+    channel_alias: str
+    ingest_result: "IngestResult"
+    transcript_result: TranscriptStageResult
+    fingerprint_result: FingerprintStageResult
+    cleanup_result: CleanupResult | None = None
+    retry_manifest_delta: RetryManifestDelta
+    total_elapsed_seconds: float = Field(..., ge=0.0)
+    started_at: datetime
+    completed_at: datetime
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    @model_validator(mode="after")
+    def _validate_timing(self) -> "UnifiedIngestSummary":
+        if self.started_at >= self.completed_at:
+            raise ValueError("started_at must be before completed_at")
+        if self.total_elapsed_seconds < self.ingest_result.elapsed_seconds:
+            raise ValueError(
+                "total_elapsed_seconds must be >= ingest_result.elapsed_seconds"
+            )
+        return self

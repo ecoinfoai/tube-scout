@@ -1,6 +1,6 @@
 # tube-scout Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-05-15
+Auto-generated from all feature plans. Last updated: 2026-05-16
 
 ## Active Technologies
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, pydantic v2, nbformat, anthropic (new), openai (new), statsmodels (new — ARIMA), prophet (new), transformers + torch (new — KoBERT/KoELECTRA) (002-v2-analytics-expansion)
@@ -24,6 +24,8 @@ Auto-generated from all feature plans. Last updated: 2026-05-15
 - SQLite v4 마이그레이션 — `channel_metadata`, `video_metadata` 신규 테이블 + `processing_status` (+`match_confidence`, `caption_source_detail`) + `quality_results` (+`asr_quality_flags` JSON) + `comparison_results` (+`audio_fp_*`, `source_type_pair`) ALTER. JSON(channel_meta, videos_meta) 이중 적재. 임시 WAV는 비영구(통합 모드 즉시 삭제, C-1). (013-takeout-local-asr-reuse)
 - Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, faster-whisper (≥1.0.0, [asr] optional extra), CTranslate2 4.x, ffmpeg (chromaprint 패키지에 동봉). agenix 환경변수는 OAuth 흐름에서만 선택적 사용. **신규 PyPI 의존성 0건** — 기존 [asr] / [dev] / 기본 surface 안에서 모두 처리. (016-takeout-ingest-rebuild)
 - SQLite v4 (스키마 변경 없음 — spec 013 의 channel_metadata + video_metadata + processing_status + quality_results + comparison_results 보존), JSON atomic write (channel_meta.json, videos_meta.json, channels.json, departments.json), 적재 audit CSV (`audit_writer.py` 의 stage `takeout_ingest`). (016-takeout-ingest-rebuild)
+- Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, faster-whisper (≥1.0.0, `[asr]` optional extra), CTranslate2 4.x, ffmpeg (chromaprint 패키지에 동봉). 신규 PyPI 의존성 0 건 — 기존 `[asr]` / `[dev]` / 기본 surface 안에서 모두 처리. (017-takeout-unified-ingest)
+- SQLite v4 (스키마 변경 없음 — spec 013 의 channel_metadata + video_metadata + processing_status + quality_results + comparison_results 보존), JSON atomic write (channel_meta.json, videos_meta.json, channels.json, departments.json, **신규 retry_pending.json**), 감사 CSV (`audit_writer.py` 의 stage `takeout_ingest` + 신규 stage `ingest_orchestrator` / `source_video_cleanup`). (017-takeout-unified-ingest)
 
 - Python 3.11 + typer, rich, google-api-python-client, google-auth-oauthlib, youtube-transcript-api, pandas, polars, plotly, jinja2, statsmodels/prophet (001-lecture-video-analytics)
 
@@ -65,10 +67,10 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 Python 3.11: Follow standard conventions
 
 ## Recent Changes
+- 017-takeout-unified-ingest (v0.6.0.dev0, 2026-05-16): collect ingest 통합 명령 (takeout → ASR → fingerprint → retry manifest → optional cleanup) 신설 + retry_pending.json 자동 매니페스트 (FR-015/FR-018) + ffprobe per-mp4 메모이즈로 적재 1061s → 1.7s (SC-001 ≤ 60s 충족) + --delete-source 두 단계 interactive prompt. SQLite v4 스키마 변경 없음. 7 파일 수정 (services/evidence_score.py, services/unified_ingest.py, services/retry_manifest.py, services/source_video_cleanup.py, services/audit_writer.py, models/content.py, cli/collect.py) + 회귀 테스트 11개 (unit/integration/contract).
+- 017-takeout-unified-ingest: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, faster-whisper (≥1.0.0, `[asr]` optional extra), CTranslate2 4.x, ffmpeg (chromaprint 패키지에 동봉). 신규 PyPI 의존성 0 건 — 기존 `[asr]` / `[dev]` / 기본 surface 안에서 모두 처리.
 - 016-takeout-ingest-rebuild (v0.5.1.dev0, 2026-05-15): Takeout 적재 모듈 재작성 — 결함 11개 수정 (채널 CSV 헤더, privacy 한글 매핑, glob 패턴 등) + `--source youtube` exit 2 deprecation + ASR 단일 경로 기본값 + `admin list` 두 등록부 union 출력 + consistency 컬럼. SQLite v4 스키마 변경 없음. 5 파일 수정 (cli/admin.py, cli/collect.py, services/takeout_ingest.py, services/audit_writer.py, models/content.py) + 회귀 테스트 8개 (unit/integration/contract).
 - 016-takeout-ingest-rebuild: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`) + typer, rich, pydantic v2, polars, faster-whisper (≥1.0.0, [asr] optional extra), CTranslate2 4.x, ffmpeg (chromaprint 패키지에 동봉). agenix 환경변수는 OAuth 흐름에서만 선택적 사용. **신규 PyPI 의존성 0건** — 기존 [asr] / [dev] / 기본 surface 안에서 모두 처리.
-- 013-takeout-local-asr-reuse (internal milestone tag `v0.5.0`, 2026-05-14; Phase 6 closed): Takeout-based local ASR + lecture-video reuse detection + KB transcript export. Adds `faster-whisper>=1.0.0` (CTranslate2 backend, int8/float16) behind the new `[asr]` optional extra. SQLite migration v3 → v4: 2 new tables (`channel_metadata`, `video_metadata`) + 4 ALTER columns (`processing_status.match_confidence`, `processing_status.caption_source_detail`, `quality_results.asr_quality_flags`, `comparison_results.audio_fp_*` / `source_type_pair`). 9 new CLI commands: `collect takeout`, `collect audio-extract`, `collect process-audio`, `collect transcripts --source asr`, `collect fingerprint --source local`, `process normalize-transcripts`, `analyze content-reuse`, `report content-reuse`, `transcript export`/`export-bulk`. New services: `takeout_ingest.py`, `audio_extract.py`, `asr.py`, `text_normalizer.py`, `worker_pool.py`, `progress_reporter.py`, `evidence_score.py`. New reporting template `professor_nC2_report.html` (multi-axis Phase 3, aggregate-score deferred — weight commit trigger = `comparison_results.review_status` 라벨링 누적, 시한 없음 per 2026-05-15 decision). audit_writer.py generalized to 8 stages. C-3/C-4/C-5 clarifications drive multi-axis report sort, TTY auto-detect progress, atomic claim retry-failed. Phase 5 fully removes the previous-generation media adapter surface (public-sector ops policy, FR-046). `flake.nix` splits into `devShells.default` (CPU) and `devShells.gpu` (unfree opt-in, adds `cudaPackages.cudnn` + `cudaPackages.cuda_nvrtc`).
-- 013-takeout-local-asr-reuse: Added Python 3.11 (pinned via `flake.nix` devShell + `pyproject.toml`)
 
 
 <!-- MANUAL ADDITIONS START -->

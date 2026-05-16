@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -188,9 +188,39 @@ def _mtime_match(mp4_path: Path, created_at: datetime, tol_days: float) -> bool:
     Returns:
         True if |mtime - created_at| <= tol_days * 86400 seconds.
     """
-    mp4_mtime = datetime.fromtimestamp(mp4_path.stat().st_mtime, tz=timezone.utc)
+    mp4_mtime = datetime.fromtimestamp(mp4_path.stat().st_mtime, tz=UTC)
     delta = abs((mp4_mtime - created_at).total_seconds())
     return delta <= tol_days * 86400
+
+
+def _duration_match_with_cached(
+    mp4_duration_s: float | None,
+    video_duration_s: float,
+    tol_s: float,
+) -> bool:
+    """Check if a cached mp4 duration matches video metadata within tolerance.
+
+    Args:
+        mp4_duration_s: Cached ffprobe duration for the mp4, or None if
+            ffprobe failed or was not yet run.
+        video_duration_s: Expected duration from video metadata (seconds).
+        tol_s: Tolerance in seconds.
+
+    Returns:
+        True if |mp4_duration_s - video_duration_s| <= tol_s.
+        False when mp4_duration_s is None (ffprobe failure or cache miss).
+
+    Examples:
+        >>> _duration_match_with_cached(None, 100.0, 1.0)
+        False
+        >>> _duration_match_with_cached(99.5, 100.0, 1.0)
+        True
+        >>> _duration_match_with_cached(98.0, 100.0, 1.0)
+        False
+    """
+    if mp4_duration_s is None:
+        return False
+    return abs(mp4_duration_s - video_duration_s) <= tol_s
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +233,7 @@ def score_mp4_candidates(
     *,
     duration_tolerance_seconds: float = 1.0,
     mtime_tolerance_days: float = 1.0,
+    _ffprobe_cache: dict[str, float | None] | None = None,
 ) -> list[tuple[str, EvidenceSignals]]:
     """Compute evidence signals for every (mp4, video_id) candidate.
 
@@ -211,10 +242,25 @@ def score_mp4_candidates(
         video_meta_list: Channel video_metadata candidate list.
         duration_tolerance_seconds: Duration match tolerance (default 1.0s).
         mtime_tolerance_days: mtime match tolerance (default 1.0 day).
+        _ffprobe_cache: Optional dict mapping resolved str(path) → duration
+            seconds (or None on ffprobe failure). Key is always
+            str(path.resolve()) so symlinks to the same physical file share
+            one cache entry. If None, a fresh dict is created and ffprobe is
+            called once for mp4_path. Pass a pre-populated dict to skip
+            ffprobe entirely (useful for unit testing and batch callers that
+            build the cache externally).
 
     Returns:
         List of (video_id, EvidenceSignals) for every candidate.
     """
+    if _ffprobe_cache is None:
+        _ffprobe_cache = {}
+
+    cache_key = str(mp4_path.resolve())
+    if cache_key not in _ffprobe_cache:
+        _ffprobe_cache[cache_key] = _probe_duration_via_ffprobe(mp4_path)
+    cached_duration = _ffprobe_cache[cache_key]
+
     results: list[tuple[str, EvidenceSignals]] = []
     mp4_name = mp4_path.name
 
@@ -223,14 +269,16 @@ def score_mp4_candidates(
         normalized = (not exact) and _normalized_title_match(mp4_name, vm.title)
 
         dur_s = vm.duration_seconds or 0.0
-        dur_match = _duration_match(mp4_path, dur_s, duration_tolerance_seconds)
+        dur_match = _duration_match_with_cached(
+            cached_duration, dur_s, duration_tolerance_seconds
+        )
         size_ok = _size_ratio_plausible(mp4_path, dur_s) if dur_s > 0 else False
 
         mtime_ok = False
         if vm.created_at is not None:
             created = vm.created_at
             if created.tzinfo is None:
-                created = created.replace(tzinfo=timezone.utc)
+                created = created.replace(tzinfo=UTC)
             mtime_ok = _mtime_match(mp4_path, created, mtime_tolerance_days)
 
         signals = EvidenceSignals(

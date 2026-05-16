@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from tube_scout.models.config import ChannelRegistration
 from tube_scout.models.content import ChannelMetadata, VideoMetadata
@@ -84,6 +84,7 @@ class IngestResult(BaseModel):
     mp4_present_count: int = 0
     mp4_absent_count: int = 0
     elapsed_seconds: float = 0.0
+    mp4_video_id_map: dict[str, str] = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +428,22 @@ def ingest_takeout(
         _parse_takeout_full(takeout_dir)
     )
 
+    # B-9: Validate channel_id consistency between registry and archive CSV
+    reg_channel_id = registry[channel_alias].channel_id
+    csv_channel_id = channel_meta.channel_id
+    if not csv_channel_id:
+        raise ValueError(
+            f"Archive CSV channel_id is empty or missing for alias '{channel_alias}'. "
+            "The Takeout archive may be corrupt or from a different account. "
+            "Resolve before ingesting."
+        )
+    if reg_channel_id and csv_channel_id != reg_channel_id:
+        raise ValueError(
+            f"Channel ID mismatch for alias '{channel_alias}': "
+            f"registry={reg_channel_id!r}, archive CSV={csv_channel_id!r}. "
+            "Resolve the inconsistency before ingesting."
+        )
+
     channel_meta = channel_meta.model_copy(update={"channel_alias": channel_alias})
 
     # Audit unknown privacy rows (결함 7, FR-005)
@@ -532,6 +549,32 @@ def ingest_takeout(
     # Step 7: Assemble work_dir with mp4 symlinks
     assemble_channel_work_dir(takeout_dir, channel_alias, work_root, use_symlinks)
 
+    # Build absolute path → video_id map for unified ingest downstream.
+    # T-04: resolve() follows symlink chains — reject any symlink that escapes takeout_dir,
+    # regardless of whether it mapped to a video_id. Check all symlinks first, then build map.
+    video_dir = work_dir / _VIDEO_SUBDIR
+    takeout_dir_resolved = takeout_dir.resolve()
+    if video_dir.exists():
+        for mp4_path in video_dir.iterdir():
+            if mp4_path.suffix != ".mp4":
+                continue
+            if mp4_path.is_symlink():
+                resolved = mp4_path.resolve()
+                try:
+                    resolved.relative_to(takeout_dir_resolved)
+                except ValueError:
+                    raise ValueError(
+                        f"mp4 path '{mp4_path}' resolves to '{resolved}', "
+                        f"which is outside takeout_dir '{takeout_dir_resolved}'. "
+                        "Refusing to ingest — possible symlink escape (T-04)."
+                    )
+    abs_mp4_video_id_map: dict[str, str] = {}
+    for filename, video_id in mp4_video_id_map.items():
+        if video_id:
+            abs_path = video_dir / filename
+            if abs_path.exists() or abs_path.is_symlink():
+                abs_mp4_video_id_map[str(abs_path.resolve())] = video_id
+
     elapsed_seconds = time.monotonic() - _t_start
 
     return IngestResult(
@@ -548,6 +591,7 @@ def ingest_takeout(
         mp4_present_count=mp4_present_count,
         mp4_absent_count=mp4_absent_count,
         elapsed_seconds=elapsed_seconds,
+        mp4_video_id_map=abs_mp4_video_id_map,
     )
 
 

@@ -590,7 +590,10 @@ def _collect_transcripts_asr(  # noqa: C901
     data_dir: str,
     db_path_str: str,
 ) -> None:
-    """--source asr branch: run faster-whisper ASR on cached WAV files (FR-016~FR-022)."""
+    """--source asr branch: run faster-whisper ASR on cached WAV files.
+
+    FR-016~FR-022.
+    """
     import datetime
     import sqlite3
 
@@ -619,11 +622,14 @@ def _collect_transcripts_asr(  # noqa: C901
                 ids = [v.strip() for v in video_ids_str.split(",") if v.strip()]
                 placeholders = ",".join("?" * len(ids))
                 rows = conn.execute(
-                    f"SELECT video_id FROM processing_status WHERE video_id IN ({placeholders})",
+                    "SELECT video_id FROM processing_status"
+                    f" WHERE video_id IN ({placeholders})",
                     ids,
                 ).fetchall()
             else:
-                status_filter = "'collected', 'asr_failed'" if retry_failed else "'collected'"
+                status_filter = (
+                    "'collected', 'asr_failed'" if retry_failed else "'collected'"
+                )
                 rows = conn.execute(
                     f"SELECT ps.video_id FROM processing_status ps"
                     f" JOIN video_metadata vm ON vm.video_id = ps.video_id"
@@ -750,7 +756,10 @@ def _collect_transcripts_asr(  # noqa: C901
             "timestamp": ts,
             "cookies_source": "local",
         })
-        console.print(f"[green]ok[/green] {video_id} lang={result.language_detected} dur={result.duration:.1f}s")
+        console.print(
+            f"[green]ok[/green] {video_id}"
+            f" lang={result.language_detected} dur={result.duration:.1f}s"
+        )
 
 
 def collect_transcripts_command(
@@ -814,7 +823,10 @@ def collect_transcripts_command(
     asr_preset: str | None = typer.Option(
         None,
         "--preset",
-        help="ASR preset: poc-laptop, prod-a6000, prod-a6000-pool, cpu-fallback (required for --source asr).",
+        help=(
+            "ASR preset: poc-laptop, prod-a6000, prod-a6000-pool, cpu-fallback"
+            " (required for --source asr)."
+        ),
         rich_help_panel="ASR options (--source asr)",
     ),
     asr_model: str = typer.Option(
@@ -880,7 +892,10 @@ def collect_transcripts_command(
     asr_db_path_str: str = typer.Option(
         "",
         "--db-path",
-        help="Path to content_reuse.db for --source asr (defaults to <data-dir>/content_reuse.db).",
+        help=(
+            "Path to content_reuse.db for --source asr"
+            " (defaults to <data-dir>/content_reuse.db)."
+        ),
         rich_help_panel="ASR options (--source asr)",
     ),
 ) -> None:
@@ -1790,7 +1805,10 @@ def build_signal_handler(
                 except Exception as _exc:
                     # AT-12.3: log to stderr so SS-5 is not silently swallowed
                     import sys
-                    print(f"[signal handler] audit write failed: {_exc}", file=sys.stderr)
+                    print(
+                        f"[signal handler] audit write failed: {_exc}",
+                        file=sys.stderr,
+                    )
 
         raise SystemExit(130)
 
@@ -1807,10 +1825,12 @@ def _collect_fingerprint_local(
     data_dir: str,
     db_path_local_str: str,
 ) -> None:
-    """--source local branch: fingerprint Takeout mp4 or cached wav files (FR-013~FR-015)."""
+    """--source local branch: fingerprint Takeout mp4 or cached wav files.
+
+    FR-013~FR-015.
+    """
     import datetime
     import sqlite3
-    import time
 
     from tube_scout.services.audio_fingerprint import extract_chromaprint_fingerprint
     from tube_scout.services.audit_writer import AuditWriter
@@ -1821,11 +1841,16 @@ def _collect_fingerprint_local(
         raise typer.Exit(code=2)
 
     if input_kind not in ("mp4", "wav_16k", "wav_22k"):
-        console.print(f"[red]--input-kind must be mp4, wav_16k, or wav_22k. Got: {input_kind}[/red]")
+        console.print(
+            "[red]--input-kind must be mp4, wav_16k, or wav_22k."
+            f" Got: {input_kind}[/red]"
+        )
         raise typer.Exit(code=2)
 
     work_root = Path(data_dir)
-    db = Path(db_path_local_str) if db_path_local_str else work_root / "content_reuse.db"
+    db = (
+        Path(db_path_local_str) if db_path_local_str else work_root / "content_reuse.db"
+    )
     cache_dir = Path(audio_cache_dir)
 
     if not db.exists():
@@ -1860,7 +1885,9 @@ def _collect_fingerprint_local(
         raise typer.Exit(code=2) from exc
 
     if not rows:
-        console.print("[yellow]No video_metadata rows found for the given selection.[/yellow]")
+        console.print(
+            "[yellow]No video_metadata rows found for the given selection.[/yellow]"
+        )
         raise typer.Exit(code=0)
 
     audit = AuditWriter(work_root / channel)
@@ -1896,7 +1923,9 @@ def _collect_fingerprint_local(
                 "cookies_source": "local",
                 "fingerprint_input_policy": input_kind,
             })
-            console.print(f"[yellow]skip[/yellow] {video_id}: input not found {input_path}")
+            console.print(
+                f"[yellow]skip[/yellow] {video_id}: input not found {input_path}"
+            )
             continue
 
         # Skip if fingerprint already in DB and not force
@@ -1904,7 +1933,8 @@ def _collect_fingerprint_local(
             try:
                 with sqlite3.connect(db) as conn:
                     existing = conn.execute(
-                        "SELECT 1 FROM audio_fingerprint WHERE video_id = ?", (video_id,)
+                        "SELECT 1 FROM audio_fingerprint WHERE video_id = ?",
+                        (video_id,),
                     ).fetchone()
                 if existing:
                     audit.append_fingerprint_row({
@@ -1921,10 +1951,8 @@ def _collect_fingerprint_local(
             except Exception:
                 pass
 
-        t0 = time.monotonic()
         try:
             fp_bytes, duration = extract_chromaprint_fingerprint(input_path)
-            elapsed = time.monotonic() - t0
             insert_audio_fingerprint(db, video_id, fp_bytes, duration, ts)
             audit.append_fingerprint_row({
                 "video_id": video_id,
@@ -1938,7 +1966,6 @@ def _collect_fingerprint_local(
             console.print(f"[green]ok[/green] {video_id} {duration:.1f}s")
         except Exception as exc:
             any_failed = True
-            elapsed = time.monotonic() - t0
             audit.append_fingerprint_row({
                 "video_id": video_id,
                 "result": "fail",
@@ -2079,7 +2106,7 @@ def collect_process_audio_command(  # noqa: C901
         rich_help_panel="Process options",
     ),
 ) -> None:
-    """Integrated per-video pipeline: WAV extract → fingerprint → ASR → normalize → WAV delete.
+    """Integrated per-video pipeline: WAV → fingerprint → ASR → normalize → WAV delete.
 
     FR-010~FR-025 (spec 013). Exit codes: 0=success, 2=alias/selection error,
     5=one or more per-video failures.
@@ -2174,7 +2201,9 @@ def collect_process_audio_command(  # noqa: C901
 
             mp4_path = work_root / channel / mp4_rel
             if not mp4_path.exists():
-                console.print(f"[yellow]skip[/yellow] {video_id}: mp4 not found {mp4_path}")
+                console.print(
+                    f"[yellow]skip[/yellow] {video_id}: mp4 not found {mp4_path}"
+                )
                 any_failed = True
                 progress.update(video_id, i)
                 continue
@@ -2194,8 +2223,12 @@ def collect_process_audio_command(  # noqa: C901
                 # Step 2: fingerprint (optional)
                 if not skip_fingerprint:
                     try:
-                        fp_bytes, fp_duration = extract_chromaprint_fingerprint(mp4_path)
-                        insert_audio_fingerprint(db, video_id, fp_bytes, fp_duration, ts)
+                        fp_bytes, fp_duration = extract_chromaprint_fingerprint(
+                            mp4_path
+                        )
+                        insert_audio_fingerprint(
+                            db, video_id, fp_bytes, fp_duration, ts
+                        )
                         audit.append_fingerprint_row({
                             "video_id": video_id,
                             "result": "success",
@@ -2227,11 +2260,15 @@ def collect_process_audio_command(  # noqa: C901
                             "language": asr_result.language_detected,
                             "duration": asr_result.duration,
                             "segments": asr_result.segments,
-                            "asr_quality_flags": asr_result.asr_quality_flags.model_dump(),
+                            "asr_quality_flags": (
+                                asr_result.asr_quality_flags.model_dump()
+                            ),
                             "fetched_at": ts,
                         }
                         json_path = transcript_dir / f"{video_id}.json"
-                        fd, tmp_name = _tempfile.mkstemp(dir=transcript_dir, suffix=".tmp")
+                        fd, tmp_name = _tempfile.mkstemp(
+                            dir=transcript_dir, suffix=".tmp"
+                        )
                         try:
                             with _os.fdopen(fd, "w", encoding="utf-8") as f:
                                 _json.dump(transcript, f, ensure_ascii=False, indent=2)
@@ -2308,7 +2345,7 @@ def collect_takeout_command(
         help="Path to content_reuse.db (defaults to <data-dir>/content_reuse.db).",
     ),
 ) -> None:
-    """Ingest Google Takeout export: parse CSV metadata, map mp4 to video_id, persist to SQLite.
+    """Ingest Google Takeout export: parse CSV metadata, map mp4 to video_id, persist.
 
     FR-001/FR-002/FR-009 (spec 016). Exit codes: 0=success, 1=error.
     """
@@ -2484,7 +2521,9 @@ def collect_audio_extract_command(
         raise typer.Exit(code=2) from exc
 
     if not rows:
-        console.print("[yellow]No video_metadata rows found for the given selection.[/yellow]")
+        console.print(
+            "[yellow]No video_metadata rows found for the given selection.[/yellow]"
+        )
         raise typer.Exit(code=0)
 
     audit = AuditWriter(work_root / channel)
@@ -2546,3 +2585,129 @@ def collect_audio_extract_command(
 
     if any_failed:
         raise typer.Exit(code=5)
+
+
+def collect_ingest_command(
+    takeout_dir: str = typer.Option(
+        ...,
+        "--takeout-dir",
+        help="Takeout decompressed root directory (contains YouTube subdir).",
+    ),
+    channel: str = typer.Option(
+        ...,
+        "--channel",
+        help="spec 003 channel alias (must be registered).",
+    ),
+    delete_source: bool = typer.Option(
+        False,
+        "--delete-source",
+        help="Prompt to delete source mp4 files after processing.",
+    ),
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help="Work root for channel data directories.",
+    ),
+    db_path_str: str = typer.Option(
+        "",
+        "--db-path",
+        help="Path to content_reuse.db (defaults to <data-dir>/content_reuse.db).",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print mapping results only; no DB writes, no ASR/fingerprint.",
+    ),
+    copy: bool = typer.Option(
+        False,
+        "--copy",
+        help="Copy mp4 files instead of creating symlinks.",
+    ),
+) -> None:
+    """Unified ingest: takeout → ASR → fingerprint → retry manifest → optional cleanup.
+
+    FR-010/FR-011/FR-012/FR-013/FR-017 (spec 017). Exit codes: 0=success, 1=error.
+    """
+    from tube_scout.services.audit_writer import AuditWriter
+    from tube_scout.services.unified_ingest import ingest_unified
+
+    # B-9: block collect if alias has a mismatch between registries (Fix T-17/T-18)
+    try:
+        from tube_scout.services.auth import load_registry
+        from tube_scout.web.repo.departments_repo import DepartmentsRepo
+
+        channels_reg = load_registry()
+        depts_reg = {d.alias: d for d in DepartmentsRepo().list_all()}
+        alias_in_channels = channel in channels_reg
+        alias_in_depts = channel in depts_reg
+        if alias_in_channels and alias_in_depts:
+            dept = depts_reg[channel]
+            ch_channel_id = channels_reg[channel].channel_id
+            dept_channel_id = (
+                os.environ.get(dept.channel_id_env) if dept.channel_id_env else None
+            )
+            if dept_channel_id and dept_channel_id != ch_channel_id:
+                console.print(
+                    f"[red]Error: alias '{channel}' mismatch between registries "
+                    f"(channels.json={ch_channel_id!r}, "
+                    f"departments.json env={dept_channel_id!r}). "
+                    f"Resolve the inconsistency before running ingest.[/red]"
+                )
+                raise typer.Exit(code=1)
+        elif not alias_in_channels and not alias_in_depts:
+            console.print(
+                f"[red]Error: alias '{channel}' not registered in any registry. "
+                f"Run 'tube-scout admin list' to inspect.[/red]"
+            )
+            raise typer.Exit(code=1)
+    except typer.Exit:
+        raise
+    except (FileNotFoundError, KeyError, ValueError) as exc:
+        # intentional-skip: registry load failure non-blocking (B-9 via service layer)
+        console.print(
+            f"[yellow]Warning: alias mismatch check skipped "
+            f"— registry load failed: {exc}[/yellow]"
+        )
+
+    takeout_path = Path(takeout_dir)
+    work_root = Path(data_dir)
+    db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
+
+    if not takeout_path.exists():
+        console.print(
+            f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    audit = AuditWriter(work_root / channel)
+
+    try:
+        summary = ingest_unified(
+            takeout_dir=takeout_path,
+            channel_alias=channel,
+            db_path=db,
+            work_root=work_root,
+            use_symlinks=not copy,
+            dry_run=dry_run,
+            delete_source=delete_source,
+            audit_writer=audit,
+        )
+    except ValueError as exc:
+        console.print(f"[red]Alias error: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except FileNotFoundError as exc:
+        console.print(f"[red]Path error: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        console.print(f"[red]Error: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    mode = "[dim](dry-run)[/dim]" if dry_run else ""
+    console.print(
+        f"[green]ingest complete {mode}[/green] "
+        f"channel={summary.ingest_result.channel_alias} "
+        f"new={summary.ingest_result.new_videos} "
+        f"transcripts={summary.transcript_result.success_count} "
+        f"fingerprints={summary.fingerprint_result.success_count} "
+        f"elapsed={summary.total_elapsed_seconds}s"
+    )
