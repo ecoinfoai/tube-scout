@@ -178,13 +178,34 @@ def test_match_spans_baseline_subtracted_flag_persisted(tmp_path: Path) -> None:
         conn.commit()
 
     # Seed baseline phrase for this professor
+    baseline_text = "이번 시간에는 강의를 시작하겠습니다"
     add_baseline_phrase(
         professor_id=professor,
-        phrase_raw="이번 시간에는 강의를 시작하겠습니다",
+        phrase_raw=baseline_text,
         db_path=db_path,
         source_video_ids=["lb_vid_0000"],
         registered_by="test",
     )
+
+    # Seed transcript JSON per video so run_nc2_analysis can extract spans.
+    # Each transcript contains the baseline phrase as a >= 30s segment so
+    # Layer A keeps the span and Layer B marks baseline_subtracted=True.
+    import json as _json
+    transcript_root = tmp_path / "transcripts"
+    transcript_root.mkdir()
+    for i in range(3):
+        vid = f"lb_vid_{i:04d}"
+        payload = {
+            "video_id": vid,
+            "source": "asr",
+            "segments": [
+                {"start": 0.0, "end": 60.0, "text": baseline_text},
+                {"start": 60.0, "end": 120.0, "text": f"고유한 본문 {i}"},
+            ],
+        }
+        (transcript_root / f"{vid}.json").write_text(
+            _json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+        )
 
     db = ContentDB(db_path)
     try:
@@ -194,6 +215,7 @@ def test_match_spans_baseline_subtracted_flag_persisted(tmp_path: Path) -> None:
             db=db,
             matching_mode="M-nC2",
             layer_a_min_seconds=30.0,
+            transcript_root=transcript_root,
         )
     finally:
         db.close()
