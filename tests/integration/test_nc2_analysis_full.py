@@ -85,7 +85,34 @@ def _setup_v4_db_with_videos(tmp_path: Path) -> Path:
             )
         conn.commit()
 
+    # FR-032: seed one audio_fingerprint row per video so run_nc2_analysis can
+    # compute hamming/offset/overlap. Each video gets a unique deterministic
+    # fingerprint so distances are non-zero across pairs.
+    _seed_audio_fingerprints(db_path)
+
     return db_path
+
+
+def _seed_audio_fingerprints(db_path: Path) -> None:
+    """Insert one stub chromaprint row per video in VIDEO_IDS."""
+    import chromaprint
+    import numpy as np
+
+    from tube_scout.storage.content_db import insert_audio_fingerprint
+
+    for i, vid_id in enumerate(VIDEO_IDS):
+        rng = np.random.default_rng(seed=1000 + i)
+        raw_ints = rng.integers(
+            low=0, high=2**31, size=300, dtype=np.uint32
+        ).tolist()
+        fp_b64 = chromaprint.encode_fingerprint(raw_ints, algorithm=1)
+        insert_audio_fingerprint(
+            db_path=db_path,
+            video_id=vid_id,
+            fingerprint=fp_b64,
+            duration=1800.0,
+            extracted_at="2026-01-01T00:00:00+00:00",
+        )
 
 
 def test_nc2_full_36_pairs(tmp_path: Path) -> None:
