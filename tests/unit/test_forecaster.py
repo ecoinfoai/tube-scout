@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 
 pytest.importorskip("numpy", exc_type=ImportError)
+pytest.importorskip("statsmodels", exc_type=ImportError)
 
 from tube_scout.services.forecaster import ForecasterService  # noqa: E402
 

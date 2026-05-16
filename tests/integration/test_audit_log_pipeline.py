@@ -24,6 +24,8 @@ _STAGE_ROWS = {
         "match_confidence": "high",
         "score": "0.95",
         "timestamp": _TS,
+        "raw_value": "",
+        "elapsed_ms": "0",
     },
     "audio_extract": {
         "video_id": "vid001",

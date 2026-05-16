@@ -87,7 +87,7 @@ def test_b_append_row_transcripts_and_fingerprint(tmp_path: Path) -> None:
 
 
 def test_c_eight_stage_frozen_fieldnames() -> None:
-    """STAGE_FIELDNAMES has exactly 8 keys with frozen column orders."""
+    """spec 013 8 stages remain frozen; spec 017 may add new stages without disturbing them."""
     from tube_scout.services.audit_writer import (
         ANALYZE_FIELDNAMES,
         AUDIO_EXTRACT_FIELDNAMES,
@@ -100,7 +100,7 @@ def test_c_eight_stage_frozen_fieldnames() -> None:
         TRANSCRIPTS_FIELDNAMES,
     )
 
-    assert set(STAGE_FIELDNAMES.keys()) == {
+    spec013_keys = {
         "takeout_ingest",
         "audio_extract",
         "transcripts",
@@ -110,6 +110,7 @@ def test_c_eight_stage_frozen_fieldnames() -> None:
         "report",
         "kb_export",
     }
+    assert spec013_keys.issubset(set(STAGE_FIELDNAMES.keys()))
     assert STAGE_FIELDNAMES["takeout_ingest"] == TAKEOUT_INGEST_FIELDNAMES
     assert STAGE_FIELDNAMES["audio_extract"] == AUDIO_EXTRACT_FIELDNAMES
     assert STAGE_FIELDNAMES["transcripts"] == TRANSCRIPTS_FIELDNAMES
