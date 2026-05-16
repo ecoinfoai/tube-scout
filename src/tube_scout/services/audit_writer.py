@@ -74,10 +74,17 @@ STAGE_FIELDNAMES: dict[str, tuple[str, ...]] = {
     "source_video_cleanup": SOURCE_VIDEO_CLEANUP_FIELDNAMES,
 }
 
-# spec 017 E-8 (FR-017) reason vocabulary extension
+# spec 017 E-8 (FR-017) + spec 018 (FR-018F) reason vocabulary
+# Idempotency-guard reasons: already_transcribed, already_fingerprinted,
+# already_transcribed_and_fingerprinted (data-model §5 / contract idempotency-guard §8).
 ORCHESTRATOR_REASONS: frozenset[str] = frozenset({
     "started", "completed", "aborted_by_user", "failed_intermediate_stage",
     "stub_not_implemented", "registry_load_failed",
+    "asr_transcribed", "captured",
+    "asr_fail", "fp_fail",
+    "already_transcribed", "already_fingerprinted",
+    "already_transcribed_and_fingerprinted",
+    "forced_reprocess",
 })
 CLEANUP_REASONS: frozenset[str] = frozenset({
     "presented_failures", "confirmed_yes", "confirmed_no",

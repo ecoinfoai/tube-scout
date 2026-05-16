@@ -1,0 +1,77 @@
+[
+  {
+    "header": "간호학과 채널",
+    "title": "간호학개론 1주차 시청함",
+    "titleUrl": "https://www.youtube.com/watch?v=AAAAAAAAA01",
+    "subtitles": [
+      {
+        "name": "간호학과 채널"
+      }
+    ],
+    "time": "2026-05-16T10:17:32.291650+00:00",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube 시청 기록"
+    ]
+  },
+  {
+    "header": "간호학과 채널",
+    "title": "성인간호학 2주차 시청함",
+    "titleUrl": "https://www.youtube.com/watch?v=BBBBBBBBB02",
+    "subtitles": [
+      {
+        "name": "간호학과 채널"
+      }
+    ],
+    "time": "2026-05-16T10:17:32.291650+00:00",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube 시청 기록"
+    ]
+  },
+  {
+    "header": "간호학과 채널",
+    "title": "기초해부학 3주차 시청함",
+    "titleUrl": "https://www.youtube.com/watch?v=CCCCCCCCC03",
+    "subtitles": [
+      {
+        "name": "간호학과 채널"
+      }
+    ],
+    "time": "2026-05-16T10:17:32.291650+00:00",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube 시청 기록"
+    ]
+  },
+  {
+    "header": "간호학과 채널",
+    "title": "삭제된 동영상 시청함",
+    "titleUrl": "https://www.youtube.com/watch?v=DDDDDDDDD04",
+    "time": "2026-05-16T10:17:32.291650+00:00",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube 시청 기록"
+    ]
+  },
+  {
+    "header": "간호학과 채널",
+    "title": "비공개 동영상 시청함",
+    "titleUrl": "https://www.youtube.com/watch?v=EEEEEEEEE05",
+    "time": "2026-05-16T10:17:32.291650+00:00",
+    "products": [
+      "YouTube"
+    ],
+    "activityControls": [
+      "YouTube 시청 기록"
+    ]
+  }
+]

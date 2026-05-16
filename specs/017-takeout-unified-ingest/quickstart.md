@@ -206,6 +206,7 @@ spec 017 구현 완료 후 운영자가 따라할 매뉴얼 체크:
 - [ ] `tube-scout collect ingest --channel nursing --takeout-dir <path>` 가 exit 0 으로 정상 완료 (US1)
 - [ ] 적재 단계가 본 작업 머신에서 60 초 이내에 완료 (SC-001, 본 머신 실측 평균 8.3s, dry-run 1.64s)
 - [ ] 같은 archive 두 번째 호출 시 `new=0`, 자막·지문 재생성 0 (SC-004)
+  - **RESOLVED in spec 018 (2026-05-16)** — 멱등 가드 도입으로 두 번째 호출 wall clock ≤ 2 초 달성. spec 018 quickstart §3 참조.
 - [ ] 한 호출 안에서 같은 영상의 음원 디코딩이 1 회 (Step 2 자막과 Step 3 지문이 같은 임시 음원을 공유) (SC-005)
 - [ ] 단계별 소요 시간이 모두 양의 값으로 표시 (SC-006)
 - [ ] `--delete-source` 옵션 없으면 prompt 등장 안 함, 영상 보존

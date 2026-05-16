@@ -356,6 +356,7 @@ class TranscriptStageResult(BaseModel):
         success_count: Videos with transcripts successfully generated.
         failure_count: Videos that failed transcript generation.
         skipped_no_mp4_count: Videos auto-skipped due to absent mp4 (FR-008).
+        skip_count: Videos skipped by idempotency guard (spec 018 FR-018F).
         failures: Per-failure details; len must equal failure_count.
         elapsed_seconds: Wall-clock time for this stage.
     """
@@ -363,6 +364,7 @@ class TranscriptStageResult(BaseModel):
     success_count: int = Field(..., ge=0)
     failure_count: int = Field(..., ge=0)
     skipped_no_mp4_count: int = Field(..., ge=0)
+    skip_count: int = 0
     failures: list[FailureEntry] = Field(default_factory=list)
     elapsed_seconds: float = Field(..., ge=0.0)
 
@@ -389,6 +391,7 @@ class FingerprintStageResult(BaseModel):
         success_count: Videos with fingerprints successfully extracted.
         failure_count: Videos that failed fingerprint extraction.
         skipped_no_mp4_count: Videos auto-skipped due to absent mp4.
+        skip_count: Videos skipped by idempotency guard (spec 018 FR-018F).
         failures: Per-failure details; len must equal failure_count.
         elapsed_seconds: Wall-clock time for this stage.
     """
@@ -396,6 +399,7 @@ class FingerprintStageResult(BaseModel):
     success_count: int = Field(..., ge=0)
     failure_count: int = Field(..., ge=0)
     skipped_no_mp4_count: int = Field(..., ge=0)
+    skip_count: int = 0
     failures: list[FailureEntry] = Field(default_factory=list)
     elapsed_seconds: float = Field(..., ge=0.0)
 

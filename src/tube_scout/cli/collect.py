@@ -2623,6 +2623,14 @@ def collect_ingest_command(
         "--copy",
         help="Copy mp4 files instead of creating symlinks.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help=(
+            "멱등 가드 우회 — archive 내 모든 영상의 자막·지문을 강제 재처리. "
+            "retry_pending.json 은 새 결과로 갱신됨."
+        ),
+    ),
 ) -> None:
     """Unified ingest: takeout → ASR → fingerprint → retry manifest → optional cleanup.
 
@@ -2691,6 +2699,7 @@ def collect_ingest_command(
             dry_run=dry_run,
             delete_source=delete_source,
             audit_writer=audit,
+            force=force,
         )
     except ValueError as exc:
         console.print(f"[red]Alias error: {exc}[/red]")
