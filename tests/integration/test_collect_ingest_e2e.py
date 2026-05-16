@@ -21,9 +21,31 @@ _ARCHIVE_ROOT = (
 _ARCHIVE_PRESENT = _ARCHIVE_ROOT.exists()
 
 
+def _faster_whisper_available() -> bool:
+    """Check whether the ``asr`` optional extra is installed.
+
+    The full-pipeline e2e test runs faster-whisper on every mp4 and would
+    otherwise mark every video as ``transcript_failed`` with an ImportError,
+    masking the actual integration signal.
+    """
+    try:
+        import faster_whisper  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+@pytest.mark.slow
 @pytest.mark.skipif(
     not _ARCHIVE_PRESENT,
     reason="Real takeout archive not present — skipping e2e test",
+)
+@pytest.mark.skipif(
+    not _faster_whisper_available(),
+    reason=(
+        "faster-whisper not installed — run `uv sync --extra asr` to enable "
+        "the ASR-dependent e2e test."
+    ),
 )
 class TestCollectIngestE2E:
     """T012 — full collect ingest pipeline with real nursing archive."""
@@ -52,6 +74,10 @@ class TestCollectIngestE2E:
                 "--channel", "nursing",
                 "--data-dir", str(work_root),
                 "--db-path", str(db_path),
+                # No --preset override here: resolve_preset() auto-detects
+                # the host's GPU and picks poc-laptop for any card with
+                # >= 4 GiB VRAM, cpu-fallback otherwise. Operators can still
+                # force a preset via TUBE_SCOUT_ASR_PRESET when needed.
             ])
         return result, work_root, db_path
 
@@ -81,11 +107,11 @@ class TestCollectIngestE2E:
 
         conn = sqlite3.connect(db_path)
         fp_count = conn.execute(
-            "SELECT COUNT(*) FROM processing_status WHERE fingerprint_path IS NOT NULL"
+            "SELECT COUNT(*) FROM audio_fingerprint"
         ).fetchone()[0]
         conn.close()
         assert fp_count == 9, (
-            f"Expected 9 fingerprint rows in processing_status, got {fp_count}"
+            f"Expected 9 rows in audio_fingerprint, got {fp_count}"
         )
 
         retry_manifest = work_root / "nursing" / "retry_pending.json"
