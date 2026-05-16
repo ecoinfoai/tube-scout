@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import functools
+import os
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -25,6 +27,175 @@ PRESET_TABLE: dict[str, dict[str, str | int | None]] = {
     "prod-a6000-pool": {"model": "large-v3", "compute_type": "float16",      "device": "cuda", "device_index": None},
     "cpu-fallback":    {"model": "medium",   "compute_type": "int8",         "device": "cpu",  "device_index": 0},
 }
+
+# Environment variable that overrides preset auto-detection when --preset is
+# not passed on the command line. Operator-level shell rc setting.
+ENV_ASR_PRESET = "TUBE_SCOUT_ASR_PRESET"
+
+# GPU VRAM threshold (GiB) above which large-v3 models are considered safe
+# to load. Below this we fall back to medium+cpu so OOM does not silently
+# kill every video in the batch. Calibrated against the spec 018 implementation
+# baseline ("RTX 3060 + 9 mp4 fresh = 14m42s") where large-v3 + int8_float16
+# fits a 6 GiB card under standard load, so 4 GiB is a safer threshold than
+# the prior 8 GiB which forced laptop-class GPUs into the slow CPU path.
+_GPU_VRAM_SAFE_THRESHOLD_GIB: float = 4.0
+
+
+@dataclass(frozen=True)
+class PresetResolution:
+    """Outcome of :func:`resolve_preset`.
+
+    Attributes:
+        preset_name: One of :data:`PRESET_TABLE` keys.
+        source: Where the choice came from — ``"explicit"`` (CLI flag),
+            ``"env"`` (``TUBE_SCOUT_ASR_PRESET``), or ``"auto"`` (GPU VRAM
+            sniff). Used for stdout transparency so operators see why the
+            preset was chosen.
+        rationale: Short human-readable explanation rendered to stdout.
+    """
+
+    preset_name: str
+    source: Literal["explicit", "env", "auto"]
+    rationale: str
+
+
+def _detect_gpu_vram_gib() -> float | None:
+    """Return total VRAM (GiB) of GPU 0, or ``None`` if no CUDA GPU is usable.
+
+    Tries ``torch.cuda`` first (commonly already installed for ml-sentiment
+    extra); falls back to parsing ``nvidia-smi --query-gpu=memory.total``
+    when torch is absent so cpu-only hosts still report ``None`` quickly.
+
+    Returns:
+        VRAM size in GiB, or ``None`` when GPU 0 is not visible.
+    """
+    try:
+        import torch
+        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+            props = torch.cuda.get_device_properties(0)
+            return float(props.total_memory) / (1024 ** 3)
+    except Exception:
+        pass
+
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            mib = float(out.stdout.strip().splitlines()[0])
+            return mib / 1024.0
+    except Exception:
+        pass
+
+    return None
+
+
+def resolve_preset(
+    explicit_preset: str | None = None,
+    *,
+    env: dict[str, str] | None = None,
+) -> PresetResolution:
+    """Resolve which ASR preset to use given the 3-layer decision flow.
+
+    Layers, in priority order:
+      1. ``explicit_preset`` (e.g. ``collect ingest --preset cpu-fallback``).
+      2. ``TUBE_SCOUT_ASR_PRESET`` environment variable.
+      3. Auto-detect — measure GPU VRAM via :func:`_detect_gpu_vram_gib`;
+         choose ``poc-laptop`` when ``>= 8 GiB``, otherwise ``cpu-fallback``.
+
+    Args:
+        explicit_preset: CLI-supplied preset name or ``None``.
+        env: Optional override for the environment dict (defaults to
+            ``os.environ``). Mostly used by tests.
+
+    Returns:
+        A :class:`PresetResolution` describing the chosen preset, the source
+        of the choice, and a one-line rationale for stdout.
+
+    Raises:
+        ValueError: ``explicit_preset`` or the env value is not a known
+            preset name. The error message lists valid names.
+    """
+    env_map = env if env is not None else os.environ
+
+    if explicit_preset:
+        if explicit_preset not in PRESET_TABLE:
+            raise ValueError(
+                f"Unknown ASR preset {explicit_preset!r}. "
+                f"Valid: {sorted(PRESET_TABLE.keys())}."
+            )
+        return PresetResolution(
+            preset_name=explicit_preset,
+            source="explicit",
+            rationale=f"--preset {explicit_preset}",
+        )
+
+    env_value = env_map.get(ENV_ASR_PRESET)
+    if env_value:
+        if env_value not in PRESET_TABLE:
+            raise ValueError(
+                f"Environment {ENV_ASR_PRESET}={env_value!r} is not a known "
+                f"preset. Valid: {sorted(PRESET_TABLE.keys())}."
+            )
+        return PresetResolution(
+            preset_name=env_value,
+            source="env",
+            rationale=f"{ENV_ASR_PRESET}={env_value}",
+        )
+
+    vram = _detect_gpu_vram_gib()
+    if vram is None:
+        return PresetResolution(
+            preset_name="cpu-fallback",
+            source="auto",
+            rationale="no CUDA GPU detected",
+        )
+    if vram >= _GPU_VRAM_SAFE_THRESHOLD_GIB:
+        return PresetResolution(
+            preset_name="poc-laptop",
+            source="auto",
+            rationale=f"GPU has {vram:.1f} GiB (>= {_GPU_VRAM_SAFE_THRESHOLD_GIB} GiB)",
+        )
+    return PresetResolution(
+        preset_name="cpu-fallback",
+        source="auto",
+        rationale=(
+            f"GPU has {vram:.1f} GiB (< {_GPU_VRAM_SAFE_THRESHOLD_GIB} GiB) — "
+            "large-v3 would OOM"
+        ),
+    )
+
+
+def preset_kwargs(preset_name: str) -> dict[str, str | int]:
+    """Return ``transcribe_audio`` kwargs for a preset name.
+
+    Args:
+        preset_name: One of :data:`PRESET_TABLE` keys.
+
+    Returns:
+        Dict ready to splat into :func:`transcribe_audio` — keys
+        ``model_size``, ``compute_type``, ``device``, ``device_index``.
+
+    Raises:
+        KeyError: ``preset_name`` not in :data:`PRESET_TABLE`.
+    """
+    if preset_name not in PRESET_TABLE:
+        raise KeyError(
+            f"Unknown preset {preset_name!r}. Valid: {sorted(PRESET_TABLE.keys())}."
+        )
+    p = PRESET_TABLE[preset_name]
+    device_index = p["device_index"]
+    return {
+        "model_size": str(p["model"]),
+        "compute_type": str(p["compute_type"]),
+        "device": str(p["device"]),
+        "device_index": int(device_index) if device_index is not None else 0,
+    }
 
 _SILENCE_FILLER_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE) for p in [
