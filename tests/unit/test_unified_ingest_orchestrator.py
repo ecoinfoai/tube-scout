@@ -6,8 +6,27 @@ All tests fail at RED stage: services.unified_ingest does not yet exist.
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+
+_AUDIO_FP_SQL = """
+CREATE TABLE IF NOT EXISTS audio_fingerprint (
+    video_id     TEXT PRIMARY KEY,
+    fingerprint  BLOB NOT NULL,
+    duration     REAL NOT NULL,
+    extracted_at TEXT NOT NULL,
+    source       TEXT NOT NULL DEFAULT 'fpcalc:1.6.0'
+);
+"""
+
+
+def _make_test_db(path: Path) -> Path:
+    """Create a SQLite DB with audio_fingerprint table for idempotency guard."""
+    with sqlite3.connect(str(path)) as conn:
+        conn.executescript(_AUDIO_FP_SQL)
+    return path
 
 
 def _make_ingest_result(
@@ -101,6 +120,7 @@ def test_wav_lifecycle_called_per_mp4(tmp_path: Path) -> None:
     """WavLifecycle context is entered once per mp4-mapped video (boundary B-1)."""
     ingest_unified = _import_ingest_unified()
     mp4_count = 3
+    db_path = _make_test_db(tmp_path / "test.db")
 
     with patch(
         "tube_scout.services.unified_ingest.ingest_takeout",
@@ -116,7 +136,7 @@ def test_wav_lifecycle_called_per_mp4(tmp_path: Path) -> None:
         ingest_unified(
             takeout_dir=tmp_path,
             channel_alias="nursing",
-            db_path=tmp_path / "test.db",
+            db_path=db_path,
             work_root=tmp_path / "work",
             use_symlinks=True,
             dry_run=False,
@@ -133,6 +153,7 @@ def test_wav_lifecycle_called_per_mp4(tmp_path: Path) -> None:
 def test_asr_invoked_with_wav_path(tmp_path: Path) -> None:
     """transcribe_audio is called with a wav_path argument for each mp4 video (boundary B-2)."""
     ingest_unified = _import_ingest_unified()
+    db_path = _make_test_db(tmp_path / "test.db")
 
     fake_wav = tmp_path / "audio.wav"
     fake_wav.touch()
@@ -156,7 +177,7 @@ def test_asr_invoked_with_wav_path(tmp_path: Path) -> None:
         ingest_unified(
             takeout_dir=tmp_path,
             channel_alias="nursing",
-            db_path=tmp_path / "test.db",
+            db_path=db_path,
             work_root=tmp_path / "work",
             use_symlinks=True,
             dry_run=False,
@@ -179,6 +200,7 @@ def test_asr_invoked_with_wav_path(tmp_path: Path) -> None:
 def test_fingerprint_invoked_with_audio_path(tmp_path: Path) -> None:
     """extract_chromaprint_fingerprint is called with audio_path for each mp4 (boundary B-3)."""
     ingest_unified = _import_ingest_unified()
+    db_path = _make_test_db(tmp_path / "test.db")
 
     fake_wav = tmp_path / "audio.wav"
     fake_wav.touch()
@@ -202,7 +224,7 @@ def test_fingerprint_invoked_with_audio_path(tmp_path: Path) -> None:
         ingest_unified(
             takeout_dir=tmp_path,
             channel_alias="nursing",
-            db_path=tmp_path / "test.db",
+            db_path=db_path,
             work_root=tmp_path / "work",
             use_symlinks=True,
             dry_run=False,
@@ -260,6 +282,7 @@ def test_sc_005_audio_decode_once_per_mp4(tmp_path: Path) -> None:
     """SC-005: each mp4 is decoded to WAV exactly once, shared by ASR and fingerprint stages."""
     ingest_unified = _import_ingest_unified()
     mp4_count = 9
+    db_path = _make_test_db(tmp_path / "test.db")
 
     wav_enter_count = 0
 
@@ -294,7 +317,7 @@ def test_sc_005_audio_decode_once_per_mp4(tmp_path: Path) -> None:
         ingest_unified(
             takeout_dir=tmp_path,
             channel_alias="nursing",
-            db_path=tmp_path / "test.db",
+            db_path=db_path,
             work_root=tmp_path / "work",
             use_symlinks=True,
             dry_run=False,
