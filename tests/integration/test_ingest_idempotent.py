@@ -24,6 +24,7 @@ _ARCHIVE_ROOT = (
 _ARCHIVE_PRESENT = _ARCHIVE_ROOT.exists()
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not _ARCHIVE_PRESENT,
     reason="Real takeout archive not present — skipping idempotent test",
