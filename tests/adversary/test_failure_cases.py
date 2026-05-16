@@ -643,6 +643,7 @@ class TestForecasterEdgeCases:
 
     def test_exact_minimum_data(self) -> None:
         """Exactly 180 data points should work."""
+        pytest.importorskip("statsmodels", exc_type=ImportError)
         service = ForecasterService()
         data = [{"date": 740000 + i, "value": 100 + i} for i in range(180)]
         result = service.predict("UCtest", "view_count", data)
@@ -651,6 +652,7 @@ class TestForecasterEdgeCases:
 
     def test_all_same_values(self) -> None:
         """Flat data (zero variance) should not crash."""
+        pytest.importorskip("statsmodels", exc_type=ImportError)
         service = ForecasterService()
         data = [{"date": 740000 + i, "value": 100} for i in range(200)]
         result = service.predict("UCtest", "view_count", data)
@@ -709,8 +711,10 @@ class TestDurationParsing:
 class TestLLMBackendsNotConfigured:
     """Persona: LLM API keys not set, backends raise NotImplementedError."""
 
-    def test_sentiment_llm_backend_raises(self) -> None:
+    def test_sentiment_llm_backend_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """LLM sentiment backend should raise ValueError when no API key."""
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         service = SentimentService(backend="llm")
         with pytest.raises(ValueError, match="sentiment-backend local"):
             service.analyze_batch([{"comment_id": "c1", "text": "test"}])

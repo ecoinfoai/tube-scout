@@ -10,7 +10,12 @@ runner = CliRunner()
 
 
 def test_source_default_is_api(tmp_path) -> None:
-    """Scenario 1: no --source flag, no env → dispatches with source='api'."""
+    """Scenario 1: explicit --source api dispatches with source='api'.
+
+    Note: spec 016 FR-017 (commit d96b82e) changed the default to 'asr'.
+    The api dispatch path is still reachable via explicit --source api;
+    that is what this test now exercises.
+    """
     env = {k: v for k, v in os.environ.items() if k != "TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE"}
 
     captured: dict = {}
@@ -27,7 +32,7 @@ def test_source_default_is_api(tmp_path) -> None:
     ):
         result = runner.invoke(
             app,
-            ["collect", "transcripts", "--channel", "test-alias"],
+            ["collect", "transcripts", "--channel", "test-alias", "--source", "api"],
             env=env,
         )
 

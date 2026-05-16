@@ -12,13 +12,14 @@ from tube_scout.services.audit_writer import STAGE_FIELDNAMES, VALID_RESULTS, Au
 
 
 def test_stage_fieldnames_has_8_entries() -> None:
-    """STAGE_FIELDNAMES must have exactly 8 stage keys."""
-    assert len(STAGE_FIELDNAMES) == 8
-    expected_keys = {
+    """STAGE_FIELDNAMES must include the 8 spec 013 stages plus spec 017 additions."""
+    spec013_keys = {
         "takeout_ingest", "audio_extract", "transcripts", "fingerprint",
         "normalize", "analyze", "report", "kb_export",
     }
-    assert set(STAGE_FIELDNAMES.keys()) == expected_keys
+    spec017_keys = {"ingest_orchestrator", "source_video_cleanup"}
+    assert set(STAGE_FIELDNAMES.keys()) == spec013_keys | spec017_keys
+    assert len(STAGE_FIELDNAMES) == len(spec013_keys) + len(spec017_keys)
 
 
 def test_append_row_rejects_unknown_stage(tmp_path: Path) -> None:

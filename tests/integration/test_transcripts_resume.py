@@ -160,6 +160,8 @@ class TestPartialThenResume:
                     str(proj_root / "test_run"),
                     "--channel",
                     "nursing",
+                    "--source",
+                    "api",
                 ],
             )
 
@@ -214,6 +216,8 @@ class TestForceRefreshOverridesCache:
                     str(proj_root / "test_run"),
                     "--channel",
                     "nursing",
+                    "--source",
+                    "api",
                     "--force-refresh",
                 ],
             )
@@ -265,6 +269,8 @@ class TestCorruptCacheRefetches:
                     str(proj_root / "test_run"),
                     "--channel",
                     "nursing",
+                    "--source",
+                    "api",
                 ],
             )
 
@@ -309,6 +315,8 @@ class TestEmptySegmentsRefetches:
                     str(proj_root / "test_run"),
                     "--channel",
                     "nursing",
+                    "--source",
+                    "api",
                 ],
             )
 
