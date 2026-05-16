@@ -2631,6 +2631,15 @@ def collect_ingest_command(
             "retry_pending.json 은 새 결과로 갱신됨."
         ),
     ),
+    preset: str | None = typer.Option(
+        None,
+        "--preset",
+        help=(
+            "ASR preset — poc-laptop / prod-a6000 / prod-a6000-pool / cpu-fallback. "
+            "미지정 시 TUBE_SCOUT_ASR_PRESET 환경변수, 그것도 없으면 "
+            "GPU VRAM 자동 감지(≥8GiB → poc-laptop, 그 외 → cpu-fallback)."
+        ),
+    ),
 ) -> None:
     """Unified ingest: takeout → ASR → fingerprint → retry manifest → optional cleanup.
 
@@ -2700,6 +2709,7 @@ def collect_ingest_command(
             delete_source=delete_source,
             audit_writer=audit,
             force=force,
+            asr_preset=preset,
         )
     except ValueError as exc:
         console.print(f"[red]Alias error: {exc}[/red]")

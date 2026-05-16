@@ -174,6 +174,7 @@ def _run_transcript_and_fingerprint(
     transcript_dir: Path | None = None,
     db_path: Path | None = None,
     force: bool = False,
+    asr_kwargs: dict[str, str | int] | None = None,
 ) -> tuple[TranscriptStageResult, FingerprintStageResult]:
     """Run ASR + chromaprint fingerprint for each mp4-mapped video.
 
@@ -189,10 +190,14 @@ def _run_transcript_and_fingerprint(
         transcript_dir: Directory for transcript JSON files (FR-018A).
         db_path: SQLite DB path for audio_fingerprint persistence (FR-018B).
         force: If True, bypass idempotency guard — reprocess all videos (Phase 5).
+        asr_kwargs: Optional ``transcribe_audio`` kwargs from a resolved ASR
+            preset (model_size / compute_type / device / device_index).
+            ``None`` falls back to ``transcribe_audio`` defaults.
 
     Returns:
         (TranscriptStageResult, FingerprintStageResult) tuple.
     """
+    _asr_kwargs = asr_kwargs or {}
     wav_dir = work_root / "tmp_wav"
     wav_dir.mkdir(parents=True, exist_ok=True)
 
@@ -294,7 +299,7 @@ def _run_transcript_and_fingerprint(
                 else:
                     # ASR (boundary B-2) + persist transcript JSON (FR-018A)
                     try:
-                        asr_result = transcribe_audio(wav_path)
+                        asr_result = transcribe_audio(wav_path, **_asr_kwargs)
                         if transcript_dir is not None:
                             _persist_transcript(
                                 transcript_dir, video_id, asr_result, ts
@@ -399,6 +404,7 @@ def _update_retry_manifest(
     succeeded_video_ids: set[str],
     manifest_path: Path,
     audit_writer: AuditWriter,
+    channel_alias: str,
 ) -> RetryManifestDelta:
     """Update retry_pending.json — add failures, resolve successes.
 
@@ -407,13 +413,16 @@ def _update_retry_manifest(
         succeeded_video_ids: Video IDs that succeeded this run (for resolution).
         manifest_path: Path to retry_pending.json.
         audit_writer: AuditWriter for audit rows.
+        channel_alias: Department alias; persisted as ``alias`` field so the
+            manifest stays self-describing and downstream consumers can
+            validate it (contract: retry-manifest.md §2).
 
     Returns:
         RetryManifestDelta describing changes to the manifest.
     """
     from tube_scout.services import retry_manifest as _rm
 
-    manifest = _rm.load_manifest(manifest_path)
+    manifest = _rm.load_manifest(manifest_path, expected_alias=channel_alias)
     now = datetime.now(tz=UTC)
 
     add_delta = _rm.add_or_update_failures(manifest, failures, now=now)
@@ -516,6 +525,7 @@ def ingest_unified(
     force: bool = False,
     audit_writer: AuditWriter,
     prompt_io: PromptIO | None = None,
+    asr_preset: str | None = None,
 ) -> UnifiedIngestSummary:
     """Run the unified ingest pipeline (spec 017 US1).
 
@@ -533,6 +543,10 @@ def ingest_unified(
         force: Bypass idempotency guard — reprocess all videos (FR-018D).
         audit_writer: AuditWriter for ingest_orchestrator stage rows.
         prompt_io: Operator prompt adapter; uses TTY stdin/stdout if None.
+        asr_preset: Optional explicit ASR preset name (CLI ``--preset``).
+            ``None`` triggers the 3-layer decision in
+            :func:`tube_scout.services.asr.resolve_preset` —
+            CLI flag → ``TUBE_SCOUT_ASR_PRESET`` env → GPU VRAM auto-detect.
 
     Returns:
         UnifiedIngestSummary with all stage results.
@@ -545,6 +559,17 @@ def ingest_unified(
     _console = Console(stderr=False)
     started_at = datetime.now(tz=UTC)
     _t0 = time.monotonic()
+
+    # Resolve preset once at entry so the rationale is visible in stdout and
+    # the same kwargs apply to every video in the batch (deterministic run).
+    from tube_scout.services.asr import preset_kwargs, resolve_preset
+    preset_resolution = resolve_preset(asr_preset)
+    asr_kwargs = preset_kwargs(preset_resolution.preset_name)
+    if is_tty:
+        _console.print(
+            f"[dim]ASR preset: {preset_resolution.preset_name} "
+            f"({preset_resolution.source}: {preset_resolution.rationale})[/dim]"
+        )
 
     audit_writer.append_row("ingest_orchestrator", {
         "video_id": "",
@@ -630,7 +655,9 @@ def ingest_unified(
     # FR-015, FR-018: prioritise manifest retry targets at front of processing queue
     from tube_scout.services import retry_manifest as _rm_pre
     _pre_manifest_path = work_root / channel_alias / "retry_pending.json"
-    _pre_manifest = _rm_pre.load_manifest(_pre_manifest_path)
+    _pre_manifest = _rm_pre.load_manifest(
+        _pre_manifest_path, expected_alias=channel_alias
+    )
     _retry_target_ids = set(_rm_pre.select_retry_targets(_pre_manifest, max_attempts=5))
     # Retry targets processed first; _check_already_processed handles per-video skip.
     # force=True bypasses the guard inside _run_transcript_and_fingerprint.
@@ -648,6 +675,7 @@ def ingest_unified(
         transcript_dir=_transcript_dir,
         db_path=db_path,
         force=force,
+        asr_kwargs=asr_kwargs,
     )
 
     if is_tty:
@@ -671,7 +699,8 @@ def ingest_unified(
     all_failures = transcript_result.failures + fingerprint_result.failures
     manifest_path = work_root / channel_alias / "retry_pending.json"
     retry_manifest_delta = _update_retry_manifest(
-        all_failures, succeeded_video_ids, manifest_path, audit_writer
+        all_failures, succeeded_video_ids, manifest_path, audit_writer,
+        channel_alias=channel_alias,
     )
 
     if is_tty:
