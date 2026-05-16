@@ -24,6 +24,7 @@ from tube_scout.cli.collect import (
     collect_bulk_command,
     collect_comments_command,
     collect_fingerprint_command,
+    collect_ingest_command,
     collect_process_audio_command,
     collect_retention_command,
     collect_takeout_command,
@@ -31,6 +32,7 @@ from tube_scout.cli.collect import (
     collect_videos_command,
 )
 from tube_scout.cli.content import content_app
+from tube_scout.cli.process import process_normalize_transcripts_command
 from tube_scout.cli.report import (
     report_bundle_command,
     report_channel_command,
@@ -40,9 +42,11 @@ from tube_scout.cli.report import (
     report_department_command,
     report_video_command,
 )
-from tube_scout.cli.process import process_normalize_transcripts_command
 from tube_scout.cli.search_cli import search_command
-from tube_scout.cli.transcript import transcript_export_bulk_typer, transcript_export_typer
+from tube_scout.cli.transcript import (
+    transcript_export_bulk_typer,
+    transcript_export_typer,
+)
 from tube_scout.cli.validate_cli import validate_command
 from tube_scout.models.config import (
     AcademicCalendar,
@@ -96,6 +100,7 @@ collect_app.command(name="bulk")(collect_bulk_command)
 collect_app.command(name="all")(collect_all_command)
 collect_app.command(name="fingerprint")(collect_fingerprint_command)
 collect_app.command(name="takeout")(collect_takeout_command)
+collect_app.command(name="ingest")(collect_ingest_command)
 collect_app.command(name="audio-extract")(collect_audio_extract_command)
 collect_app.command(name="process-audio")(collect_process_audio_command)
 

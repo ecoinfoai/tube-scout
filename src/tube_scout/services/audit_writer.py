@@ -50,16 +50,40 @@ KB_EXPORT_FIELDNAMES: tuple[str, ...] = (
     "format", "output_path", "byte_count", "timestamp",
 )
 
+# ─── spec 017 E-8 stage fieldnames ────────────────────────────────────────────
+
+INGEST_ORCHESTRATOR_FIELDNAMES: tuple[str, ...] = (
+    "video_id", "result", "reason",
+    "channel_alias", "elapsed_ms", "timestamp",
+)
+SOURCE_VIDEO_CLEANUP_FIELDNAMES: tuple[str, ...] = (
+    "video_id", "result", "reason",
+    "candidate_count", "deleted_count", "reclaimed_bytes", "elapsed_ms", "timestamp",
+)
+
 STAGE_FIELDNAMES: dict[str, tuple[str, ...]] = {
-    "takeout_ingest": TAKEOUT_INGEST_FIELDNAMES,
-    "audio_extract":  AUDIO_EXTRACT_FIELDNAMES,
-    "transcripts":    TRANSCRIPTS_FIELDNAMES,
-    "fingerprint":    FINGERPRINT_FIELDNAMES,
-    "normalize":      NORMALIZE_FIELDNAMES,
-    "analyze":        ANALYZE_FIELDNAMES,
-    "report":         REPORT_FIELDNAMES,
-    "kb_export":      KB_EXPORT_FIELDNAMES,
+    "takeout_ingest":      TAKEOUT_INGEST_FIELDNAMES,
+    "audio_extract":       AUDIO_EXTRACT_FIELDNAMES,
+    "transcripts":         TRANSCRIPTS_FIELDNAMES,
+    "fingerprint":         FINGERPRINT_FIELDNAMES,
+    "normalize":           NORMALIZE_FIELDNAMES,
+    "analyze":             ANALYZE_FIELDNAMES,
+    "report":              REPORT_FIELDNAMES,
+    "kb_export":           KB_EXPORT_FIELDNAMES,
+    "ingest_orchestrator": INGEST_ORCHESTRATOR_FIELDNAMES,
+    "source_video_cleanup": SOURCE_VIDEO_CLEANUP_FIELDNAMES,
 }
+
+# spec 017 E-8 (FR-017) reason vocabulary extension
+ORCHESTRATOR_REASONS: frozenset[str] = frozenset({
+    "started", "completed", "aborted_by_user", "failed_intermediate_stage",
+    "stub_not_implemented", "registry_load_failed",
+})
+CLEANUP_REASONS: frozenset[str] = frozenset({
+    "presented_failures", "confirmed_yes", "confirmed_no",
+    "timeout", "interrupted",
+    "deleted", "delete_failed_locked", "delete_failed_io",
+})
 
 VALID_RESULTS: frozenset[str] = frozenset({"success", "skip", "fail"})
 
