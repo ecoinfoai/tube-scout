@@ -7,11 +7,14 @@ Also exposes generate_v2_report() for spec 011 nC2 4-pattern reports (US5).
 """
 
 import json
+import logging
 import sqlite3
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
+
+logger = logging.getLogger(__name__)
 
 import openpyxl
 from jinja2 import Environment, FileSystemLoader
@@ -579,6 +582,7 @@ def _build_pair_data(
     time_axis_chart_html = None
     time_axis_png_b64 = None
 
+    pid = comp.get("comparison_id")
     if match_spans:
         try:
             fig = render(match_spans, duration_a=duration_a, duration_b=duration_b)
@@ -587,15 +591,15 @@ def _build_pair_data(
                 include_plotlyjs="cdn",
                 config={"displayModeBar": False},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("plotly render failed for pair %s: %s", pid, exc)
 
         try:
             time_axis_png_b64 = render_to_base64_png(
                 match_spans, duration_a=duration_a, duration_b=duration_b
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("plotly png render failed for pair %s: %s", pid, exc)
 
     return {
         **comp,
