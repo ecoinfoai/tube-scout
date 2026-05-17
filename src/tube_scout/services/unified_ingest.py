@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import signal
 import sqlite3
 import sys
 import tempfile
@@ -70,6 +71,52 @@ class IdempotencyGuardResult:
     transcript_skip: bool
     fingerprint_skip: bool
     wav_decode_skip: bool
+
+
+def _build_ingest_sigint_handler(
+    current_video_ref: list[str],
+    transcript_dir: Path | None,
+    audit_writer: AuditWriter,
+    channel_alias: str,
+) -> object:
+    """Build a SIGINT handler for _run_transcript_and_fingerprint (F-11 / ADV-22).
+
+    Args:
+        current_video_ref: Mutable 1-element list; set to current video_id before
+            each video, cleared after. Empty list = no video in flight (G-4).
+        transcript_dir: Transcript directory; *.partial files are removed on SIGINT.
+        audit_writer: For writing the aborted_by_user audit row.
+        channel_alias: Written as channel_alias in the audit row.
+
+    Returns:
+        Signal handler callable(signum, frame) that cleans .partial files,
+        writes aborted_by_user audit row (when a video is in flight),
+        and raises SystemExit(130).
+    """
+    def _handler(signum: int, frame: object) -> None:
+        # Remove any .partial transcript files left from interrupted write
+        if transcript_dir is not None:
+            for partial in transcript_dir.glob("*.partial"):
+                partial.unlink(missing_ok=True)
+
+        # G-4: only write row when a video is actually in progress
+        if current_video_ref:
+            video_id = current_video_ref[0]
+            try:
+                audit_writer.append_row("ingest_orchestrator", {
+                    "video_id": video_id,
+                    "result": "fail",
+                    "reason": "aborted_by_user",
+                    "channel_alias": channel_alias,
+                    "elapsed_ms": 0,
+                    "timestamp": datetime.now(tz=UTC).isoformat(),
+                })
+            except Exception as exc:  # noqa: BLE001 — handler must not raise
+                print(f"[SIGINT handler] audit write failed: {exc}", file=sys.stderr)
+
+        raise SystemExit(130)
+
+    return _handler
 
 
 def _persist_transcript(
@@ -214,6 +261,16 @@ def _run_transcript_and_fingerprint(
     fingerprint_failures: list[FailureEntry] = []
     t_start = time.monotonic()
 
+    # F-11 / ADV-22: SIGINT handler — tracks in-flight video; restored on exit
+    _current_video_ref: list[str] = []
+    _sigint_handler = _build_ingest_sigint_handler(
+        current_video_ref=_current_video_ref,
+        transcript_dir=transcript_dir,
+        audit_writer=audit_writer,
+        channel_alias=work_root.name,
+    )
+    _prev_sigint = signal.signal(signal.SIGINT, _sigint_handler)  # type: ignore[arg-type]
+
     with Progress(
         SpinnerColumn(),
         TextColumn("[bold cyan]{task.description}"),
@@ -228,6 +285,8 @@ def _run_transcript_and_fingerprint(
     ) as progress:
         task_id = progress.add_task("자막+지문 처리", total=len(mp4_video_id_map))
         for mp4_path_str, video_id in mp4_video_id_map.items():
+            # F-11: mark in-flight video for SIGINT handler
+            _current_video_ref[:] = [video_id]
             progress.update(task_id, description=f"자막+지문: {video_id[:11]}")
             mp4_path = Path(mp4_path_str)
             attempted_at = datetime.now(tz=UTC)
@@ -391,7 +450,11 @@ def _run_transcript_and_fingerprint(
                             "timestamp": ts,
                         })
 
+            _current_video_ref.clear()  # F-11: clear after each video completes
             progress.advance(task_id)
+
+    # F-11: restore original SIGINT handler
+    signal.signal(signal.SIGINT, _prev_sigint)
 
     # SC-005: transcript + fingerprint share one WAV pass; elapsed covers both.
     # elapsed_seconds unit: wall-clock seconds (float). audit rows use elapsed_ms (int).
