@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 import multiprocessing
 import os
+import signal
 import sqlite3
 import time
 from pathlib import Path
@@ -13,6 +15,8 @@ from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from tube_scout.services.progress_reporter import ProgressReporter
+
+_logger = logging.getLogger(__name__)
 
 
 class WorkerResult(BaseModel):
@@ -286,6 +290,9 @@ def run_asr_worker(
 
         except Exception as exc:
             failed += 1
+            _logger.exception(
+                "ASR failed for %s (worker pid=%d)", video_id, os.getpid()
+            )
             _update_status(
                 db_path, video_id, "asr_failed",
                 error_message=str(exc)[:500],
@@ -305,7 +312,13 @@ def run_asr_worker(
 
 
 def _resolve_mp4_path(db_path: Path, video_id: str) -> Path | None:
-    """Look up mp4_relative_path for video_id from video_metadata."""
+    """Look up mp4_relative_path for video_id from video_metadata.
+
+    Returns ``None`` if the lookup fails (e.g. missing row or DB locked)
+    so the caller can decide whether to skip the row, mark it
+    asr_failed, or retry later. Emits a logger.warning so the lookup
+    failure is not silent (audit v3 F-22 / LOG-2).
+    """
     try:
         with sqlite3.connect(db_path) as conn:
             row = conn.execute(
@@ -318,8 +331,8 @@ def _resolve_mp4_path(db_path: Path, video_id: str) -> Path | None:
         if row and row[0]:
             data_root = db_path.parent.parent
             return data_root / row[1] / row[0]
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.warning("mp4 path lookup failed for %s: %s", video_id, exc)
     return None
 
 
@@ -332,7 +345,19 @@ def _update_status(
     caption_source: str | None = None,
     caption_source_detail: str | None = None,
 ) -> None:
-    """Update processing_status row for video_id."""
+    """Update processing_status row for video_id.
+
+    Args:
+        db_path: SQLite database path.
+        video_id: Row to update.
+        status: New ``status`` value.
+        error_message: When provided, written to ``error_message``.
+        caption_source: When provided, written to ``caption_source``.
+        caption_source_detail: When provided, written to
+            ``caption_source_detail`` (e.g.
+            ``"asr:faster-whisper:large-v3:int8_float16"``). Previously
+            accepted but silently dropped — audit v3 F-22 / SEC-3.
+    """
     sets = ["status = ?", "updated_at = datetime('now')"]
     values: list[Any] = [status]
 
@@ -342,6 +367,9 @@ def _update_status(
     if caption_source is not None:
         sets.append("caption_source = ?")
         values.append(caption_source)
+    if caption_source_detail is not None:
+        sets.append("caption_source_detail = ?")
+        values.append(caption_source_detail)
 
     values.append(video_id)
 
@@ -387,6 +415,19 @@ def run_pool(
     result_queue: multiprocessing.Queue = multiprocessing.Queue()
 
     def _worker_target(worker_id: int, dev_idx: int) -> None:
+        # Restore the default SIGINT handler in the child so Ctrl+C in
+        # the parent terminates the worker promptly instead of being
+        # swallowed by an inherited handler (audit v3 F-22 / ADV-52).
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        # Drop any parent-inherited lru_cache slot so the child
+        # initializes faster-whisper against its own GPU context;
+        # otherwise a fork-copied cache holding the parent's CUDA
+        # context can cause OOM on first transcribe (F-22 / ADV-42).
+        try:
+            from tube_scout.services.asr import _load_model
+            _load_model.cache_clear()
+        except Exception as exc:
+            _logger.debug("worker cache_clear skipped: %s", exc)
         os.environ["CUDA_VISIBLE_DEVICES"] = str(dev_idx)
         result = run_asr_worker(
             db_path=db_path,
@@ -409,8 +450,27 @@ def run_pool(
         p.start()
         processes.append(p)
 
-    for p in processes:
-        p.join()
+    try:
+        for p in processes:
+            p.join()
+    except KeyboardInterrupt:
+        # Parent received Ctrl+C; politely terminate every worker, then
+        # escalate to kill if any refuse to exit. Without this the
+        # children would linger holding GPU VRAM (audit v3 F-22 /
+        # ADV-52).
+        _logger.warning(
+            "run_pool: SIGINT received, terminating %d worker(s)", len(processes)
+        )
+        for p in processes:
+            if p.is_alive():
+                p.terminate()
+        for p in processes:
+            p.join(timeout=5)
+        for p in processes:
+            if p.is_alive():
+                p.kill()
+                p.join()
+        raise
 
     while not result_queue.empty():
         worker_results.append(result_queue.get_nowait())
