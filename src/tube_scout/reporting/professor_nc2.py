@@ -85,7 +85,10 @@ def passes_appendix(pair: Any, t: AppendixThresholds) -> bool:
         and pair.i7_distribution_dispersion >= t.i7_distribution_dispersion
     ):
         return True
-    if t.i8_position_diversity is not None and pair.i8_position_diversity >= t.i8_position_diversity:
+    if (
+        t.i8_position_diversity is not None
+        and pair.i8_position_diversity >= t.i8_position_diversity
+    ):
         return True
     if (
         t.audio_fp_hamming is not None
@@ -122,7 +125,8 @@ def _query_pairs(
     sort_col: str,
     top_k: int,
 ) -> list[sqlite3.Row]:
-    """Query top_k comparison_results rows with video_metadata and audio_fingerprint JOIN.
+    """Query top_k comparison_results rows joined with video_metadata and
+    audio_fingerprint.
 
     Args:
         conn: SQLite connection.
@@ -208,7 +212,9 @@ def _build_pattern_distribution(rows: list[sqlite3.Row]) -> dict[str, int]:
     return dist
 
 
-def _get_period(conn: sqlite3.Connection, professor: str) -> tuple[str | None, str | None]:
+def _get_period(
+    conn: sqlite3.Connection, professor: str
+) -> tuple[str | None, str | None]:
     row = conn.execute(
         """
         SELECT MIN(vm.created_at), MAX(vm.created_at)
@@ -324,18 +330,22 @@ def render_professor_nc2_report(
     # Audit row
     try:
         from tube_scout.services.audit_writer import AuditWriter
+
         writer = AuditWriter(output_dir)
-        writer.append_row("report", {
-            "professor": professor,
-            "channel": channel_alias,
-            "result": "success",
-            "reason": "rendered",
-            "format": output_format,
-            "output_path": str(html_path or pdf_path or output_dir),
-            "pair_count": len(all_rows),
-            "appendix_count": len(appendix_pairs),
-            "timestamp": generated_at.isoformat(),
-        })
+        writer.append_row(
+            "report",
+            {
+                "professor": professor,
+                "channel": channel_alias,
+                "result": "success",
+                "reason": "rendered",
+                "format": output_format,
+                "output_path": str(html_path or pdf_path or output_dir),
+                "pair_count": len(all_rows),
+                "appendix_count": len(appendix_pairs),
+                "timestamp": generated_at.isoformat(),
+            },
+        )
     except Exception:
         pass
 

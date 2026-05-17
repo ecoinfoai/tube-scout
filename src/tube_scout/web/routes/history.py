@@ -19,9 +19,13 @@ from tube_scout.web.routes._templating import render_template
 
 LOGGER = logging.getLogger("tube_scout.web.routes.history")
 
-VALID_STATUSES: frozenset[str] = frozenset(
-    {"pending", "running", "completed", "failed", "interrupted"}
-)
+VALID_STATUSES: frozenset[str] = frozenset({
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "interrupted",
+})
 
 STATUS_LABELS_KR: dict[str, str] = {
     "pending": "대기",

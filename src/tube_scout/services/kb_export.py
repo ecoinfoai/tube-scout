@@ -1,4 +1,5 @@
 """KB-ingestible transcript export service (FR-040~FR-042)."""
+
 import json
 import os
 import re
@@ -195,9 +196,13 @@ def export_transcript(
     if format_ == "txt":
         content = _write_txt(segments, keep_timestamps, clean_fillers)
     elif format_ == "md":
-        content = _write_md(segments, keep_timestamps, clean_fillers, with_meta, video_meta)
+        content = _write_md(
+            segments, keep_timestamps, clean_fillers, with_meta, video_meta
+        )
     elif format_ == "jsonl":
-        content = _write_jsonl(segments, keep_timestamps, clean_fillers, with_meta, video_meta)
+        content = _write_jsonl(
+            segments, keep_timestamps, clean_fillers, with_meta, video_meta
+        )
     else:
         raise ValueError(f"Unknown format: {format_!r}")
 

@@ -154,14 +154,12 @@ def compare_with_retention(
             if seg_start_ratio <= h["elapsed_ratio"] <= seg_end_ratio
         ]
 
-        results.append(
-            {
-                "segment_index": segment["segment_index"],
-                "title": segment["title"],
-                "predicted_difficulty": segment.get("difficulty_score", 0.0),
-                "hotspot_count": len(overlapping_hotspots),
-                "has_retention_issue": len(overlapping_hotspots) > 0,
-            }
-        )
+        results.append({
+            "segment_index": segment["segment_index"],
+            "title": segment["title"],
+            "predicted_difficulty": segment.get("difficulty_score", 0.0),
+            "hotspot_count": len(overlapping_hotspots),
+            "has_retention_issue": len(overlapping_hotspots) > 0,
+        })
 
     return results

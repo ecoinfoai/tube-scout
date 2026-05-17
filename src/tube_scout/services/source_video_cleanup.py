@@ -40,6 +40,7 @@ def _append_audit(audit_writer: object, stage: str, row: dict) -> None:
     Uses append() first (test mocks); falls back to append_row() for AuditWriter.
     """
     from tube_scout.services.audit_writer import AuditWriter
+
     if isinstance(audit_writer, AuditWriter):
         audit_writer.append_row(stage, row)
     else:
@@ -88,16 +89,20 @@ def present_failure_table(
     else:
         _console.print("처리 실패 영상 없음 — 모든 영상이 삭제 후보입니다")
 
-    _append_audit(audit_writer, "source_video_cleanup", {
-        "video_id": "n/a",
-        "result": "success",
-        "reason": "presented_failures",
-        "candidate_count": len(failures),
-        "deleted_count": 0,
-        "reclaimed_bytes": 0,
-        "elapsed_ms": 0,
-        "timestamp": _now_iso(),
-    })
+    _append_audit(
+        audit_writer,
+        "source_video_cleanup",
+        {
+            "video_id": "n/a",
+            "result": "success",
+            "reason": "presented_failures",
+            "candidate_count": len(failures),
+            "deleted_count": 0,
+            "reclaimed_bytes": 0,
+            "elapsed_ms": 0,
+            "timestamp": _now_iso(),
+        },
+    )
 
 
 def _check_path_containment(path: Path, allowed_roots: list[Path]) -> None:
@@ -165,21 +170,26 @@ def confirm_and_cleanup(
             )
         else:
             from rich.prompt import Confirm
+
             answer = Confirm.ask(
                 f"Delete {candidate_count} source mp4 files?",
                 default=False,
             )
     except EOFError:
-        _append_audit(audit_writer, "source_video_cleanup", {
-            "video_id": "n/a",
-            "result": "success",
-            "reason": "timeout",
-            "candidate_count": candidate_count,
-            "deleted_count": 0,
-            "reclaimed_bytes": 0,
-            "elapsed_ms": int((time.monotonic() - t_start) * 1000),
-            "timestamp": _now_iso(),
-        })
+        _append_audit(
+            audit_writer,
+            "source_video_cleanup",
+            {
+                "video_id": "n/a",
+                "result": "success",
+                "reason": "timeout",
+                "candidate_count": candidate_count,
+                "deleted_count": 0,
+                "reclaimed_bytes": 0,
+                "elapsed_ms": int((time.monotonic() - t_start) * 1000),
+                "timestamp": _now_iso(),
+            },
+        )
         return CleanupResult(
             presented_failure_count=0,
             deletion_candidate_count=candidate_count,
@@ -190,16 +200,20 @@ def confirm_and_cleanup(
             elapsed_seconds=time.monotonic() - t_start,
         )
     except KeyboardInterrupt:
-        _append_audit(audit_writer, "source_video_cleanup", {
-            "video_id": "n/a",
-            "result": "success",
-            "reason": "interrupted",
-            "candidate_count": candidate_count,
-            "deleted_count": 0,
-            "reclaimed_bytes": 0,
-            "elapsed_ms": int((time.monotonic() - t_start) * 1000),
-            "timestamp": _now_iso(),
-        })
+        _append_audit(
+            audit_writer,
+            "source_video_cleanup",
+            {
+                "video_id": "n/a",
+                "result": "success",
+                "reason": "interrupted",
+                "candidate_count": candidate_count,
+                "deleted_count": 0,
+                "reclaimed_bytes": 0,
+                "elapsed_ms": int((time.monotonic() - t_start) * 1000),
+                "timestamp": _now_iso(),
+            },
+        )
         return CleanupResult(
             presented_failure_count=0,
             deletion_candidate_count=candidate_count,
@@ -211,16 +225,20 @@ def confirm_and_cleanup(
         )
 
     if not answer:
-        _append_audit(audit_writer, "source_video_cleanup", {
-            "video_id": "n/a",
-            "result": "success",
-            "reason": "confirmed_no",
-            "candidate_count": candidate_count,
-            "deleted_count": 0,
-            "reclaimed_bytes": 0,
-            "elapsed_ms": int((time.monotonic() - t_start) * 1000),
-            "timestamp": _now_iso(),
-        })
+        _append_audit(
+            audit_writer,
+            "source_video_cleanup",
+            {
+                "video_id": "n/a",
+                "result": "success",
+                "reason": "confirmed_no",
+                "candidate_count": candidate_count,
+                "deleted_count": 0,
+                "reclaimed_bytes": 0,
+                "elapsed_ms": int((time.monotonic() - t_start) * 1000),
+                "timestamp": _now_iso(),
+            },
+        )
         return CleanupResult(
             presented_failure_count=0,
             deletion_candidate_count=candidate_count,
@@ -232,16 +250,20 @@ def confirm_and_cleanup(
         )
 
     # operator said yes — perform deletions
-    _append_audit(audit_writer, "source_video_cleanup", {
-        "video_id": "n/a",
-        "result": "success",
-        "reason": "confirmed_yes",
-        "candidate_count": candidate_count,
-        "deleted_count": 0,
-        "reclaimed_bytes": 0,
-        "elapsed_ms": 0,
-        "timestamp": _now_iso(),
-    })
+    _append_audit(
+        audit_writer,
+        "source_video_cleanup",
+        {
+            "video_id": "n/a",
+            "result": "success",
+            "reason": "confirmed_yes",
+            "candidate_count": candidate_count,
+            "deleted_count": 0,
+            "reclaimed_bytes": 0,
+            "elapsed_ms": 0,
+            "timestamp": _now_iso(),
+        },
+    )
 
     deleted_count = 0
     failed_locked = 0
@@ -257,16 +279,20 @@ def confirm_and_cleanup(
             mp4_path.unlink(missing_ok=True)
             reclaimed_bytes += size
             deleted_count += 1
-            _append_audit(audit_writer, "source_video_cleanup", {
-                "video_id": mp4_path.stem,
-                "result": "success",
-                "reason": "deleted",
-                "candidate_count": candidate_count,
-                "deleted_count": deleted_count,
-                "reclaimed_bytes": size,
-                "elapsed_ms": int((time.monotonic() - t_start) * 1000),
-                "timestamp": _now_iso(),
-            })
+            _append_audit(
+                audit_writer,
+                "source_video_cleanup",
+                {
+                    "video_id": mp4_path.stem,
+                    "result": "success",
+                    "reason": "deleted",
+                    "candidate_count": candidate_count,
+                    "deleted_count": deleted_count,
+                    "reclaimed_bytes": size,
+                    "elapsed_ms": int((time.monotonic() - t_start) * 1000),
+                    "timestamp": _now_iso(),
+                },
+            )
         except OSError as exc:
             if exc.errno in (errno.EACCES, errno.EPERM):
                 reason = "delete_failed_locked"
@@ -274,16 +300,20 @@ def confirm_and_cleanup(
             else:
                 reason = "delete_failed_io"
                 failed_io += 1
-            _append_audit(audit_writer, "source_video_cleanup", {
-                "video_id": mp4_path.stem,
-                "result": "fail",
-                "reason": reason,
-                "candidate_count": candidate_count,
-                "deleted_count": deleted_count,
-                "reclaimed_bytes": 0,
-                "elapsed_ms": int((time.monotonic() - t_start) * 1000),
-                "timestamp": _now_iso(),
-            })
+            _append_audit(
+                audit_writer,
+                "source_video_cleanup",
+                {
+                    "video_id": mp4_path.stem,
+                    "result": "fail",
+                    "reason": reason,
+                    "candidate_count": candidate_count,
+                    "deleted_count": deleted_count,
+                    "reclaimed_bytes": 0,
+                    "elapsed_ms": int((time.monotonic() - t_start) * 1000),
+                    "timestamp": _now_iso(),
+                },
+            )
 
     elapsed = time.monotonic() - t_start
     return CleanupResult(

@@ -34,9 +34,7 @@ def load_policy(project_dir: Path) -> PolicyConfig:
             from PolicyConfig validators).
     """
     if not isinstance(project_dir, Path):
-        raise TypeError(
-            f"project_dir must be a Path, got {type(project_dir).__name__}"
-        )
+        raise TypeError(f"project_dir must be a Path, got {type(project_dir).__name__}")
 
     policy_path = project_dir / _POLICY_RELATIVE_PATH
     if not policy_path.exists():

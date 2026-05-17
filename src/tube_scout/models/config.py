@@ -156,16 +156,14 @@ class CollectionState(BaseModel):
     stage_completed: bool = False
 
 
-VALID_EVENT_TYPES = frozenset(
-    {
-        "semester_start",
-        "semester_end",
-        "exam",
-        "assignment",
-        "holiday",
-        "other",
-    }
-)
+VALID_EVENT_TYPES = frozenset({
+    "semester_start",
+    "semester_end",
+    "exam",
+    "assignment",
+    "holiday",
+    "other",
+})
 
 
 class CalendarEvent(BaseModel):

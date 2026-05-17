@@ -255,15 +255,13 @@ class SentimentService:
         results: list[dict[str, Any]] = []
         for comment, raw in zip(comments, raw_results):
             label = _KOREAN_LABEL_MAP.get(raw["label"], "neutral")
-            results.append(
-                {
-                    "comment_id": comment["comment_id"],
-                    "sentiment": label,
-                    "confidence": round(raw["score"], 4),
-                    "topics": [],
-                    "is_question": False,
-                }
-            )
+            results.append({
+                "comment_id": comment["comment_id"],
+                "sentiment": label,
+                "confidence": round(raw["score"], 4),
+                "topics": [],
+                "is_question": False,
+            })
         return results
 
     def _compute_cache_key(self, comments: list[dict[str, Any]]) -> str:
@@ -316,14 +314,12 @@ def cross_reference_questions_hotspots(
 
         if related_topics:
             relevance = min(1.0, hotspot["audience_watch_ratio"] / max_ratio)
-            results.append(
-                {
-                    "elapsed_ratio": hotspot["elapsed_ratio"],
-                    "audience_watch_ratio": hotspot["audience_watch_ratio"],
-                    "related_topics": list(set(related_topics)),
-                    "question_count": len(questions),
-                    "relevance_score": round(relevance, 4),
-                }
-            )
+            results.append({
+                "elapsed_ratio": hotspot["elapsed_ratio"],
+                "audience_watch_ratio": hotspot["audience_watch_ratio"],
+                "related_topics": list(set(related_topics)),
+                "question_count": len(questions),
+                "relevance_score": round(relevance, 4),
+            })
 
     return results

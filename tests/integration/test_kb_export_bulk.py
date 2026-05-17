@@ -104,8 +104,8 @@ def test_bulk_export_idempotent_overwrite(tmp_path: Path) -> None:
 
     _make_transcript(transcripts_dir, "VID001")
 
-    result1 = export_bulk(transcripts_dir, output_dir)
-    mtime1 = (output_dir / "VID001.txt").stat().st_mtime
+    export_bulk(transcripts_dir, output_dir)
+    (output_dir / "VID001.txt").stat().st_mtime
 
     result2 = export_bulk(transcripts_dir, output_dir)
 

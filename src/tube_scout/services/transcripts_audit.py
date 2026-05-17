@@ -36,19 +36,17 @@ AUDIT_HEADER: tuple[str, ...] = (
     "hint",
 )
 
-ALLOWED_CLASSIFICATIONS: frozenset[str] = frozenset(
-    {
-        "private_no_captions_api",
-        "transcripts_disabled",
-        "no_caption_track",
-        "api_error",
-        "unknown",
-        # Spec 010 FR-010-06: video skipped because a valid transcript JSON
-        # already exists in <project>/01_collect/transcripts/<vid>.json
-        # (operator opted into resume by NOT passing --force-refresh).
-        "skipped",
-    }
-)
+ALLOWED_CLASSIFICATIONS: frozenset[str] = frozenset({
+    "private_no_captions_api",
+    "transcripts_disabled",
+    "no_caption_track",
+    "api_error",
+    "unknown",
+    # Spec 010 FR-010-06: video skipped because a valid transcript JSON
+    # already exists in <project>/01_collect/transcripts/<vid>.json
+    # (operator opted into resume by NOT passing --force-refresh).
+    "skipped",
+})
 
 
 def classify_miss(

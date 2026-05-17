@@ -92,13 +92,11 @@ class BundleReportGenerator:
             task = progress.add_task("Building bundle", total=len(filtered))
             for meta in filtered:
                 vid_id = meta["video_id"]
-                video_data.append(
-                    {
-                        "meta": meta,
-                        "retention": self._load_retention(vid_id),
-                        "segments": self._load_segments(vid_id),
-                    }
-                )
+                video_data.append({
+                    "meta": meta,
+                    "retention": self._load_retention(vid_id),
+                    "segments": self._load_segments(vid_id),
+                })
                 progress.advance(task)
 
         report_title = title or self._auto_title(video_filter, channel_id)
@@ -203,12 +201,10 @@ class BundleReportGenerator:
                     progress.advance(task)
                     continue
 
-                video_data.append(
-                    {
-                        "meta": meta,
-                        "body_html": body,
-                    }
-                )
+                video_data.append({
+                    "meta": meta,
+                    "body_html": body,
+                })
                 progress.advance(task)
 
         if not video_data:

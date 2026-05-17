@@ -3,6 +3,7 @@
 No DB writes here (those live in adjacent modules per B-X1-2).
 B-X1-9: separate from services/fingerprint.py (text SHA — spec 011).
 """
+
 import re
 import subprocess
 from pathlib import Path
@@ -178,13 +179,9 @@ def hamming_distance_per_int(a: "np.ndarray", b: "np.ndarray") -> float:
         ) from exc
 
     if a.shape != b.shape:
-        raise ValueError(
-            f"Arrays must have equal shape; got {a.shape} vs {b.shape}."
-        )
+        raise ValueError(f"Arrays must have equal shape; got {a.shape} vs {b.shape}.")
     if a.dtype != np.uint32 or b.dtype != np.uint32:
-        raise ValueError(
-            f"Arrays must be dtype uint32; got {a.dtype} and {b.dtype}."
-        )
+        raise ValueError(f"Arrays must be dtype uint32; got {a.dtype} and {b.dtype}.")
 
     xor = np.bitwise_xor(a, b)
     bits = np.unpackbits(xor.view(np.uint8)).reshape(-1, 32).sum(axis=1)
@@ -221,11 +218,11 @@ def best_alignment_hamming(
 
     for offset in range(-window_frames, window_frames + 1, step):
         if offset >= 0:
-            a_slice = a[offset: offset + n]
-            b_slice = b[:n - offset] if offset < n else b[:0]
+            a_slice = a[offset : offset + n]
+            b_slice = b[: n - offset] if offset < n else b[:0]
         else:
-            a_slice = a[:n + offset]
-            b_slice = b[-offset: n]
+            a_slice = a[: n + offset]
+            b_slice = b[-offset:n]
 
         compare_len = min(len(a_slice), len(b_slice))
         if compare_len < 16:

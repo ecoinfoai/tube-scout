@@ -102,7 +102,7 @@ def test_nc2_with_time_axis(tmp_path: Path) -> None:
     from tube_scout.services.time_axis_indicators import compute_time_axis
     from tube_scout.storage.content_db import insert_match_spans
 
-    FIXTURES = Path(__file__).parent.parent / "fixtures" / "spec011" / "captions"
+    FIXTURES = Path(__file__).parent.parent / "fixtures" / "spec011" / "captions"  # noqa: N806
 
     db = build_clean_v2_db(tmp_path / "cr.db")
     captions_dir = tmp_path / "captions"

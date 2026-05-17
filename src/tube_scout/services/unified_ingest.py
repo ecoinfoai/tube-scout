@@ -104,6 +104,7 @@ def _build_ingest_sigint_handler(
         (when configured), and raises SystemExit(130). The handler never
         re-raises a side-effect failure — exit is always reached.
     """
+
     def _handler(signum: int, frame: object) -> None:
         if transcript_dir is not None:
             for partial in transcript_dir.glob("*.partial"):
@@ -113,14 +114,17 @@ def _build_ingest_sigint_handler(
         if current_video_ref:
             video_id = current_video_ref[0]
             try:
-                audit_writer.append_row("ingest_orchestrator", {
-                    "video_id": video_id,
-                    "result": "fail",
-                    "reason": "aborted_by_user",
-                    "channel_alias": channel_alias,
-                    "elapsed_ms": 0,
-                    "timestamp": datetime.now(tz=UTC).isoformat(),
-                })
+                audit_writer.append_row(
+                    "ingest_orchestrator",
+                    {
+                        "video_id": video_id,
+                        "result": "fail",
+                        "reason": "aborted_by_user",
+                        "channel_alias": channel_alias,
+                        "elapsed_ms": 0,
+                        "timestamp": datetime.now(tz=UTC).isoformat(),
+                    },
+                )
             except Exception as exc:  # noqa: BLE001 — handler must not raise
                 print(f"[SIGINT handler] audit write failed: {exc}", file=sys.stderr)
 
@@ -128,6 +132,7 @@ def _build_ingest_sigint_handler(
             if retry_manifest_path is not None and current_video_meta is not None:
                 try:
                     from tube_scout.services import retry_manifest as _rm
+
                     _rm.append_aborted_by_user(
                         retry_manifest_path,
                         channel_alias=channel_alias,
@@ -293,7 +298,9 @@ def _run_transcript_and_fingerprint(
     # F-11 / ADV-22: SIGINT handler — tracks in-flight video; restored on exit
     _current_video_ref: list[str] = []
     _current_video_meta: dict[str, str | None] = {
-        "video_id": None, "mp4_filename": None, "title": None,
+        "video_id": None,
+        "mp4_filename": None,
+        "title": None,
     }
     _sigint_handler = _build_ingest_sigint_handler(
         current_video_ref=_current_video_ref,
@@ -340,22 +347,28 @@ def _run_transcript_and_fingerprint(
                 # T028: both already done — skip WAV decode entirely (FR-018E)
                 transcript_skips += 1
                 fingerprint_skips += 1
-                audit_writer.append_row("ingest_orchestrator", {
-                    "video_id": video_id,
-                    "result": "skip",
-                    "reason": "already_transcribed",
-                    "channel_alias": work_root.name,
-                    "elapsed_ms": 0,
-                    "timestamp": ts,
-                })
-                audit_writer.append_row("ingest_orchestrator", {
-                    "video_id": video_id,
-                    "result": "skip",
-                    "reason": "already_fingerprinted",
-                    "channel_alias": work_root.name,
-                    "elapsed_ms": 0,
-                    "timestamp": ts,
-                })
+                audit_writer.append_row(
+                    "ingest_orchestrator",
+                    {
+                        "video_id": video_id,
+                        "result": "skip",
+                        "reason": "already_transcribed",
+                        "channel_alias": work_root.name,
+                        "elapsed_ms": 0,
+                        "timestamp": ts,
+                    },
+                )
+                audit_writer.append_row(
+                    "ingest_orchestrator",
+                    {
+                        "video_id": video_id,
+                        "result": "skip",
+                        "reason": "already_fingerprinted",
+                        "channel_alias": work_root.name,
+                        "elapsed_ms": 0,
+                        "timestamp": ts,
+                    },
+                )
                 progress.advance(task_id)
                 continue
 
@@ -367,43 +380,53 @@ def _run_transcript_and_fingerprint(
                     _logger.exception("audio_decode failed for %s: %s", video_id, exc)
                     reason = f"audio_decode_failed: {exc}"
                     sub_reason = type(exc).__name__
-                    transcript_failures.append(FailureEntry(
-                        video_id=video_id,
-                        title=mp4_path.stem,
-                        failed_stage="transcript",
-                        failure_reason=reason,
-                        attempted_at=attempted_at,
-                    ))
-                    fingerprint_failures.append(FailureEntry(
-                        video_id=video_id,
-                        title=mp4_path.stem,
-                        failed_stage="fingerprint",
-                        failure_reason=reason,
-                        attempted_at=attempted_at,
-                    ))
-                    audit_writer.append_row("ingest_orchestrator", {
-                        "video_id": video_id,
-                        "result": "fail",
-                        "reason": "asr_fail",
-                        "sub_reason": sub_reason,
-                        "channel_alias": work_root.name,
-                        "elapsed_ms": 0,
-                        "timestamp": ts,
-                    })
+                    transcript_failures.append(
+                        FailureEntry(
+                            video_id=video_id,
+                            title=mp4_path.stem,
+                            failed_stage="transcript",
+                            failure_reason=reason,
+                            attempted_at=attempted_at,
+                        )
+                    )
+                    fingerprint_failures.append(
+                        FailureEntry(
+                            video_id=video_id,
+                            title=mp4_path.stem,
+                            failed_stage="fingerprint",
+                            failure_reason=reason,
+                            attempted_at=attempted_at,
+                        )
+                    )
+                    audit_writer.append_row(
+                        "ingest_orchestrator",
+                        {
+                            "video_id": video_id,
+                            "result": "fail",
+                            "reason": "asr_fail",
+                            "sub_reason": sub_reason,
+                            "channel_alias": work_root.name,
+                            "elapsed_ms": 0,
+                            "timestamp": ts,
+                        },
+                    )
                     progress.advance(task_id)
                     continue
 
                 # T029: ASR stage — skip if guard says transcript already present
                 if guard is not None and guard.transcript_skip:
                     transcript_skips += 1
-                    audit_writer.append_row("ingest_orchestrator", {
-                        "video_id": video_id,
-                        "result": "skip",
-                        "reason": "already_transcribed",
-                        "channel_alias": work_root.name,
-                        "elapsed_ms": 0,
-                        "timestamp": ts,
-                    })
+                    audit_writer.append_row(
+                        "ingest_orchestrator",
+                        {
+                            "video_id": video_id,
+                            "result": "skip",
+                            "reason": "already_transcribed",
+                            "channel_alias": work_root.name,
+                            "elapsed_ms": 0,
+                            "timestamp": ts,
+                        },
+                    )
                 else:
                     # ASR (boundary B-2) + persist transcript JSON (FR-018A)
                     try:
@@ -413,44 +436,55 @@ def _run_transcript_and_fingerprint(
                                 transcript_dir, video_id, asr_result, ts
                             )
                         transcript_successes += 1
-                        audit_writer.append_row("ingest_orchestrator", {
-                            "video_id": video_id,
-                            "result": "success",
-                            "reason": "asr_transcribed",
-                            "channel_alias": work_root.name,
-                            "elapsed_ms": 0,
-                            "timestamp": ts,
-                        })
+                        audit_writer.append_row(
+                            "ingest_orchestrator",
+                            {
+                                "video_id": video_id,
+                                "result": "success",
+                                "reason": "asr_transcribed",
+                                "channel_alias": work_root.name,
+                                "elapsed_ms": 0,
+                                "timestamp": ts,
+                            },
+                        )
                     except Exception as exc:
                         _logger.exception("ASR failed for %s: %s", video_id, exc)
-                        transcript_failures.append(FailureEntry(
-                            video_id=video_id,
-                            title=mp4_path.stem,
-                            failed_stage="transcript",
-                            failure_reason=str(exc),
-                            attempted_at=attempted_at,
-                        ))
-                        audit_writer.append_row("ingest_orchestrator", {
-                            "video_id": video_id,
-                            "result": "fail",
-                            "reason": "asr_fail",
-                            "sub_reason": type(exc).__name__,
-                            "channel_alias": work_root.name,
-                            "elapsed_ms": 0,
-                            "timestamp": ts,
-                        })
+                        transcript_failures.append(
+                            FailureEntry(
+                                video_id=video_id,
+                                title=mp4_path.stem,
+                                failed_stage="transcript",
+                                failure_reason=str(exc),
+                                attempted_at=attempted_at,
+                            )
+                        )
+                        audit_writer.append_row(
+                            "ingest_orchestrator",
+                            {
+                                "video_id": video_id,
+                                "result": "fail",
+                                "reason": "asr_fail",
+                                "sub_reason": type(exc).__name__,
+                                "channel_alias": work_root.name,
+                                "elapsed_ms": 0,
+                                "timestamp": ts,
+                            },
+                        )
 
                 # T029: fingerprint stage — skip if guard says already done
                 if guard is not None and guard.fingerprint_skip:
                     fingerprint_skips += 1
-                    audit_writer.append_row("ingest_orchestrator", {
-                        "video_id": video_id,
-                        "result": "skip",
-                        "reason": "already_fingerprinted",
-                        "channel_alias": work_root.name,
-                        "elapsed_ms": 0,
-                        "timestamp": ts,
-                    })
+                    audit_writer.append_row(
+                        "ingest_orchestrator",
+                        {
+                            "video_id": video_id,
+                            "result": "skip",
+                            "reason": "already_fingerprinted",
+                            "channel_alias": work_root.name,
+                            "elapsed_ms": 0,
+                            "timestamp": ts,
+                        },
+                    )
                 else:
                     # Fingerprint (boundary B-3) + persist DB row (FR-018B)
                     try:
@@ -460,32 +494,42 @@ def _run_transcript_and_fingerprint(
                                 db_path, video_id, fp_bytes, duration, ts
                             )
                         fingerprint_successes += 1
-                        audit_writer.append_row("ingest_orchestrator", {
-                            "video_id": video_id,
-                            "result": "success",
-                            "reason": "captured",
-                            "channel_alias": work_root.name,
-                            "elapsed_ms": 0,
-                            "timestamp": ts,
-                        })
+                        audit_writer.append_row(
+                            "ingest_orchestrator",
+                            {
+                                "video_id": video_id,
+                                "result": "success",
+                                "reason": "captured",
+                                "channel_alias": work_root.name,
+                                "elapsed_ms": 0,
+                                "timestamp": ts,
+                            },
+                        )
                     except Exception as exc:
-                        _logger.exception("fingerprint failed for %s: %s", video_id, exc)
-                        fingerprint_failures.append(FailureEntry(
-                            video_id=video_id,
-                            title=mp4_path.stem,
-                            failed_stage="fingerprint",
-                            failure_reason=str(exc),
-                            attempted_at=attempted_at,
-                        ))
-                        audit_writer.append_row("ingest_orchestrator", {
-                            "video_id": video_id,
-                            "result": "fail",
-                            "reason": "fp_fail",
-                            "sub_reason": type(exc).__name__,
-                            "channel_alias": work_root.name,
-                            "elapsed_ms": 0,
-                            "timestamp": ts,
-                        })
+                        _logger.exception(
+                            "fingerprint failed for %s: %s", video_id, exc
+                        )
+                        fingerprint_failures.append(
+                            FailureEntry(
+                                video_id=video_id,
+                                title=mp4_path.stem,
+                                failed_stage="fingerprint",
+                                failure_reason=str(exc),
+                                attempted_at=attempted_at,
+                            )
+                        )
+                        audit_writer.append_row(
+                            "ingest_orchestrator",
+                            {
+                                "video_id": video_id,
+                                "result": "fail",
+                                "reason": "fp_fail",
+                                "sub_reason": type(exc).__name__,
+                                "channel_alias": work_root.name,
+                                "elapsed_ms": 0,
+                                "timestamp": ts,
+                            },
+                        )
 
             _current_video_ref.clear()  # F-11: clear after each video completes
             for _k in _current_video_meta:
@@ -631,14 +675,15 @@ def _print_summary_table(
     )
     if total_failure_count > 0:
         all_failures = (
-            summary.transcript_result.failures
-            + summary.fingerprint_result.failures
+            summary.transcript_result.failures + summary.fingerprint_result.failures
         )
         reason_counts: dict[str, int] = {}
         for f in all_failures:
             reason_counts[f.failure_reason] = reason_counts.get(f.failure_reason, 0) + 1
         top3 = sorted(reason_counts.items(), key=lambda x: x[1], reverse=True)[:3]
-        failure_table = Table(title="실패 원인 Top 3", show_header=True, header_style="bold red")
+        failure_table = Table(
+            title="실패 원인 Top 3", show_header=True, header_style="bold red"
+        )
         failure_table.add_column("실패 원인", style="red")
         failure_table.add_column("건수", justify="right")
         for reason, count in top3:
@@ -702,6 +747,7 @@ def ingest_unified(
     # Resolve preset once at entry so the rationale is visible in stdout and
     # the same kwargs apply to every video in the batch (deterministic run).
     from tube_scout.services.asr import preset_kwargs, resolve_preset
+
     preset_resolution = resolve_preset(asr_preset)
     asr_kwargs = preset_kwargs(preset_resolution.preset_name)
     if is_tty:
@@ -710,25 +756,31 @@ def ingest_unified(
             f"({preset_resolution.source}: {preset_resolution.rationale})[/dim]"
         )
 
-    audit_writer.append_row("ingest_orchestrator", {
-        "video_id": "",
-        "result": "success",
-        "reason": "started",
-        "channel_alias": channel_alias,
-        "elapsed_ms": 0,
-        "timestamp": started_at.isoformat(),
-    })
-
-    # T040: forced_reprocess audit row (FR-018D visibility)
-    if force:
-        audit_writer.append_row("ingest_orchestrator", {
+    audit_writer.append_row(
+        "ingest_orchestrator",
+        {
             "video_id": "",
             "result": "success",
-            "reason": "forced_reprocess",
+            "reason": "started",
             "channel_alias": channel_alias,
             "elapsed_ms": 0,
             "timestamp": started_at.isoformat(),
-        })
+        },
+    )
+
+    # T040: forced_reprocess audit row (FR-018D visibility)
+    if force:
+        audit_writer.append_row(
+            "ingest_orchestrator",
+            {
+                "video_id": "",
+                "result": "success",
+                "reason": "forced_reprocess",
+                "channel_alias": channel_alias,
+                "elapsed_ms": 0,
+                "timestamp": started_at.isoformat(),
+            },
+        )
 
     # ── Step 1: Takeout ingest ──────────────────────────────────────────────
     if is_tty:
@@ -755,18 +807,24 @@ def ingest_unified(
         completed_at = datetime.now(tz=UTC)
         total_elapsed = time.monotonic() - _t0
         empty_tr = TranscriptStageResult(
-            success_count=0, failure_count=0,
+            success_count=0,
+            failure_count=0,
             skipped_no_mp4_count=ingest_result.total_videos,
-            failures=[], elapsed_seconds=0.0,
+            failures=[],
+            elapsed_seconds=0.0,
         )
         empty_fr = FingerprintStageResult(
-            success_count=0, failure_count=0,
+            success_count=0,
+            failure_count=0,
             skipped_no_mp4_count=ingest_result.total_videos,
-            failures=[], elapsed_seconds=0.0,
+            failures=[],
+            elapsed_seconds=0.0,
         )
         manifest_path = work_root / channel_alias / "retry_pending.json"
         empty_rd = RetryManifestDelta(
-            added_count=0, resolved_count=0, remaining_count=0,
+            added_count=0,
+            resolved_count=0,
+            remaining_count=0,
             manifest_path=manifest_path,
         )
         summary = UnifiedIngestSummary(
@@ -793,6 +851,7 @@ def ingest_unified(
 
     # FR-015, FR-018: prioritise manifest retry targets at front of processing queue
     from tube_scout.services import retry_manifest as _rm_pre
+
     _pre_manifest_path = work_root / channel_alias / "retry_pending.json"
     _pre_manifest = _rm_pre.load_manifest(
         _pre_manifest_path, expected_alias=channel_alias
@@ -830,8 +889,7 @@ def ingest_unified(
         _console.print("[bold]▶ Step 4/5: 재시도 매니페스트 갱신[/bold]")
 
     failed_video_ids: set[str] = {
-        f.video_id
-        for f in transcript_result.failures + fingerprint_result.failures
+        f.video_id for f in transcript_result.failures + fingerprint_result.failures
     }
     succeeded_video_ids: set[str] = {
         vid for vid in mp4_video_id_map.values() if vid not in failed_video_ids
@@ -839,7 +897,10 @@ def ingest_unified(
     all_failures = transcript_result.failures + fingerprint_result.failures
     manifest_path = work_root / channel_alias / "retry_pending.json"
     retry_manifest_delta = _update_retry_manifest(
-        all_failures, succeeded_video_ids, manifest_path, audit_writer,
+        all_failures,
+        succeeded_video_ids,
+        manifest_path,
+        audit_writer,
         channel_alias=channel_alias,
     )
 
@@ -866,10 +927,12 @@ def ingest_unified(
             confirm_and_cleanup,
             present_failure_table,
         )
+
         present_failure_table(all_failures, console=_console, audit_writer=audit_writer)
         # SC-003: only successfully processed videos are deletion candidates
         candidates = [
-            mp4_path for mp4_path, vid in mp4_video_id_map.items()
+            mp4_path
+            for mp4_path, vid in mp4_video_id_map.items()
             if vid not in failed_video_ids
         ]
         # T-04: restrict unlink to archive root + channel symlink dir only
@@ -888,14 +951,17 @@ def ingest_unified(
     completed_at = datetime.now(tz=UTC)
     total_elapsed = time.monotonic() - _t0
 
-    audit_writer.append_row("ingest_orchestrator", {
-        "video_id": "",
-        "result": "success",
-        "reason": "completed",
-        "channel_alias": channel_alias,
-        "elapsed_ms": int(total_elapsed * 1000),
-        "timestamp": completed_at.isoformat(),
-    })
+    audit_writer.append_row(
+        "ingest_orchestrator",
+        {
+            "video_id": "",
+            "result": "success",
+            "reason": "completed",
+            "channel_alias": channel_alias,
+            "elapsed_ms": int(total_elapsed * 1000),
+            "timestamp": completed_at.isoformat(),
+        },
+    )
 
     summary = UnifiedIngestSummary(
         channel_alias=channel_alias,

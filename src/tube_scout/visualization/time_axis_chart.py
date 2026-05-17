@@ -61,28 +61,38 @@ def render(
         label = span.matched_text_sample[:40] if span.matched_text_sample else ""
 
         # Video A row (y=1)
-        fig.add_trace(go.Bar(
-            x=[span.end_a_seconds - span.start_a_seconds],
-            y=["Video A"],
-            base=[span.start_a_seconds],
-            orientation="h",
-            marker={"color": color, "line": {"color": "rgba(0,0,0,0.3)", "width": 0.5}},
-            name=label,
-            hovertext=label,
-            showlegend=False,
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=[span.end_a_seconds - span.start_a_seconds],
+                y=["Video A"],
+                base=[span.start_a_seconds],
+                orientation="h",
+                marker={
+                    "color": color,
+                    "line": {"color": "rgba(0,0,0,0.3)", "width": 0.5},
+                },
+                name=label,
+                hovertext=label,
+                showlegend=False,
+            )
+        )
 
         # Video B row (y=0)
-        fig.add_trace(go.Bar(
-            x=[span.end_b_seconds - span.start_b_seconds],
-            y=["Video B"],
-            base=[span.start_b_seconds],
-            orientation="h",
-            marker={"color": color, "line": {"color": "rgba(0,0,0,0.3)", "width": 0.5}},
-            name=label,
-            hovertext=label,
-            showlegend=False,
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=[span.end_b_seconds - span.start_b_seconds],
+                y=["Video B"],
+                base=[span.start_b_seconds],
+                orientation="h",
+                marker={
+                    "color": color,
+                    "line": {"color": "rgba(0,0,0,0.3)", "width": 0.5},
+                },
+                name=label,
+                hovertext=label,
+                showlegend=False,
+            )
+        )
 
     max_duration = max(duration_a, duration_b)
     fig.update_layout(
@@ -167,26 +177,36 @@ def render_pair_alignment_view(
     for span in src_spans:
         color = _span_color(span)
         width = max(span.end_a_seconds - span.start_a_seconds, 0.0)
-        fig.add_trace(go.Bar(
-            x=[width],
-            y=["Source"],
-            base=[span.start_a_seconds],
-            orientation="h",
-            marker={"color": color, "line": {"color": "rgba(0,0,0,0.3)", "width": 0.5}},
-            showlegend=False,
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=[width],
+                y=["Source"],
+                base=[span.start_a_seconds],
+                orientation="h",
+                marker={
+                    "color": color,
+                    "line": {"color": "rgba(0,0,0,0.3)", "width": 0.5},
+                },
+                showlegend=False,
+            )
+        )
 
     for span in tgt_spans:
         color = _span_color(span)
         width = max(span.end_b_seconds - span.start_b_seconds, 0.0)
-        fig.add_trace(go.Bar(
-            x=[width],
-            y=["Target"],
-            base=[span.start_b_seconds],
-            orientation="h",
-            marker={"color": color, "line": {"color": "rgba(0,0,0,0.3)", "width": 0.5}},
-            showlegend=False,
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=[width],
+                y=["Target"],
+                base=[span.start_b_seconds],
+                orientation="h",
+                marker={
+                    "color": color,
+                    "line": {"color": "rgba(0,0,0,0.3)", "width": 0.5},
+                },
+                showlegend=False,
+            )
+        )
 
     max_duration = max(src_duration, tgt_duration, 1.0)
     fig.update_layout(
@@ -237,11 +257,13 @@ def render_time_axis_profile(
         densities.append(min(covered / bin_width, 1.0))
         bin_labels.append(f"{bin_start:.0f}s")
 
-    fig = go.Figure(go.Bar(
-        x=bin_labels,
-        y=densities,
-        marker={"color": "steelblue"},
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=bin_labels,
+            y=densities,
+            marker={"color": "steelblue"},
+        )
+    )
     fig.update_layout(
         xaxis={"title": "time bin"},
         yaxis={"title": "match density", "range": [0, 1.0]},

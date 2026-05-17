@@ -73,9 +73,7 @@ class QualityChecker:
         self._density_min = density_min
         self._density_max = density_max
 
-    def check_voice_presence(
-        self, segments: list[dict[str, Any]] | None
-    ) -> bool:
+    def check_voice_presence(self, segments: list[dict[str, Any]] | None) -> bool:
         """Q-001: Check if video has extractable voice/captions.
 
         Args:

@@ -140,7 +140,8 @@ class YouTubeAnalyticsService:
 
         try:
             response = (
-                self._client.reports()
+                self._client
+                .reports()
                 .query(
                     ids="channel==MINE",
                     startDate="2000-01-01",
@@ -164,13 +165,11 @@ class YouTubeAnalyticsService:
         rows = response.get("rows", [])
         result = []
         for row in rows:
-            result.append(
-                {
-                    "elapsed_ratio": row[0],
-                    "audience_watch_ratio": row[1],
-                    "relative_retention": row[2] if len(row) > 2 else 0.0,
-                }
-            )
+            result.append({
+                "elapsed_ratio": row[0],
+                "audience_watch_ratio": row[1],
+                "relative_retention": row[2] if len(row) > 2 else 0.0,
+            })
         return result
 
     # ----------------------------------------------------------------

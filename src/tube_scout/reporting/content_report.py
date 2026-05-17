@@ -14,11 +14,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-logger = logging.getLogger(__name__)
-
 import openpyxl
 from jinja2 import Environment, FileSystemLoader
 from openpyxl.styles import Font, PatternFill
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_cell(value: Any) -> Any:
@@ -155,13 +155,13 @@ class ContentReportGenerator:
         for q in quality_results:
             quality_html += f"""
             <tr>
-                <td>{q.get('video_id', '')}</td>
-                <td>{'Pass' if q.get('q001_voice_present') else 'Fail'}</td>
-                <td>{'Pass' if q.get('q002_min_duration') else 'Fail'}</td>
-                <td>{q.get('q003_course_relevance', 'N/A')}</td>
-                <td>{q.get('q004_silence_ratio', 'N/A')}</td>
-                <td>{q.get('q005_speech_density', 'N/A')}</td>
-                <td>{q.get('pass_count', 0)}/5</td>
+                <td>{q.get("video_id", "")}</td>
+                <td>{"Pass" if q.get("q001_voice_present") else "Fail"}</td>
+                <td>{"Pass" if q.get("q002_min_duration") else "Fail"}</td>
+                <td>{q.get("q003_course_relevance", "N/A")}</td>
+                <td>{q.get("q004_silence_ratio", "N/A")}</td>
+                <td>{q.get("q005_speech_density", "N/A")}</td>
+                <td>{q.get("pass_count", 0)}/5</td>
             </tr>"""
 
         gc = summary["grade_counts"]
@@ -292,10 +292,21 @@ class ContentReportGenerator:
         ws_susp = wb.active
         ws_susp.title = "Suspicion Summary"
         headers = [
-            "ID", "Professor", "Course", "Week", "Session",
-            "Year From", "Year To", "Hash Match", "Cosine Sim",
-            "Change Rate", "New Terms", "Duration Diff",
-            "Score", "Grade", "Review Status",
+            "ID",
+            "Professor",
+            "Course",
+            "Week",
+            "Session",
+            "Year From",
+            "Year To",
+            "Hash Match",
+            "Cosine Sim",
+            "Change Rate",
+            "New Terms",
+            "Duration Diff",
+            "Score",
+            "Grade",
+            "Review Status",
         ]
         for col, h in enumerate(headers, 1):
             cell = ws_susp.cell(row=1, column=col, value=h)
@@ -303,19 +314,23 @@ class ContentReportGenerator:
 
         grade_fills = {
             "critical": PatternFill(
-                start_color="DC3545", end_color="DC3545",
+                start_color="DC3545",
+                end_color="DC3545",
                 fill_type="solid",
             ),
             "high": PatternFill(
-                start_color="FD7E14", end_color="FD7E14",
+                start_color="FD7E14",
+                end_color="FD7E14",
                 fill_type="solid",
             ),
             "moderate": PatternFill(
-                start_color="FFC107", end_color="FFC107",
+                start_color="FFC107",
+                end_color="FFC107",
                 fill_type="solid",
             ),
             "normal": PatternFill(
-                start_color="28A745", end_color="28A745",
+                start_color="28A745",
+                end_color="28A745",
                 fill_type="solid",
             ),
         }
@@ -353,8 +368,13 @@ class ContentReportGenerator:
         # Sheet 2: Quality Results
         ws_qual = wb.create_sheet("Quality Results")
         q_headers = [
-            "Video ID", "Q-001 Voice", "Q-002 Duration",
-            "Q-003 Relevance", "Q-004 Silence", "Q-005 Density", "Pass Count",
+            "Video ID",
+            "Q-001 Voice",
+            "Q-002 Duration",
+            "Q-003 Relevance",
+            "Q-004 Silence",
+            "Q-005 Density",
+            "Pass Count",
         ]
         for col, h in enumerate(q_headers, 1):
             cell = ws_qual.cell(row=1, column=col, value=h)
@@ -563,16 +583,18 @@ def _build_pair_data(
     match_spans = []
     for s in spans:
         try:
-            match_spans.append(MatchSpan(
-                start_a_seconds=float(s["start_a_seconds"]),
-                end_a_seconds=float(s["end_a_seconds"]),
-                start_b_seconds=float(s["start_b_seconds"]),
-                end_b_seconds=float(s["end_b_seconds"]),
-                length_seconds=float(s["length_seconds"]),
-                matched_text_sample=s.get("matched_text_sample") or "",
-                baseline_subtracted=bool(s.get("baseline_subtracted")),
-                whitelisted=bool(s.get("whitelisted")),
-            ))
+            match_spans.append(
+                MatchSpan(
+                    start_a_seconds=float(s["start_a_seconds"]),
+                    end_a_seconds=float(s["end_a_seconds"]),
+                    start_b_seconds=float(s["start_b_seconds"]),
+                    end_b_seconds=float(s["end_b_seconds"]),
+                    length_seconds=float(s["length_seconds"]),
+                    matched_text_sample=s.get("matched_text_sample") or "",
+                    baseline_subtracted=bool(s.get("baseline_subtracted")),
+                    whitelisted=bool(s.get("whitelisted")),
+                )
+            )
         except Exception:
             pass
 
@@ -605,7 +627,9 @@ def _build_pair_data(
         **comp,
         "time_axis_chart_html": time_axis_chart_html,
         "time_axis_png_b64": time_axis_png_b64,
-        "matched_text_samples": [s.get("matched_text_sample") for s in spans if s.get("matched_text_sample")],
+        "matched_text_samples": [
+            s.get("matched_text_sample") for s in spans if s.get("matched_text_sample")
+        ],
     }
 
 
@@ -675,9 +699,14 @@ def _generate_xlsx(
     # Sheet 2: By Pattern
     ws_pat = wb.create_sheet("By Pattern")
     pat_headers = [
-        "pattern", "source_video_id", "target_video_id",
-        "suspicion_score", "grade", "review_status",
-        "i2_cosine_similarity", "i6_longest_contiguous_seconds",
+        "pattern",
+        "source_video_id",
+        "target_video_id",
+        "suspicion_score",
+        "grade",
+        "review_status",
+        "i2_cosine_similarity",
+        "i6_longest_contiguous_seconds",
     ]
     ws_pat.append(pat_headers)
     for col, h in enumerate(pat_headers, 1):
@@ -687,18 +716,48 @@ def _generate_xlsx(
 
     # Sheet 3: Whitelist
     ws_wl = wb.create_sheet("Whitelist")
-    wl_headers = ["kind", "professor_id", "source_video_id", "target_video_id", "phrase_raw", "reason", "registered_by"]
+    wl_headers = [
+        "kind",
+        "professor_id",
+        "source_video_id",
+        "target_video_id",
+        "phrase_raw",
+        "reason",
+        "registered_by",
+    ]
     ws_wl.append(wl_headers)
     for col, h in enumerate(wl_headers, 1):
         ws_wl.cell(row=1, column=col).font = header_font
     for pair_wl in _query_pair_whitelist(db_path):
-        ws_wl.append(["pair", "", pair_wl.get("source_video_id", ""), pair_wl.get("target_video_id", ""), "", "", ""])
+        ws_wl.append([
+            "pair",
+            "",
+            pair_wl.get("source_video_id", ""),
+            pair_wl.get("target_video_id", ""),
+            "",
+            "",
+            "",
+        ])
     for phrase_wl in _query_phrase_whitelist(db_path, professor_id):
-        ws_wl.append(["phrase", professor_id, "", "", phrase_wl.get("phrase_raw", ""), phrase_wl.get("reason", ""), phrase_wl.get("registered_by", "")])
+        ws_wl.append([
+            "phrase",
+            professor_id,
+            "",
+            "",
+            phrase_wl.get("phrase_raw", ""),
+            phrase_wl.get("reason", ""),
+            phrase_wl.get("registered_by", ""),
+        ])
 
     # Sheet 4: Baseline
     ws_base = wb.create_sheet("Baseline")
-    base_headers = ["professor_id", "phrase_raw", "phrase_normalized", "occurrence_count", "registered_by"]
+    base_headers = [
+        "professor_id",
+        "phrase_raw",
+        "phrase_normalized",
+        "occurrence_count",
+        "registered_by",
+    ]
     ws_base.append(base_headers)
     for col, h in enumerate(base_headers, 1):
         ws_base.cell(row=1, column=col).font = header_font
@@ -707,18 +766,36 @@ def _generate_xlsx(
 
     # Sheet 5: Layer Attribution Audit
     ws_attr = wb.create_sheet("Layer Attribution")
-    attr_headers = ["comparison_id", "source_video_id", "target_video_id", "layer", "action", "reason"]
+    attr_headers = [
+        "comparison_id",
+        "source_video_id",
+        "target_video_id",
+        "layer",
+        "action",
+        "reason",
+    ]
     ws_attr.append(attr_headers)
     for col, h in enumerate(attr_headers, 1):
         ws_attr.cell(row=1, column=col).font = header_font
     for comp in comparisons:
         attr_json = comp.get("layer_attribution") or "[]"
         try:
-            attrs = json.loads(attr_json) if isinstance(attr_json, str) else (attr_json or [])
+            attrs = (
+                json.loads(attr_json)
+                if isinstance(attr_json, str)
+                else (attr_json or [])
+            )
         except (json.JSONDecodeError, TypeError):
             attrs = []
         if not attrs:
-            ws_attr.append([comp.get("id"), comp.get("source_video_id"), comp.get("target_video_id"), "", "", ""])
+            ws_attr.append([
+                comp.get("id"),
+                comp.get("source_video_id"),
+                comp.get("target_video_id"),
+                "",
+                "",
+                "",
+            ])
         for attr in attrs:
             ws_attr.append([
                 comp.get("id"),
@@ -817,7 +894,9 @@ def generate_v2_report(
         elif f == "xlsx":
             _generate_xlsx(comparisons, db_path, professor_id, path)
         elif f == "json":
-            _generate_json(comparisons, db_path, professor_id, run_id, run_timestamp, path)
+            _generate_json(
+                comparisons, db_path, professor_id, run_id, run_timestamp, path
+            )
         result[f] = path
 
     return result

@@ -103,12 +103,10 @@ class TopicExtractorService:
         questions: list[dict[str, Any]] = []
         for r in raw_results:
             if r["is_question"] and r.get("question_text"):
-                questions.append(
-                    {
-                        "comment_id": r["comment_id"],
-                        "question_text": r["question_text"],
-                    }
-                )
+                questions.append({
+                    "comment_id": r["comment_id"],
+                    "question_text": r["question_text"],
+                })
         return questions
 
     def cross_reference_with_hotspots(
@@ -143,19 +141,17 @@ class TopicExtractorService:
             ratio = best_hotspot["elapsed_ratio"]
             # Create a small window around the hotspot
             window = 0.05
-            matches.append(
-                {
-                    "video_id": video_id,
-                    "comment_id": question["comment_id"],
-                    "question_text": question["question_text"],
-                    "matched_hotspot_start": max(0.0, ratio - window),
-                    "matched_hotspot_end": min(1.0, ratio + window),
-                    "relevance_score": min(
-                        1.0,
-                        best_hotspot["audience_watch_ratio"] / 2.0,
-                    ),
-                }
-            )
+            matches.append({
+                "video_id": video_id,
+                "comment_id": question["comment_id"],
+                "question_text": question["question_text"],
+                "matched_hotspot_start": max(0.0, ratio - window),
+                "matched_hotspot_end": min(1.0, ratio + window),
+                "relevance_score": min(
+                    1.0,
+                    best_hotspot["audience_watch_ratio"] / 2.0,
+                ),
+            })
 
         return matches
 
@@ -276,14 +272,12 @@ class TopicExtractorService:
                 text_by_id[cid] for cid in comment_ids[:3] if cid in text_by_id
             ]
 
-            clusters.append(
-                {
-                    "video_id": video_id,
-                    "topic_label": topic_label,
-                    "comment_ids": comment_ids,
-                    "sentiment_distribution": sentiment_distribution,
-                    "representative_comments": representative,
-                }
-            )
+            clusters.append({
+                "video_id": video_id,
+                "topic_label": topic_label,
+                "comment_ids": comment_ids,
+                "sentiment_distribution": sentiment_distribution,
+                "representative_comments": representative,
+            })
 
         return clusters

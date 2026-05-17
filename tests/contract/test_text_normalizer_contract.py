@@ -176,7 +176,9 @@ def test_normalize_transcript_json_skips_when_version_matches(tmp_path: Path) ->
 
     # Second call should skip
     mtime_before = norm_path.stat().st_mtime
-    import time; time.sleep(0.01)
+    import time
+
+    time.sleep(0.01)
     result = normalize_transcript_json(raw_path, norm_path, force=False)
 
     assert result is False, "normalize_transcript_json must return False when skipping"

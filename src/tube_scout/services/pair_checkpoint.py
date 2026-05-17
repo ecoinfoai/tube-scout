@@ -50,7 +50,15 @@ def start_run(
             "INSERT INTO pair_checkpoint "
             "(run_id, professor_id, matching_mode, pair_count_total, pair_count_done, "
             "started_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (run_id, professor_id, matching_mode, pair_count_total, 0, now, "in_progress"),
+            (
+                run_id,
+                professor_id,
+                matching_mode,
+                pair_count_total,
+                0,
+                now,
+                "in_progress",
+            ),
         )
         conn.commit()
     finally:

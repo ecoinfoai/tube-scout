@@ -231,26 +231,22 @@ async def run(
         priority_summary=priority_summary,
     )
 
-    results_repo.ResultsRepo().insert_result(
-        {
-            "job_id": job_id,
-            "report_v1v3_html": report_payload.get("report_v1v3_html"),
-            "report_v1v3_pdf": report_payload.get("report_v1v3_pdf"),
-            "report_v1v3_excel": report_payload.get("report_v1v3_excel"),
-            "report_reuse_html": report_payload.get("report_reuse_html"),
-            "report_reuse_excel": report_payload.get("report_reuse_excel"),
-            "matched_video_count": int(
-                report_payload.get("matched_video_count", matched_video_count)
-            ),
-            "suspicious_pair_count": int(
-                report_payload.get("suspicious_pair_count", suspicious_pair_count)
-            ),
-            "priority_summary": report_payload.get(
-                "priority_summary", priority_summary
-            ),
-            "generated_at": datetime.now(UTC).isoformat(),
-        }
-    )
+    results_repo.ResultsRepo().insert_result({
+        "job_id": job_id,
+        "report_v1v3_html": report_payload.get("report_v1v3_html"),
+        "report_v1v3_pdf": report_payload.get("report_v1v3_pdf"),
+        "report_v1v3_excel": report_payload.get("report_v1v3_excel"),
+        "report_reuse_html": report_payload.get("report_reuse_html"),
+        "report_reuse_excel": report_payload.get("report_reuse_excel"),
+        "matched_video_count": int(
+            report_payload.get("matched_video_count", matched_video_count)
+        ),
+        "suspicious_pair_count": int(
+            report_payload.get("suspicious_pair_count", suspicious_pair_count)
+        ),
+        "priority_summary": report_payload.get("priority_summary", priority_summary),
+        "generated_at": datetime.now(UTC).isoformat(),
+    })
 
     on_progress("done", 1, 1)
     LOGGER.info("pipeline %s completed; result_dir=%s", job_id, project_dir)

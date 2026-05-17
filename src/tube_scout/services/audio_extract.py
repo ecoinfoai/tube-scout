@@ -43,11 +43,15 @@ def extract_wav_16k_mono(
     cmd = [
         "ffmpeg",
         "-y",
-        "-i", str(mp4_path),
+        "-i",
+        str(mp4_path),
         "-vn",
-        "-ac", "1",
-        "-ar", str(sample_rate),
-        "-c:a", codec,
+        "-ac",
+        "1",
+        "-ar",
+        str(sample_rate),
+        "-c:a",
+        codec,
         str(wav_path),
     ]
 
@@ -116,5 +120,7 @@ class WavLifecycle:
         try:
             cleanup_wav(self._wav_path, keep=self._keep)
         except (PermissionError, IsADirectoryError) as exc:
-            logger.warning("WavLifecycle.__exit__: cleanup failed for %s: %s", self._wav_path, exc)
+            logger.warning(
+                "WavLifecycle.__exit__: cleanup failed for %s: %s", self._wav_path, exc
+            )
         return None

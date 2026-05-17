@@ -30,7 +30,7 @@ def test_source_default_is_api(tmp_path) -> None:
         "tube_scout.cli.collect.resolve_alias_to_channel_id",
         return_value="UC_TEST_CHANNEL_ID",
     ):
-        result = runner.invoke(
+        runner.invoke(
             app,
             ["collect", "transcripts", "--channel", "test-alias", "--source", "api"],
             env=env,

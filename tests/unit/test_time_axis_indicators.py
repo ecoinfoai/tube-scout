@@ -8,9 +8,12 @@ Case C = one short block (~120s).
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
+
+if TYPE_CHECKING:
+    from tube_scout.models.reuse_v2 import MatchSpan
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "spec011" / "captions"
 

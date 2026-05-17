@@ -739,12 +739,10 @@ def _load_daily_metrics(collect_dir: Path, channel_id: str) -> list[dict[str, ob
     for row in df.to_dicts():
         try:
             d = dt_date.fromisoformat(str(row["date"]))
-            result.append(
-                {
-                    "date": d.toordinal(),
-                    "value": row.get("views", 0),
-                }
-            )
+            result.append({
+                "date": d.toordinal(),
+                "value": row.get("views", 0),
+            })
         except (ValueError, TypeError, KeyError):
             continue
     return result
@@ -779,12 +777,10 @@ def _load_video_time_series(
             pub = v["published_at"][:10]
             try:
                 d = dt_date.fromisoformat(pub)
-                result.append(
-                    {
-                        "date": d.toordinal(),
-                        "value": v["view_count"],
-                    }
-                )
+                result.append({
+                    "date": d.toordinal(),
+                    "value": v["view_count"],
+                })
             except (ValueError, TypeError):
                 continue
     return result
@@ -910,7 +906,9 @@ def analyze_all_command(
 
 def analyze_content_reuse_command(
     channel: str = typer.Option(..., "--channel", help="Channel alias to analyze."),
-    professor: str = typer.Option(..., "--professor", help="Professor pool identifier."),
+    professor: str = typer.Option(
+        ..., "--professor", help="Professor pool identifier."
+    ),
     mode: str = typer.Option(
         "M-default",
         "--mode",
@@ -926,7 +924,9 @@ def analyze_content_reuse_command(
         "--layer-b-threshold",
         help="Layer B baseline n-gram frequency threshold.",
     ),
-    resume: bool = typer.Option(False, "--resume/--no-resume", help="Skip already-analyzed pairs."),
+    resume: bool = typer.Option(
+        False, "--resume/--no-resume", help="Skip already-analyzed pairs."
+    ),
     force: bool = typer.Option(False, "--force", help="Re-analyze even if done."),
     db_path: str = typer.Option(
         "./data/content_reuse.db",

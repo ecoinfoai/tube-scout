@@ -11,7 +11,11 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
+
+if TYPE_CHECKING:
+    from tube_scout.models.content import VideoMetadata
 
 
 def _ffprobe_mock(duration: float) -> MagicMock:

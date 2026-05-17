@@ -22,9 +22,11 @@ from tube_scout.web.routes._templating import render_template
 
 LOGGER = logging.getLogger("tube_scout.web.routes.reviews")
 
-VALID_STATUSES: frozenset[str] = frozenset(
-    {"unreviewed", "confirmed_duplicate", "false_positive"}
-)
+VALID_STATUSES: frozenset[str] = frozenset({
+    "unreviewed",
+    "confirmed_duplicate",
+    "false_positive",
+})
 
 
 def _verify_csrf(request: Request, submitted: str | None) -> bool:

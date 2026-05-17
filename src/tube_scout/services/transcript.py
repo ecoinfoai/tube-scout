@@ -194,13 +194,17 @@ class TranscriptService:
         segments: list[dict[str, Any]] = []
         for s in snippets:
             if isinstance(s, dict):
-                segments.append(
-                    {"text": s["text"], "start": s["start"], "duration": s["duration"]}
-                )
+                segments.append({
+                    "text": s["text"],
+                    "start": s["start"],
+                    "duration": s["duration"],
+                })
             else:
-                segments.append(
-                    {"text": s.text, "start": s.start, "duration": s.duration}
-                )
+                segments.append({
+                    "text": s.text,
+                    "start": s.start,
+                    "duration": s.duration,
+                })
         return segments
 
     def _whisper_fallback(

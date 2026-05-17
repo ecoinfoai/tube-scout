@@ -5,13 +5,13 @@ service-layer code; never bypass validation by constructing dicts directly.
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-class ReusePatternLabel(str, Enum):
+class ReusePatternLabel(StrEnum):
     """Classification of a reuse pair by contiguity and week alignment.
 
     Values:
@@ -76,11 +76,13 @@ class MatchSpan(BaseModel):
     def _end_after_start(self) -> "MatchSpan":
         if self.end_a_seconds <= self.start_a_seconds:
             raise ValueError(
-                f"end_a_seconds ({self.end_a_seconds}) must be > start_a_seconds ({self.start_a_seconds})"
+                f"end_a_seconds ({self.end_a_seconds}) must be > "
+                f"start_a_seconds ({self.start_a_seconds})"
             )
         if self.end_b_seconds <= self.start_b_seconds:
             raise ValueError(
-                f"end_b_seconds ({self.end_b_seconds}) must be > start_b_seconds ({self.start_b_seconds})"
+                f"end_b_seconds ({self.end_b_seconds}) must be > "
+                f"start_b_seconds ({self.start_b_seconds})"
             )
         return self
 
@@ -256,8 +258,14 @@ class PolicyConfig(BaseModel):
     pattern_whole_threshold_ratio: float = Field(default=0.50, gt=0.0, lt=1.0)
     composite_weights: dict[str, float] = Field(
         default_factory=lambda: {
-            "i1": 0.20, "i2": 0.20, "i3": 0.10, "i4": 0.05,
-            "i5": 0.05, "i6": 0.20, "i7": 0.10, "i8": 0.10,
+            "i1": 0.20,
+            "i2": 0.20,
+            "i3": 0.10,
+            "i4": 0.05,
+            "i5": 0.05,
+            "i6": 0.20,
+            "i7": 0.10,
+            "i8": 0.10,
         }
     )
 

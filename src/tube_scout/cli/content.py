@@ -77,13 +77,15 @@ def _ensure_v2_schema(project: Path) -> Path:
     if db_path.is_symlink() and not db_path.exists():
         broken_target = Path(db_path).resolve()
         console.print(
-            f"[yellow]Warning: {db_path} is a broken symlink (target: {broken_target}). "
+            f"[yellow]Warning: {db_path} is a broken symlink "
+            f"(target: {broken_target}). "
             "Run 'tube-scout collect ingest' to rebuild the DB and symlink, "
             "or pass --db-path to specify an existing DB.[/yellow]"
         )
 
     if not _SPEC011_MIGRATED:
         from tube_scout.storage.content_db import migrate_to_v2
+
         migrate_to_v2(db_path)
         _SPEC011_MIGRATED = True
     return db_path
@@ -318,7 +320,10 @@ def content_compare_command(
     mode: str = typer.Option(
         "legacy",
         "--mode",
-        help="Compare mode: 'legacy' (year-pair) or 'nc2' (delegates to scan --mode nc2).",
+        help=(
+            "Compare mode: 'legacy' (year-pair) "
+            "or 'nc2' (delegates to scan --mode nc2)."
+        ),
     ),
 ) -> None:
     """Compare matched video pairs across years using 5 indicators.
@@ -337,10 +342,16 @@ def content_compare_command(
         if not professor:
             console.print(
                 "[red]Missing --professor for nC2 mode. "
-                "Provide a professor ID registered with 'tube-scout content professor map'.[/red]"
+                "Provide a professor ID registered with "
+                "'tube-scout content professor map'.[/red]"
             )
             raise typer.Exit(code=1)
-        _run_nc2_scan(project=project, project_dir=project_dir, professor_id=professor, resume=False)
+        _run_nc2_scan(
+            project=project,
+            project_dir=project_dir,
+            professor_id=professor,
+            resume=False,
+        )
         return
     from tube_scout.services.content_comparator import (
         ContentComparator,
@@ -402,28 +413,26 @@ def content_compare_command(
     for pair in pairs:
         result = comparator.compare_pair(pair)
         try:
-            db.insert_comparison(
-                **{
-                    k: result[k]
-                    for k in [
-                        "source_video_id",
-                        "target_video_id",
-                        "professor",
-                        "course",
-                        "week",
-                        "session",
-                        "year_from",
-                        "year_to",
-                        "i1_hash_match",
-                        "i2_cosine_similarity",
-                        "i3_change_rate",
-                        "i4_new_term_count",
-                        "i5_duration_diff_seconds",
-                        "suspicion_score",
-                        "grade",
-                    ]
-                }
-            )
+            db.insert_comparison(**{
+                k: result[k]
+                for k in [
+                    "source_video_id",
+                    "target_video_id",
+                    "professor",
+                    "course",
+                    "week",
+                    "session",
+                    "year_from",
+                    "year_to",
+                    "i1_hash_match",
+                    "i2_cosine_similarity",
+                    "i3_change_rate",
+                    "i4_new_term_count",
+                    "i5_duration_diff_seconds",
+                    "suspicion_score",
+                    "grade",
+                ]
+            })
             results_count += 1
         except Exception as e:
             logger.warning(
@@ -638,6 +647,7 @@ def content_review_command(
         try:
             from datetime import UTC
             from datetime import datetime as _dt
+
             now = _dt.now(UTC).isoformat()
             with layer_d_write_lock(db_path) as lock_conn:
                 cur = lock_conn.execute(
@@ -669,7 +679,11 @@ def content_review_command(
     if pattern is not None:
         results = [r for r in results if r.get("reuse_pattern") == pattern]
     if professor is not None:
-        results = [r for r in results if r.get("professor") == professor or r.get("professor_id") == professor]
+        results = [
+            r
+            for r in results
+            if r.get("professor") == professor or r.get("professor_id") == professor
+        ]
 
     if not results:
         console.print("[yellow]No comparison results found.[/yellow]")
@@ -748,7 +762,10 @@ def content_scan_command(
     mode: str = typer.Option(
         "legacy",
         "--mode",
-        help="Scan mode: 'legacy' (spec 007 year-pair) or 'nc2' (spec 011 nC2 professor pool).",
+        help=(
+            "Scan mode: 'legacy' (spec 007 year-pair) "
+            "or 'nc2' (spec 011 nC2 professor pool)."
+        ),
     ),
     professor: str | None = typer.Option(
         None,
@@ -781,10 +798,16 @@ def content_scan_command(
         if not professor:
             console.print(
                 "[red]Missing --professor for nC2 mode. "
-                "Provide a professor ID registered with 'tube-scout content professor map'.[/red]"
+                "Provide a professor ID registered with "
+                "'tube-scout content professor map'.[/red]"
             )
             raise typer.Exit(code=1)
-        _run_nc2_scan(project=project, project_dir=project_dir, professor_id=professor, resume=resume)
+        _run_nc2_scan(
+            project=project,
+            project_dir=project_dir,
+            professor_id=professor,
+            resume=resume,
+        )
         return
 
     console.print("[bold]Running content scan pipeline...[/bold]\n")
@@ -868,12 +891,15 @@ def content_scan_command(
     console.print("\n[bold green]Content scan pipeline complete.[/bold green]")
 
 
-def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: bool) -> None:
+def _run_nc2_scan(
+    project: str, project_dir: str, professor_id: str, resume: bool
+) -> None:
     """Execute the nC2 professor-pool matching pipeline.
 
     INTEGRATION: time_axis_indicators + compute_suspicion_score + insert_match_spans
     + layer_defense.apply_layers + pattern_classifier.classify_reuse_pattern
-    + filter_pair_whitelisted 호출됨 (orchestrator: cli/content.py, task: T039+T050+T051).
+    + filter_pair_whitelisted 호출됨
+    (orchestrator: cli/content.py, task: T039+T050+T051).
 
     Args:
         project: Project path or 'latest'.
@@ -912,7 +938,10 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
     if resume:
         run_id = resume_run(professor_id, "M-nC2", db_path)
         if run_id:
-            console.print(f"[bold]Resuming nC2 run {run_id} for professor '{professor_id}'...[/bold]")
+            console.print(
+                f"[bold]Resuming nC2 run {run_id} "
+                f"for professor '{professor_id}'...[/bold]"
+            )
 
     whitelisted_count = 0
     if not run_id:
@@ -934,14 +963,19 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
             db_path=db_path,
         )
         console.print(
-            f"[bold]Starting nC2 run {run_id} — {len(candidates)} pairs for professor '{professor_id}'.[/bold]"
+            f"[bold]Starting nC2 run {run_id} — {len(candidates)} pairs "
+            f"for professor '{professor_id}'.[/bold]"
         )
         if whitelisted_count > 0:
-            console.print(f"[dim]excluded by Layer D pair-whitelist: {whitelisted_count}[/dim]")
+            console.print(
+                f"[dim]excluded by Layer D pair-whitelist: {whitelisted_count}[/dim]"
+            )
 
     pool = resolve_caption_pool(professor_id, db_path)
 
-    now_fn = lambda: datetime.now(UTC).isoformat()
+    def now_fn():
+        return datetime.now(UTC).isoformat()
+
     conn = sqlite3.connect(str(db_path))
     processed = 0
     try:
@@ -1020,9 +1054,9 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
                 continue
 
             # Recompute score+grade after Layer B/D subtraction (updated i6)
-            updated_i6 = max(
-                (s.length_seconds for s in spans), default=0.0
-            ) if spans else i6
+            updated_i6 = (
+                max((s.length_seconds for s in spans), default=0.0) if spans else i6
+            )
             score, grade = compute_suspicion_score(
                 i1_hash_match=False,
                 i2_cosine_similarity=0.0,
@@ -1050,6 +1084,7 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
                     reuse_pattern = None
 
             import json as _json
+
             layer_attr_json = _json.dumps([
                 {"layer": la.layer, "action": la.action, "reason": la.reason}
                 for la in cr.layer_attribution
@@ -1063,9 +1098,17 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
                 "layer_attribution, created_at) "
                 "VALUES (?, ?, 'M-nC2', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    pair_ref.source_video_id, pair_ref.target_video_id, professor_id,
-                    i6, i7, i8, score, grade, reuse_pattern,
-                    layer_attr_json, now_fn(),
+                    pair_ref.source_video_id,
+                    pair_ref.target_video_id,
+                    professor_id,
+                    i6,
+                    i7,
+                    i8,
+                    score,
+                    grade,
+                    reuse_pattern,
+                    layer_attr_json,
+                    now_fn(),
                 ),
             )
             conn.commit()
@@ -1092,10 +1135,16 @@ def _run_nc2_scan(project: str, project_dir: str, professor_id: str, resume: boo
 @professor_app.command("map")
 def professor_map(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    professor_id: str = typer.Option(..., "--professor-id", help="Professor identifier."),
-    display_name: str = typer.Option(..., "--display-name", help="Human-readable name."),
+    professor_id: str = typer.Option(
+        ..., "--professor-id", help="Professor identifier."
+    ),
+    display_name: str = typer.Option(
+        ..., "--display-name", help="Human-readable name."
+    ),
     channel: str = typer.Option(..., "--channel", help="Channel alias."),
-    author: str = typer.Option(..., "--author", help="Author marker or __channel_owner__."),
+    author: str = typer.Option(
+        ..., "--author", help="Author marker or __channel_owner__."
+    ),
     note: str | None = typer.Option(None, "--note", help="Optional notes."),
 ) -> None:
     """Register or extend a professor pool mapping.
@@ -1157,7 +1206,9 @@ def professor_list(
 @professor_app.command("show")
 def professor_show(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    professor_id: str = typer.Option(..., "--professor-id", help="Professor identifier."),
+    professor_id: str = typer.Option(
+        ..., "--professor-id", help="Professor identifier."
+    ),
 ) -> None:
     """Show a single professor's mappings.
 
@@ -1179,7 +1230,9 @@ def professor_show(
 @professor_app.command("unmap")
 def professor_unmap(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    professor_id: str = typer.Option(..., "--professor-id", help="Professor identifier."),
+    professor_id: str = typer.Option(
+        ..., "--professor-id", help="Professor identifier."
+    ),
     channel: str = typer.Option(..., "--channel", help="Channel alias to remove."),
     author: str = typer.Option(..., "--author", help="Author marker of the row."),
 ) -> None:
@@ -1221,8 +1274,12 @@ def professor_unmap(
 def baseline_bootstrap(
     project: Path = typer.Option(..., "--project", help="Project directory."),
     professor: str = typer.Option(..., "--professor", help="Professor identifier."),
-    earliest_n: int = typer.Option(5, "--earliest-n", help="Number of earliest videos."),
-    min_occurrences: int = typer.Option(3, "--min-occurrences", help="Minimum video occurrences."),
+    earliest_n: int = typer.Option(
+        5, "--earliest-n", help="Number of earliest videos."
+    ),
+    min_occurrences: int = typer.Option(
+        3, "--min-occurrences", help="Minimum video occurrences."
+    ),
 ) -> None:
     """Seed baseline corpus from earliest N videos.
 
@@ -1253,7 +1310,8 @@ def baseline_bootstrap(
     )
     console.print(
         f"[green]Bootstrap complete for professor '{professor}': "
-        f"{report.phrases_added} phrases added, {report.phrases_skipped} skipped.[/green]"
+        f"{report.phrases_added} phrases added, "
+        f"{report.phrases_skipped} skipped.[/green]"
     )
     if report.sample_phrases:
         console.print("[dim]Sample phrases:[/dim]")
@@ -1266,7 +1324,9 @@ def baseline_add(
     project: Path = typer.Option(..., "--project", help="Project directory."),
     professor: str = typer.Option(..., "--professor", help="Professor identifier."),
     phrase: str = typer.Option(..., "--phrase", help="Phrase text to add."),
-    source_video: list[str] = typer.Option([], "--source-video", help="Source video IDs."),
+    source_video: list[str] = typer.Option(
+        [], "--source-video", help="Source video IDs."
+    ),
     reason: str | None = typer.Option(None, "--reason", help="Reason for addition."),
 ) -> None:
     """Add a single phrase to a professor's baseline corpus.
@@ -1302,7 +1362,9 @@ def baseline_add(
 @baseline_app.command("list")
 def baseline_list(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    professor: str | None = typer.Option(None, "--professor", help="Professor identifier filter."),
+    professor: str | None = typer.Option(
+        None, "--professor", help="Professor identifier filter."
+    ),
 ) -> None:
     """List baseline corpus phrases.
 
@@ -1320,7 +1382,8 @@ def baseline_list(
 
     for p in phrases:
         console.print(
-            f"{p.professor_id}  {p.phrase_raw!r}  occurrences={p.occurrences}  seeded={p.seeded}"
+            f"{p.professor_id}  {p.phrase_raw!r}  "
+            f"occurrences={p.occurrences}  seeded={p.seeded}"
         )
 
 
@@ -1347,10 +1410,13 @@ def baseline_remove(
     )
 
     if removed:
-        console.print(f"[green]Removed phrase from professor '{professor}': {phrase!r}[/green]")
+        console.print(
+            f"[green]Removed phrase from professor '{professor}': {phrase!r}[/green]"
+        )
     else:
         console.print(
-            f"[yellow]Phrase not found in baseline corpus for professor '{professor}': {phrase!r}[/yellow]"
+            f"[yellow]Phrase not found in baseline corpus "
+            f"for professor '{professor}': {phrase!r}[/yellow]"
         )
 
 
@@ -1362,10 +1428,16 @@ def baseline_remove(
 @whitelist_app.command("add-pair")
 def whitelist_add_pair(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    source_video_id: str = typer.Option(..., "--source-video-id", help="Source video ID."),
-    target_video_id: str = typer.Option(..., "--target-video-id", help="Target video ID."),
+    source_video_id: str = typer.Option(
+        ..., "--source-video-id", help="Source video ID."
+    ),
+    target_video_id: str = typer.Option(
+        ..., "--target-video-id", help="Target video ID."
+    ),
     reason: str = typer.Option(..., "--reason", help="Reason for whitelisting."),
-    registered_by: str = typer.Option("cli", "--registered-by", help="Admin identifier."),
+    registered_by: str = typer.Option(
+        "cli", "--registered-by", help="Admin identifier."
+    ),
 ) -> None:
     """Whitelist a comparison pair (mark as FALSE_POSITIVE).
 
@@ -1408,7 +1480,9 @@ def whitelist_add_phrase(
     professor: str = typer.Option(..., "--professor", help="Professor identifier."),
     phrase: str = typer.Option(..., "--phrase", help="Phrase text."),
     reason: str = typer.Option(..., "--reason", help="Reason for whitelisting."),
-    registered_by: str = typer.Option("cli", "--registered-by", help="Admin identifier."),
+    registered_by: str = typer.Option(
+        "cli", "--registered-by", help="Admin identifier."
+    ),
 ) -> None:
     """Add a phrase to the per-professor whitelist.
 
@@ -1448,8 +1522,12 @@ def whitelist_add_phrase(
 @whitelist_app.command("list")
 def whitelist_list(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    professor: str | None = typer.Option(None, "--professor", help="Professor identifier filter."),
-    kind: str | None = typer.Option(None, "--kind", help="Filter by kind: pair or phrase."),
+    professor: str | None = typer.Option(
+        None, "--professor", help="Professor identifier filter."
+    ),
+    kind: str | None = typer.Option(
+        None, "--kind", help="Filter by kind: pair or phrase."
+    ),
 ) -> None:
     """List whitelist entries.
 
@@ -1505,7 +1583,9 @@ def whitelist_list(
 @whitelist_app.command("export")
 def whitelist_export(
     project: Path = typer.Option(..., "--project", help="Project directory."),
-    fmt: str = typer.Option(..., "--fmt", help="Export format: csv, xlsx, or markdown."),
+    fmt: str = typer.Option(
+        ..., "--fmt", help="Export format: csv, xlsx, or markdown."
+    ),
     output: Path = typer.Option(..., "--output", help="Output file path."),
 ) -> None:
     """Export whitelist to CSV, XLSX, or Markdown.
@@ -1552,7 +1632,9 @@ def whitelist_remove(
         if removed:
             console.print(f"[green]Whitelist entry {id} ({kind}) removed.[/green]")
         else:
-            console.print(f"[yellow]No whitelist entry found with id={id} kind={kind}.[/yellow]")
+            console.print(
+                f"[yellow]No whitelist entry found with id={id} kind={kind}.[/yellow]"
+            )
             raise typer.Exit(code=1)
     except ConcurrentWriteRejected as exc:
         console.print(f"[red]{exc}[/red]")
@@ -1623,7 +1705,8 @@ def policy_validate(
         )
     except FileNotFoundError:
         typer.echo(
-            f"Policy file not found at {project / '02_analyze' / 'content' / 'policy.yaml'}. "
+            f"Policy file not found at "
+            f"{project / '02_analyze' / 'content' / 'policy.yaml'}. "
             "Create from template: 'tube-scout content policy show > policy.yaml'.",
             err=True,
         )

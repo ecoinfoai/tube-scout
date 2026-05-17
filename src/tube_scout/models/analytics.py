@@ -6,18 +6,16 @@ from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
-VALID_REPORT_TYPES = frozenset(
-    {
-        "daily_metrics",
-        "traffic_sources",
-        "demographics",
-        "geography",
-        "devices",
-        "playback_locations",
-        "subscriber_changes",
-        "viewing_patterns",
-    }
-)
+VALID_REPORT_TYPES = frozenset({
+    "daily_metrics",
+    "traffic_sources",
+    "demographics",
+    "geography",
+    "devices",
+    "playback_locations",
+    "subscriber_changes",
+    "viewing_patterns",
+})
 
 
 class AnalyticsReport(BaseModel):

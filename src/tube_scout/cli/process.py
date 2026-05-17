@@ -42,7 +42,8 @@ def process_normalize_transcripts_command(
 
     Args:
         channel: Channel alias.
-        video_ids_str: Comma-separated list of video IDs; empty = all with raw transcript.
+        video_ids_str: Comma-separated list of video IDs;
+            empty = all with raw transcript.
         force: If True, overwrite existing normalized output.
         data_dir: Work root directory.
         db_path_str: Override DB path.
@@ -94,19 +95,23 @@ def process_normalize_transcripts_command(
         norm_path = normalized_dir / f"{video_id}.json"
 
         if not raw_path.exists():
-            audit.append_row("normalize", {
-                "video_id": video_id,
-                "result": "skip",
-                "reason": "raw_not_found",
-                "timestamp": ts,
-            })
+            audit.append_row(
+                "normalize",
+                {
+                    "video_id": video_id,
+                    "result": "skip",
+                    "reason": "raw_not_found",
+                    "timestamp": ts,
+                },
+            )
             continue
 
         # FR-024 single-source rule: conflict check
         conflict = detect_source_conflict(transcript_dir, video_id)
         if conflict is not None:
             console.print(
-                f"Conflict: video_id={video_id} has both ASR ('whisper') and API caption sources. "
+                f"Conflict: video_id={video_id} has both ASR ('whisper') "
+                "and API caption sources. "
                 "Single-source rule requires operator decision. "
                 f"Remove one of: {conflict}"
             )
@@ -116,21 +121,27 @@ def process_normalize_transcripts_command(
             written = normalize_transcript_json(raw_path, norm_path, force=force)
         except Exception as exc:
             console.print(f"[yellow]fail[/yellow] {video_id}: {exc}")
-            audit.append_row("normalize", {
-                "video_id": video_id,
-                "result": "fail",
-                "reason": str(exc),
-                "timestamp": ts,
-            })
+            audit.append_row(
+                "normalize",
+                {
+                    "video_id": video_id,
+                    "result": "fail",
+                    "reason": str(exc),
+                    "timestamp": ts,
+                },
+            )
             continue
 
         reason = "normalized" if written else "skip_existing"
         result_tag = "success" if written else "skip"
-        audit.append_row("normalize", {
-            "video_id": video_id,
-            "result": result_tag,
-            "reason": reason,
-            "timestamp": ts,
-        })
+        audit.append_row(
+            "normalize",
+            {
+                "video_id": video_id,
+                "result": result_tag,
+                "reason": reason,
+                "timestamp": ts,
+            },
+        )
         indicator = "[green]ok[/green]" if written else "[dim]skip[/dim]"
         console.print(f"{indicator} {video_id}")

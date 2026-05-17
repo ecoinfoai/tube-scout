@@ -18,14 +18,14 @@ import time
 from pathlib import Path
 from typing import Any, Literal
 
-_logger = logging.getLogger(__name__)
-
 from pydantic import BaseModel, Field
 
 from tube_scout.models.config import ChannelRegistration
 from tube_scout.models.content import ChannelMetadata, VideoMetadata
 from tube_scout.services.audit_writer import AuditWriter
 from tube_scout.services.evidence_score import decide_mapping
+
+_logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # FR-008 ignored categories
@@ -71,6 +71,7 @@ _PRIVACY_MAPPING: dict[str, Literal["public", "unlisted", "private"]] = {
 # IngestResult
 # ---------------------------------------------------------------------------
 
+
 class IngestResult(BaseModel):
     """Summary result of a single ingest_takeout() call."""
 
@@ -96,6 +97,7 @@ class IngestResult(BaseModel):
 # internal: alias registry loader (injectable for tests)
 # ---------------------------------------------------------------------------
 
+
 def _load_alias_registry() -> dict[str, ChannelRegistration]:
     """Load channel alias registry from auth tokens directory.
 
@@ -103,12 +105,14 @@ def _load_alias_registry() -> dict[str, ChannelRegistration]:
         Dict mapping alias → ChannelRegistration.
     """
     from tube_scout.services.auth import load_registry
+
     return load_registry()
 
 
 # ---------------------------------------------------------------------------
 # parse_takeout_csv_metadata
 # ---------------------------------------------------------------------------
+
 
 def parse_takeout_csv_metadata(
     takeout_dir: Path,
@@ -172,9 +176,7 @@ def _parse_takeout_full(
         list(channel_dir.glob("채널.csv")) if channel_dir.exists() else []
     )
     if not channel_csv_files:
-        raise FileNotFoundError(
-            f"채널.csv not found under {channel_dir}"
-        )
+        raise FileNotFoundError(f"채널.csv not found under {channel_dir}")
     channel_meta = _parse_channel_csv(channel_csv_files[0])
 
     # Parse all 동영상*.csv files (split CSV support) — 결함 8 fix: exact glob union
@@ -185,9 +187,7 @@ def _parse_takeout_full(
         set(meta_dir.glob("동영상.csv")) | set(meta_dir.glob("동영상(*).csv"))
     )
     if not video_csv_files:
-        raise FileNotFoundError(
-            f"No 동영상*.csv files found under {meta_dir}"
-        )
+        raise FileNotFoundError(f"No 동영상*.csv files found under {meta_dir}")
 
     seen: dict[str, VideoMetadata] = {}
     pending_unknown_privacy_rows: list[dict] = []
@@ -204,9 +204,7 @@ def _parse_takeout_full(
             actual_cols = set(reader.fieldnames)
             missing = _VIDEO_CSV_REQUIRED - actual_cols
             if missing:
-                raise ValueError(
-                    f"Missing required columns in {csv_path}: {missing}"
-                )
+                raise ValueError(f"Missing required columns in {csv_path}: {missing}")
             for row in reader:
                 video_id = row["동영상 ID"].strip()
                 if not video_id or video_id in seen:
@@ -228,9 +226,10 @@ def _parse_takeout_full(
                 privacy_status = _PRIVACY_MAPPING.get(raw_privacy)
                 if privacy_status is None:
                     # Unknown privacy value — skip row, accumulate for audit
-                    pending_unknown_privacy_rows.append(
-                        {"video_id": video_id, "raw_value": raw_privacy}
-                    )
+                    pending_unknown_privacy_rows.append({
+                        "video_id": video_id,
+                        "raw_value": raw_privacy,
+                    })
                     continue
 
                 vm = VideoMetadata(
@@ -286,6 +285,7 @@ def _parse_channel_csv(csv_path: Path) -> ChannelMetadata:
 # ---------------------------------------------------------------------------
 # assemble_channel_work_dir
 # ---------------------------------------------------------------------------
+
 
 def assemble_channel_work_dir(
     takeout_dir: Path,
@@ -343,6 +343,7 @@ def assemble_channel_work_dir(
             dest.symlink_to(target)
         else:
             import shutil
+
             shutil.copy2(mp4, dest)
 
     return work_dir
@@ -351,6 +352,7 @@ def assemble_channel_work_dir(
 # ---------------------------------------------------------------------------
 # ingest_takeout
 # ---------------------------------------------------------------------------
+
 
 def ingest_takeout(
     takeout_dir: Path,
@@ -388,7 +390,9 @@ def ingest_takeout(
 
     _logger.info(
         "ingest_takeout: alias=%s takeout_dir=%s dry_run=%s",
-        channel_alias, takeout_dir, dry_run,
+        channel_alias,
+        takeout_dir,
+        dry_run,
     )
 
     # Step 1: Validate alias
@@ -415,17 +419,20 @@ def ingest_takeout(
             if _is_ignored(item.name):
                 ignored_csv_count += 1
                 if not dry_run:
-                    audit_writer.append_row("takeout_ingest", {
-                        "video_id": "n/a",
-                        "result": "skip",
-                        "reason": "ignored_by_policy",
-                        "mp4_filename": item.name,
-                        "match_confidence": "n/a",
-                        "score": 0,
-                        "timestamp": now_iso,
-                        "raw_value": "",
-                        "elapsed_ms": 0,
-                    })
+                    audit_writer.append_row(
+                        "takeout_ingest",
+                        {
+                            "video_id": "n/a",
+                            "result": "skip",
+                            "reason": "ignored_by_policy",
+                            "mp4_filename": item.name,
+                            "match_confidence": "n/a",
+                            "score": 0,
+                            "timestamp": now_iso,
+                            "raw_value": "",
+                            "elapsed_ms": 0,
+                        },
+                    )
 
     # Detect and audit ignored category files inside meta_dir (결함 8, FR-011)
     meta_dir = yt_dir / _META_SUBDIR
@@ -434,21 +441,24 @@ def ingest_takeout(
             if _is_ignored(item.name):
                 ignored_csv_count += 1
                 if not dry_run:
-                    audit_writer.append_row("takeout_ingest", {
-                        "video_id": "n/a",
-                        "result": "skip",
-                        "reason": "ignored_by_policy",
-                        "mp4_filename": item.name,
-                        "match_confidence": "n/a",
-                        "score": 0,
-                        "timestamp": now_iso,
-                        "raw_value": "",
-                        "elapsed_ms": 0,
-                    })
+                    audit_writer.append_row(
+                        "takeout_ingest",
+                        {
+                            "video_id": "n/a",
+                            "result": "skip",
+                            "reason": "ignored_by_policy",
+                            "mp4_filename": item.name,
+                            "match_confidence": "n/a",
+                            "score": 0,
+                            "timestamp": now_iso,
+                            "raw_value": "",
+                            "elapsed_ms": 0,
+                        },
+                    )
 
     # Step 2: Parse metadata CSVs
-    channel_meta, video_list, pending_unknown_privacy_rows = (
-        _parse_takeout_full(takeout_dir)
+    channel_meta, video_list, pending_unknown_privacy_rows = _parse_takeout_full(
+        takeout_dir
     )
 
     # B-9: Validate channel_id consistency between registry and archive CSV
@@ -463,7 +473,9 @@ def ingest_takeout(
     if reg_channel_id and csv_channel_id != reg_channel_id:
         _logger.warning(
             "channel_id mismatch for alias '%s': registry=%r, archive=%r",
-            channel_alias, reg_channel_id, csv_channel_id,
+            channel_alias,
+            reg_channel_id,
+            csv_channel_id,
         )
         raise ValueError(
             f"Channel ID mismatch for alias '{channel_alias}': "
@@ -476,17 +488,20 @@ def ingest_takeout(
     # Audit unknown privacy rows (결함 7, FR-005)
     if not dry_run:
         for entry in pending_unknown_privacy_rows:
-            audit_writer.append_row("takeout_ingest", {
-                "video_id": entry["video_id"],
-                "result": "skip",
-                "reason": "unknown_privacy_value",
-                "mp4_filename": "n/a",
-                "match_confidence": "n/a",
-                "score": 0,
-                "timestamp": now_iso,
-                "raw_value": entry["raw_value"],
-                "elapsed_ms": 0,
-            })
+            audit_writer.append_row(
+                "takeout_ingest",
+                {
+                    "video_id": entry["video_id"],
+                    "result": "skip",
+                    "reason": "unknown_privacy_value",
+                    "mp4_filename": "n/a",
+                    "match_confidence": "n/a",
+                    "score": 0,
+                    "timestamp": now_iso,
+                    "raw_value": entry["raw_value"],
+                    "elapsed_ms": 0,
+                },
+            )
 
     # Step 3+4: Evidence score mapping for mp4 files
     src_video_dir = yt_dir / _VIDEO_SUBDIR
@@ -514,17 +529,20 @@ def ingest_takeout(
                     "failure_reason": f"no_match score={decision.score}",
                 })
             if not dry_run:
-                audit_writer.append_row("takeout_ingest", {
-                    "video_id": decision.video_id or "n/a",
-                    "result": "success" if decision.video_id else "skip",
-                    "reason": decision.confidence or "no_match",
-                    "mp4_filename": mp4.name,
-                    "match_confidence": decision.confidence or "none",
-                    "score": decision.score,
-                    "timestamp": now_iso,
-                    "raw_value": "",
-                    "elapsed_ms": int((time.monotonic() - _t_start) * 1000),
-                })
+                audit_writer.append_row(
+                    "takeout_ingest",
+                    {
+                        "video_id": decision.video_id or "n/a",
+                        "result": "success" if decision.video_id else "skip",
+                        "reason": decision.confidence or "no_match",
+                        "mp4_filename": mp4.name,
+                        "match_confidence": decision.confidence or "none",
+                        "score": decision.score,
+                        "timestamp": now_iso,
+                        "raw_value": "",
+                        "elapsed_ms": int((time.monotonic() - _t_start) * 1000),
+                    },
+                )
 
     # Count mp4-present vs mp4-absent (FR-022)
     mapped_video_ids = set(vid for vid in mp4_video_id_map.values() if vid)
@@ -542,17 +560,20 @@ def ingest_takeout(
                 "failure_reason": "no_mp4_in_archive",
             })
             if not dry_run:
-                audit_writer.append_row("takeout_ingest", {
-                    "video_id": vm.video_id,
-                    "result": "skip",
-                    "reason": "no_mp4_in_archive",
-                    "mp4_filename": "n/a",
-                    "match_confidence": "n/a",
-                    "score": 0,
-                    "timestamp": now_iso,
-                    "raw_value": "",
-                    "elapsed_ms": int((time.monotonic() - _t_start) * 1000),
-                })
+                audit_writer.append_row(
+                    "takeout_ingest",
+                    {
+                        "video_id": vm.video_id,
+                        "result": "skip",
+                        "reason": "no_mp4_in_archive",
+                        "mp4_filename": "n/a",
+                        "match_confidence": "n/a",
+                        "score": 0,
+                        "timestamp": now_iso,
+                        "raw_value": "",
+                        "elapsed_ms": int((time.monotonic() - _t_start) * 1000),
+                    },
+                )
 
     elapsed_seconds = time.monotonic() - _t_start
 
@@ -607,9 +628,16 @@ def ingest_takeout(
     elapsed_seconds = time.monotonic() - _t_start
 
     _logger.info(
-        "ingest_takeout complete: alias=%s new=%d high=%d medium=%d ambiguous=%d unmapped=%d absent=%d elapsed=%.1fs",
-        channel_alias, new_videos, high_count, medium_count, ambiguous_count,
-        unmapped_count, mp4_absent_count, elapsed_seconds,
+        "ingest_takeout complete: alias=%s new=%d high=%d medium=%d "
+        "ambiguous=%d unmapped=%d absent=%d elapsed=%.1fs",
+        channel_alias,
+        new_videos,
+        high_count,
+        medium_count,
+        ambiguous_count,
+        unmapped_count,
+        mp4_absent_count,
+        elapsed_seconds,
     )
 
     return IngestResult(
@@ -634,6 +662,7 @@ def ingest_takeout(
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_ignored(name: str) -> bool:
     """Return True if the filename matches an ignored-category pattern."""

@@ -26,7 +26,7 @@ _FAIL = "[red]FAIL[/red]"
 
 class _CheckResult(NamedTuple):
     label: str
-    status: str          # _PASS / _WARN / _FAIL
+    status: str  # _PASS / _WARN / _FAIL
     detail: str
     verbose_detail: str = ""  # shown only with --verbose
 
@@ -58,6 +58,7 @@ def _check_nix_shell() -> _CheckResult:
 def _check_faster_whisper() -> _CheckResult:
     try:
         import faster_whisper  # type: ignore[import-untyped]  # noqa: F401
+
         ver = getattr(faster_whisper, "__version__", "unknown")
         return _CheckResult("faster_whisper import", _PASS, f"v{ver}")
     except ImportError as exc:
@@ -82,7 +83,11 @@ _F12_TARGET_CUDA_LIBS: tuple[str, ...] = (
 )
 
 _F12_CUDA_KEYWORDS: tuple[str, ...] = (
-    "cuda", "cudnn", "cublas", "cudart", "nvcuda",
+    "cuda",
+    "cudnn",
+    "cublas",
+    "cudart",
+    "nvcuda",
 )
 
 
@@ -97,7 +102,8 @@ def _check_ld_library_path() -> _CheckResult:
         )
 
     cuda_paths = [
-        p for p in ld.split(":")
+        p
+        for p in ld.split(":")
         if p and any(k in p.lower() for k in _F12_CUDA_KEYWORDS)
     ]
     if not cuda_paths:
@@ -123,10 +129,10 @@ def _check_ld_library_path() -> _CheckResult:
             missing.append(lib)
 
     empty_paths = [
-        p for p in cuda_paths
+        p
+        for p in cuda_paths
         if not any(
-            os.path.isfile(os.path.join(p, lib))
-            for lib in _F12_TARGET_CUDA_LIBS
+            os.path.isfile(os.path.join(p, lib)) for lib in _F12_TARGET_CUDA_LIBS
         )
     ]
 
@@ -173,12 +179,21 @@ def _check_nvidia_smi(*, verbose: bool = False) -> _CheckResult:
         return _CheckResult("nvidia-smi", _WARN, "not found — GPU may be absent")
     if verbose:
         import subprocess
+
         try:
             out = subprocess.run(
-                ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
-                capture_output=True, text=True, timeout=5,
+                [
+                    "nvidia-smi",
+                    "--query-gpu=name,memory.total",
+                    "--format=csv,noheader",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
-            first_line = out.stdout.strip().splitlines()[0] if out.stdout.strip() else ""
+            first_line = (
+                out.stdout.strip().splitlines()[0] if out.stdout.strip() else ""
+            )
             return _CheckResult("nvidia-smi", _PASS, path, first_line)
         except Exception as exc:
             return _CheckResult("nvidia-smi", _WARN, path, f"query failed: {exc}")
@@ -188,6 +203,7 @@ def _check_nvidia_smi(*, verbose: bool = False) -> _CheckResult:
 def _check_torch_cuda() -> _CheckResult:
     try:
         import torch  # type: ignore[import-untyped]
+
         avail = torch.cuda.is_available()
         count = torch.cuda.device_count() if avail else 0
         if avail:

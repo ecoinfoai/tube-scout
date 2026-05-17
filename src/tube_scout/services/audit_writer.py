@@ -17,63 +17,118 @@ _logger = logging.getLogger(__name__)
 # ─── fieldnames (unified v2 — spec 012 shims inject missing defaults) ─────────
 
 TRANSCRIPTS_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "source", "caption_source_detail", "timestamp", "cookies_source",
+    "video_id",
+    "result",
+    "reason",
+    "source",
+    "caption_source_detail",
+    "timestamp",
+    "cookies_source",
 )
 
 FINGERPRINT_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "duration_sec", "fingerprint_input_policy", "timestamp", "cookies_source",
+    "video_id",
+    "result",
+    "reason",
+    "duration_sec",
+    "fingerprint_input_policy",
+    "timestamp",
+    "cookies_source",
 )
 
 # ─── spec 013 v2 stage fieldnames ─────────────────────────────────────────────
 
 TAKEOUT_INGEST_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "mp4_filename", "match_confidence", "score", "timestamp",
-    "raw_value", "elapsed_ms",
+    "video_id",
+    "result",
+    "reason",
+    "mp4_filename",
+    "match_confidence",
+    "score",
+    "timestamp",
+    "raw_value",
+    "elapsed_ms",
 )
 AUDIO_EXTRACT_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "input_kind", "output_path", "wav_size_bytes", "elapsed_s", "timestamp",
+    "video_id",
+    "result",
+    "reason",
+    "input_kind",
+    "output_path",
+    "wav_size_bytes",
+    "elapsed_s",
+    "timestamp",
 )
 NORMALIZE_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "input_source", "normalizer_version", "timestamp",
+    "video_id",
+    "result",
+    "reason",
+    "input_source",
+    "normalizer_version",
+    "timestamp",
 )
 ANALYZE_FIELDNAMES: tuple[str, ...] = (
-    "pair_id", "source_video_id", "target_video_id",
-    "result", "reason", "matching_mode", "elapsed_s", "timestamp",
+    "pair_id",
+    "source_video_id",
+    "target_video_id",
+    "result",
+    "reason",
+    "matching_mode",
+    "elapsed_s",
+    "timestamp",
 )
 REPORT_FIELDNAMES: tuple[str, ...] = (
-    "professor", "channel", "result", "reason",
-    "format", "output_path", "pair_count", "appendix_count", "timestamp",
+    "professor",
+    "channel",
+    "result",
+    "reason",
+    "format",
+    "output_path",
+    "pair_count",
+    "appendix_count",
+    "timestamp",
 )
 KB_EXPORT_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "format", "output_path", "byte_count", "timestamp",
+    "video_id",
+    "result",
+    "reason",
+    "format",
+    "output_path",
+    "byte_count",
+    "timestamp",
 )
 
 # ─── spec 017 E-8 stage fieldnames ────────────────────────────────────────────
 
 INGEST_ORCHESTRATOR_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "sub_reason", "channel_alias", "elapsed_ms", "timestamp",
+    "video_id",
+    "result",
+    "reason",
+    "sub_reason",
+    "channel_alias",
+    "elapsed_ms",
+    "timestamp",
 )
 SOURCE_VIDEO_CLEANUP_FIELDNAMES: tuple[str, ...] = (
-    "video_id", "result", "reason",
-    "candidate_count", "deleted_count", "reclaimed_bytes", "elapsed_ms", "timestamp",
+    "video_id",
+    "result",
+    "reason",
+    "candidate_count",
+    "deleted_count",
+    "reclaimed_bytes",
+    "elapsed_ms",
+    "timestamp",
 )
 
 STAGE_FIELDNAMES: dict[str, tuple[str, ...]] = {
-    "takeout_ingest":      TAKEOUT_INGEST_FIELDNAMES,
-    "audio_extract":       AUDIO_EXTRACT_FIELDNAMES,
-    "transcripts":         TRANSCRIPTS_FIELDNAMES,
-    "fingerprint":         FINGERPRINT_FIELDNAMES,
-    "normalize":           NORMALIZE_FIELDNAMES,
-    "analyze":             ANALYZE_FIELDNAMES,
-    "report":              REPORT_FIELDNAMES,
-    "kb_export":           KB_EXPORT_FIELDNAMES,
+    "takeout_ingest": TAKEOUT_INGEST_FIELDNAMES,
+    "audio_extract": AUDIO_EXTRACT_FIELDNAMES,
+    "transcripts": TRANSCRIPTS_FIELDNAMES,
+    "fingerprint": FINGERPRINT_FIELDNAMES,
+    "normalize": NORMALIZE_FIELDNAMES,
+    "analyze": ANALYZE_FIELDNAMES,
+    "report": REPORT_FIELDNAMES,
+    "kb_export": KB_EXPORT_FIELDNAMES,
     "ingest_orchestrator": INGEST_ORCHESTRATOR_FIELDNAMES,
     "source_video_cleanup": SOURCE_VIDEO_CLEANUP_FIELDNAMES,
 }
@@ -83,17 +138,29 @@ STAGE_FIELDNAMES: dict[str, tuple[str, ...]] = {
 # Dead entries must be removed here and from all callers simultaneously.
 # F-11 owns aborted_by_user activation; F-3b owns sub_reason extension.
 ORCHESTRATOR_REASONS: frozenset[str] = frozenset({
-    "started", "completed", "aborted_by_user", "failed_intermediate_stage",
-    "stub_not_implemented", "registry_load_failed",
-    "asr_transcribed", "captured",
-    "asr_fail", "fp_fail",
-    "already_transcribed", "already_fingerprinted",
+    "started",
+    "completed",
+    "aborted_by_user",
+    "failed_intermediate_stage",
+    "stub_not_implemented",
+    "registry_load_failed",
+    "asr_transcribed",
+    "captured",
+    "asr_fail",
+    "fp_fail",
+    "already_transcribed",
+    "already_fingerprinted",
     "forced_reprocess",
 })
 CLEANUP_REASONS: frozenset[str] = frozenset({
-    "presented_failures", "confirmed_yes", "confirmed_no",
-    "timeout", "interrupted",
-    "deleted", "delete_failed_locked", "delete_failed_io",
+    "presented_failures",
+    "confirmed_yes",
+    "confirmed_no",
+    "timeout",
+    "interrupted",
+    "deleted",
+    "delete_failed_locked",
+    "delete_failed_io",
 })
 
 VALID_RESULTS: frozenset[str] = frozenset({"success", "skip", "fail"})
@@ -105,6 +172,7 @@ def _flock_ex(fd: int) -> None:
     """Acquire exclusive POSIX flock; no-op on non-POSIX platforms."""
     try:
         import fcntl
+
         fcntl.flock(fd, fcntl.LOCK_EX)
     except ImportError:
         pass  # Windows: skip flock, best-effort
@@ -114,6 +182,7 @@ def _flock_un(fd: int) -> None:
     """Release POSIX flock; no-op on non-POSIX platforms."""
     try:
         import fcntl
+
         fcntl.flock(fd, fcntl.LOCK_UN)
     except ImportError:
         pass
@@ -152,12 +221,20 @@ class AuditWriter:
             except OSError as exc:
                 if delay is None:
                     _logger.warning(
-                        "audit_writer: write failed after %d attempts for %s: %s — buffering row",
-                        attempt - 1, csv_path.name, exc,
+                        "audit_writer: write failed after %d attempts for %s: "
+                        "%s — buffering row",
+                        attempt - 1,
+                        csv_path.name,
+                        exc,
                     )
                     self._pending.append((csv_path, fieldnames, row))
                     return
-                _logger.debug("audit_writer: write attempt %d failed (%s), retrying in %.1fs", attempt, exc, delay)
+                _logger.debug(
+                    "audit_writer: write attempt %d failed (%s), retrying in %.1fs",
+                    attempt,
+                    exc,
+                    delay,
+                )
                 time.sleep(delay)
 
     def _do_append(
@@ -190,9 +267,13 @@ class AuditWriter:
             with recovery.open("a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 for csv_path, fieldnames, row in self._pending:
-                    writer.writerow([csv_path.name] + [row.get(k, "") for k in fieldnames])
+                    writer.writerow(
+                        [csv_path.name] + [row.get(k, "") for k in fieldnames]
+                    )
             _logger.warning(
-                "audit_writer: flushed %d pending rows to %s", len(self._pending), recovery
+                "audit_writer: flushed %d pending rows to %s",
+                len(self._pending),
+                recovery,
             )
         except OSError as exc:
             _logger.error("audit_writer: recovery flush failed: %s", exc)
@@ -225,7 +306,9 @@ class AuditWriter:
                 row,
             )
         except (KeyError, ValueError) as exc:
-            _logger.warning("audit_writer.append_row: validation error (stage=%r): %s", stage, exc)
+            _logger.warning(
+                "audit_writer.append_row: validation error (stage=%r): %s", stage, exc
+            )
 
     def append_takeout_ingest_row(self, row: dict) -> None:
         """Append a row to takeout_ingest_audit.csv.

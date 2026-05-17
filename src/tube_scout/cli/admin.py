@@ -55,7 +55,9 @@ def _admin_callback() -> None:
     ``bootstrap()`` is idempotent — re-entry on warm hosts is a no-op.
     """
     from tube_scout.web.repo.db import bootstrap
+
     bootstrap()
+
 
 NEAR_EXPIRY_DAYS = 7
 
@@ -347,16 +349,14 @@ def add_department(
 
     repo = DepartmentsRepo()
     try:
-        repo.add(
-            {
-                "alias": alias,
-                "display_name": display,
-                "channel_id_env": channel_id_env,
-                "client_secret_env": client_secret_env,
-                "api_key_env": api_key_env,
-                "registered_at": datetime.now(UTC).isoformat(),
-            }
-        )
+        repo.add({
+            "alias": alias,
+            "display_name": display,
+            "channel_id_env": channel_id_env,
+            "client_secret_env": client_secret_env,
+            "api_key_env": api_key_env,
+            "registered_at": datetime.now(UTC).isoformat(),
+        })
     except DuplicateAliasError:
         err_console.print(f"[red]이미 등록된 학과 alias입니다: {alias}[/red]")
         _record(
@@ -425,9 +425,7 @@ def _build_union_rows() -> list[dict[str, str | None]]:
             ch_channel_id = channels[a].channel_id
             # Resolve dept channel_id via env var
             dept_channel_id = (
-                os.environ.get(dept.channel_id_env)
-                if dept.channel_id_env
-                else None
+                os.environ.get(dept.channel_id_env) if dept.channel_id_env else None
             )
             if dept_channel_id and ch_channel_id and dept_channel_id == ch_channel_id:
                 consistency = "ok"
@@ -526,15 +524,13 @@ def _build_status_rows(filter_alias: str | None) -> list[dict[str, Any]]:
         token = _read_token(d.alias)
         token_status, days = _expiry_status(token)
         running = job_repo.find_in_progress_for_department(d.alias)
-        rows.append(
-            {
-                "alias": d.alias,
-                "display_name": d.display_name,
-                "token_status": token_status,
-                "days_remaining": days,
-                "running_jobs": len(running),
-            }
-        )
+        rows.append({
+            "alias": d.alias,
+            "display_name": d.display_name,
+            "token_status": token_status,
+            "days_remaining": days,
+            "running_jobs": len(running),
+        })
     return rows
 
 
@@ -727,8 +723,6 @@ def verify(alias: str = typer.Argument(..., help="학과 alias")) -> None:
         raise typer.Exit(code=1)
 
     channel_name = info.get("channel_name", "unknown")
-    console.print(
-        f"  [green][✓] YouTube API 호출 성공 (채널: {channel_name})[/green]"
-    )
+    console.print(f"  [green][✓] YouTube API 호출 성공 (채널: {channel_name})[/green]")
     console.print("[green]완료. 이 학과는 분석에 사용할 준비가 되었습니다.[/green]")
     _record("verify", target_alias=alias, result="success")

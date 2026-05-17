@@ -97,7 +97,7 @@ def test_concurrent_write_rejected_message_is_actionable(tmp_path: Path) -> None
     captured: dict[str, object] = {}
 
     def first_writer() -> None:
-        with layer_d_write_lock(db) as conn:
+        with layer_d_write_lock(db):
             first_entered.set()
             second_done.wait(timeout=5.0)
 
@@ -152,7 +152,7 @@ def test_cli_review_mark_concurrent_exits_3(tmp_path: Path) -> None:
     release_lock = threading.Event()
 
     def hold_lock() -> None:
-        with layer_d_write_lock(db_path) as conn:
+        with layer_d_write_lock(db_path):
             lock_held.set()
             release_lock.wait(timeout=10.0)
 

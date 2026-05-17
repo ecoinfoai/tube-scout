@@ -224,8 +224,7 @@ def _process_legacy_path(
         raise LegacyTokenCorrupt(
             token_path=str(legacy_path),
             reason=(
-                f"legacy token grew past {_MAX_LEGACY_TOKEN_BYTES}-byte cap "
-                "during read"
+                f"legacy token grew past {_MAX_LEGACY_TOKEN_BYTES}-byte cap during read"
             ),
         )
     try:

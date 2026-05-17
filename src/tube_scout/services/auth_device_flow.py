@@ -155,9 +155,7 @@ class DeviceFlow:
                 return token
 
             try:
-                payload: dict[str, Any] = (
-                    resp.json() if resp.content else {}
-                )
+                payload: dict[str, Any] = resp.json() if resp.content else {}
             except ValueError as exc:
                 raise UserFacingError(
                     message=(

@@ -13,16 +13,16 @@ from pathlib import Path
 NORMALIZER_VERSION: str = "v1.0"
 
 _META_MARKER_RE = re.compile(
-    r"\[.*?\]"       # [음악], [박수], [inaudible], etc.
-    r"|\(.*?\)"      # (배경음), (웃음), etc.
-    r"|<.*?>"        # <inaudible>, <laugh>, etc.
-    r"|\*.*?\*"      # *강조*, *noise*, etc.
-    r"|♪.*?♪"        # ♪ 음악 ♪
-    r"|♪",           # lone ♪
+    r"\[.*?\]"  # [음악], [박수], [inaudible], etc.
+    r"|\(.*?\)"  # (배경음), (웃음), etc.
+    r"|<.*?>"  # <inaudible>, <laugh>, etc.
+    r"|\*.*?\*"  # *강조*, *noise*, etc.
+    r"|♪.*?♪"  # ♪ 음악 ♪
+    r"|♪",  # lone ♪
     re.DOTALL,
 )
 
-_PUNCTUATION_RE = re.compile(r"[.。,，?？!！~～…‥\"""'`''、]")
+_PUNCTUATION_RE = re.compile(r"[.。,，?？!！~～…‥\"" "'`''、]")
 
 _WHITESPACE_RE = re.compile(r"\s+")
 

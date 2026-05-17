@@ -89,7 +89,8 @@ class CaptionsAPIClient:
         """
         try:
             response = (
-                self._service.captions()
+                self._service
+                .captions()
                 .list(part="snippet", videoId=video_id)
                 .execute()
             )
@@ -122,9 +123,7 @@ class CaptionsAPIClient:
         """
         try:
             content = (
-                self._service.captions()
-                .download(id=caption_id, tfmt="srt")
-                .execute()
+                self._service.captions().download(id=caption_id, tfmt="srt").execute()
             )
             self._quota_used += QUOTA_COST_DOWNLOAD
         except HttpError as e:

@@ -240,7 +240,7 @@ def test_process_audio_transcript_json_written(tmp_path: Path) -> None:
          patch("tube_scout.services.asr.transcribe_audio", return_value=asr_result), \
          patch("tube_scout.services.audio_fingerprint.extract_chromaprint_fingerprint", return_value=(b"\x00" * 4, 1.0)), \
          patch("tube_scout.storage.content_db.insert_audio_fingerprint"):
-        result = runner.invoke(app, [
+        runner.invoke(app, [
             "collect", "process-audio",
             "--channel", channel,
             "--video-ids", video_id,

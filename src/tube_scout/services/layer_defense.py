@@ -10,7 +10,7 @@ the nC2 analysis pipeline.
 
 import sqlite3
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from tube_scout.models.content import ComparisonResult
 from tube_scout.models.reuse_v2 import (
@@ -22,12 +22,16 @@ from tube_scout.models.reuse_v2 import (
 from tube_scout.services.baseline_corpus import subtract_baseline
 from tube_scout.services.phrase_whitelist import subtract_phrase_whitelist
 
+if TYPE_CHECKING:
+    from tube_scout.storage.content_db import ContentDB
+
 
 def filter_pair_whitelisted(
     candidates: list[CandidatePair],
     db_path: Path,
 ) -> list[CandidatePair]:
-    """Remove candidate pairs whose comparison_results row has review_status='FALSE_POSITIVE'.
+    """Remove candidate pairs whose comparison_results row has
+    review_status='FALSE_POSITIVE'.
 
     Layer D pair-whitelist pre-filter: called before start_run so that
     already-dismissed pairs are never processed in nC2 mode.
@@ -59,11 +63,11 @@ def filter_pair_whitelisted(
 
     excluded: set[tuple[str, str]] = {(r[0], r[1]) for r in rows}
     return [
-        c for c in candidates
+        c
+        for c in candidates
         if (c.source_video_id, c.target_video_id) not in excluded
         and (c.target_video_id, c.source_video_id) not in excluded
     ]
-
 
 
 def apply_layers(
@@ -103,47 +107,60 @@ def apply_layers(
     # Layer A: length cutoff
     i6 = comparison.i6_longest_contiguous_seconds
     if i6 is not None and i6 < policy.layer_a_min_seconds:
-        attributions.append(LayerAttribution(
-            layer="A",
-            action="excluded",
-            reason=(
-                f"Longest contiguous match ({i6:.1f}s) is below "
-                f"layer_a_min_seconds ({policy.layer_a_min_seconds:.1f}s)"
-            ),
-        ))
+        attributions.append(
+            LayerAttribution(
+                layer="A",
+                action="excluded",
+                reason=(
+                    f"Longest contiguous match ({i6:.1f}s) is below "
+                    f"layer_a_min_seconds ({policy.layer_a_min_seconds:.1f}s)"
+                ),
+            )
+        )
         excluded = True
     else:
-        attributions.append(LayerAttribution(
-            layer="A",
-            action="no-op",
-            reason=(
-                f"Longest contiguous match ({i6}s) meets "
-                f"layer_a_min_seconds threshold ({policy.layer_a_min_seconds:.1f}s)"
-            ),
-        ))
+        attributions.append(
+            LayerAttribution(
+                layer="A",
+                action="no-op",
+                reason=(
+                    f"Longest contiguous match ({i6}s) meets "
+                    f"layer_a_min_seconds threshold ({policy.layer_a_min_seconds:.1f}s)"
+                ),
+            )
+        )
 
     # Layer B: baseline subtraction
     if not excluded and current_spans:
         remaining_b, sub_b = subtract_baseline(professor_id, current_spans, db_path)
         if sub_b > 0.0:
-            attributions.append(LayerAttribution(
-                layer="B",
-                action="subtracted",
-                reason=f"Subtracted {sub_b:.1f}s matching baseline phrases for {professor_id}",
-            ))
+            attributions.append(
+                LayerAttribution(
+                    layer="B",
+                    action="subtracted",
+                    reason=(
+                        f"Subtracted {sub_b:.1f}s matching baseline phrases "
+                        f"for {professor_id}"
+                    ),
+                )
+            )
             current_spans = remaining_b
         else:
-            attributions.append(LayerAttribution(
+            attributions.append(
+                LayerAttribution(
+                    layer="B",
+                    action="no-op",
+                    reason="No baseline phrase matches found",
+                )
+            )
+    else:
+        attributions.append(
+            LayerAttribution(
                 layer="B",
                 action="no-op",
-                reason="No baseline phrase matches found",
-            ))
-    else:
-        attributions.append(LayerAttribution(
-            layer="B",
-            action="no-op",
-            reason="Skipped (excluded by Layer A or no spans)",
-        ))
+                reason="Skipped (excluded by Layer A or no spans)",
+            )
+        )
 
     # Layer D-phrase: whitelist phrase subtraction
     if not excluded and current_spans:
@@ -151,56 +168,76 @@ def apply_layers(
             professor_id, current_spans, db_path
         )
         if removed_count > 0:
-            attributions.append(LayerAttribution(
-                layer="D",
-                action="subtracted",
-                reason=f"Removed {removed_count} span(s) matching phrase whitelist for {professor_id}",
-            ))
+            attributions.append(
+                LayerAttribution(
+                    layer="D",
+                    action="subtracted",
+                    reason=(
+                        f"Removed {removed_count} span(s) matching phrase "
+                        f"whitelist for {professor_id}"
+                    ),
+                )
+            )
             current_spans = remaining_d
         else:
-            attributions.append(LayerAttribution(
+            attributions.append(
+                LayerAttribution(
+                    layer="D",
+                    action="no-op",
+                    reason="No phrase whitelist matches found",
+                )
+            )
+    else:
+        attributions.append(
+            LayerAttribution(
                 layer="D",
                 action="no-op",
-                reason="No phrase whitelist matches found",
-            ))
-    else:
-        attributions.append(LayerAttribution(
-            layer="D",
-            action="no-op",
-            reason="Skipped (excluded by Layer A or no spans)",
-        ))
+                reason="Skipped (excluded by Layer A or no spans)",
+            )
+        )
 
     # Layer C: evolution band demotion
     i2 = comparison.i2_cosine_similarity
     if not excluded and i2 is not None:
         low, high = policy.layer_c_evolution_band
         if low <= i2 <= high:
-            attributions.append(LayerAttribution(
-                layer="C",
-                action="demoted",
-                reason=(
-                    f"Cosine {i2:.3f} falls in evolution band [{low:.2f}, {high:.2f}]; "
-                    "grade demoted to moderate"
-                ),
-            ))
+            attributions.append(
+                LayerAttribution(
+                    layer="C",
+                    action="demoted",
+                    reason=(
+                        f"Cosine {i2:.3f} falls in evolution band "
+                        f"[{low:.2f}, {high:.2f}]; grade demoted to moderate"
+                    ),
+                )
+            )
             grade = "moderate"
         else:
-            attributions.append(LayerAttribution(
+            attributions.append(
+                LayerAttribution(
+                    layer="C",
+                    action="no-op",
+                    reason=(
+                        f"Cosine {i2:.3f} outside evolution band "
+                        f"[{low:.2f}, {high:.2f}]"
+                    ),
+                )
+            )
+    else:
+        attributions.append(
+            LayerAttribution(
                 layer="C",
                 action="no-op",
-                reason=f"Cosine {i2:.3f} outside evolution band [{low:.2f}, {high:.2f}]",
-            ))
-    else:
-        attributions.append(LayerAttribution(
-            layer="C",
-            action="no-op",
-            reason="Skipped (excluded by Layer A or cosine not available)",
-        ))
+                reason="Skipped (excluded by Layer A or cosine not available)",
+            )
+        )
 
-    updated = comparison.model_copy(update={
-        "layer_attribution": attributions,
-        "grade": grade,
-    })
+    updated = comparison.model_copy(
+        update={
+            "layer_attribution": attributions,
+            "grade": grade,
+        }
+    )
 
     return updated, current_spans
 

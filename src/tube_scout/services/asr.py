@@ -1,4 +1,7 @@
-"""ASR service — faster-whisper wrapper with hallucination defenses (spec 013 FR-016~FR-023)."""
+"""ASR service — faster-whisper wrapper with hallucination defenses.
+
+Implements spec 013 FR-016~FR-023.
+"""
 
 from __future__ import annotations
 
@@ -41,10 +44,30 @@ ComputeType = Literal["float32", "float16", "int8_float16", "int8"]
 Device = Literal["cuda", "cpu"]
 
 PRESET_TABLE: dict[str, dict[str, str | int | None]] = {
-    "gpu-quantized": {"model": "large-v3", "compute_type": "int8_float16", "device": "cuda", "device_index": 0},
-    "gpu-native":    {"model": "large-v3", "compute_type": "float16",      "device": "cuda", "device_index": 0},
-    "gpu-pool":      {"model": "large-v3", "compute_type": "float16",      "device": "cuda", "device_index": None},
-    "cpu":           {"model": "medium",   "compute_type": "int8",         "device": "cpu",  "device_index": 0},
+    "gpu-quantized": {
+        "model": "large-v3",
+        "compute_type": "int8_float16",
+        "device": "cuda",
+        "device_index": 0,
+    },
+    "gpu-native": {
+        "model": "large-v3",
+        "compute_type": "float16",
+        "device": "cuda",
+        "device_index": 0,
+    },
+    "gpu-pool": {
+        "model": "large-v3",
+        "compute_type": "float16",
+        "device": "cuda",
+        "device_index": None,
+    },
+    "cpu": {
+        "model": "medium",
+        "compute_type": "int8",
+        "device": "cpu",
+        "device_index": 0,
+    },
 }
 
 # Backward-compat aliases for preset names. Released as 0.6.0 with the old
@@ -52,10 +75,10 @@ PRESET_TABLE: dict[str, dict[str, str | int | None]] = {
 # `TUBE_SCOUT_ASR_PRESET` env values working transparently until a deprecation
 # window expires.
 PRESET_ALIASES: dict[str, str] = {
-    "poc-laptop":      "gpu-quantized",
-    "prod-a6000":      "gpu-native",
+    "poc-laptop": "gpu-quantized",
+    "prod-a6000": "gpu-native",
     "prod-a6000-pool": "gpu-pool",
-    "cpu-fallback":    "cpu",
+    "cpu-fallback": "cpu",
 }
 
 # Environment variable that overrides preset auto-detection when --preset is
@@ -98,6 +121,7 @@ def _detect_gpu_count() -> int:
     """
     try:
         import torch
+
         if torch.cuda.is_available():
             return int(torch.cuda.device_count())
     except Exception as exc:
@@ -108,6 +132,7 @@ def _detect_gpu_count() -> int:
         return 0
     try:
         import subprocess
+
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=count", "--format=csv,noheader,nounits"],
             capture_output=True,
@@ -155,9 +180,10 @@ def _detect_gpu_vram_gib() -> float | None:
     """
     try:
         import torch
+
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
             props = torch.cuda.get_device_properties(0)
-            return float(props.total_memory) / (1024 ** 3)
+            return float(props.total_memory) / (1024**3)
     except Exception as exc:
         _logger.debug("VRAM via torch.cuda failed: %s", exc)
 
@@ -166,6 +192,7 @@ def _detect_gpu_vram_gib() -> float | None:
         return None
     try:
         import subprocess
+
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
             capture_output=True,
@@ -221,7 +248,8 @@ def resolve_preset(
             preset_name=canon,
             source="explicit",
             rationale=(
-                f"--preset {canon}" if canon == explicit_preset
+                f"--preset {canon}"
+                if canon == explicit_preset
                 else f"--preset {explicit_preset} → {canon}"
             ),
         )
@@ -238,7 +266,8 @@ def resolve_preset(
             preset_name=canon,
             source="env",
             rationale=(
-                f"{ENV_ASR_PRESET}={canon}" if canon == env_value
+                f"{ENV_ASR_PRESET}={canon}"
+                if canon == env_value
                 else f"{ENV_ASR_PRESET}={env_value} → {canon}"
             ),
         )
@@ -322,8 +351,10 @@ def preset_kwargs(preset_name: str) -> dict[str, str | int]:
         "device_index": int(device_index) if device_index is not None else 0,
     }
 
+
 _SILENCE_FILLER_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(p, re.IGNORECASE) for p in [
+    re.compile(p, re.IGNORECASE)
+    for p in [
         r"구독과\s*좋아요",
         r"시청해\s*주셔서\s*감사합니다",
         r"구독\s*부탁드립니다",
@@ -363,7 +394,8 @@ def _load_model(
     device_index: int | None,
     model_cache_dir: Path | None,
 ) -> WhisperModel:
-    """Load WhisperModel singleton per (model_size, compute_type, device, device_index)."""
+    """Load WhisperModel singleton keyed by
+    (model_size, compute_type, device, device_index)."""
     try:
         from faster_whisper import WhisperModel
     except ImportError as exc:
@@ -441,8 +473,7 @@ def _ratio_short_segments(
     if not segments:
         return False
     short = sum(
-        1 for s in segments
-        if (s.get("end", 0.0) - s.get("start", 0.0)) < threshold
+        1 for s in segments if (s.get("end", 0.0) - s.get("start", 0.0)) < threshold
     )
     return (short / len(segments)) > ratio
 
@@ -460,10 +491,7 @@ def _count_compression_violations(
     Returns:
         Number of violating segments.
     """
-    return sum(
-        1 for s in segments
-        if s.get("compression_ratio", 0.0) > threshold
-    )
+    return sum(1 for s in segments if s.get("compression_ratio", 0.0) > threshold)
 
 
 def detect_quality_flags(
@@ -487,7 +515,9 @@ def detect_quality_flags(
         hallucination_repeat=_detect_repeat_n(segments, n=3),
         vad_over_truncated=False,
         language_mismatch=(language_detected != expected_lang),
-        short_segments_excess=_ratio_short_segments(segments, threshold=0.5, ratio=0.30),
+        short_segments_excess=_ratio_short_segments(
+            segments, threshold=0.5, ratio=0.30
+        ),
         silence_hallucination=_detect_silence_filler(segments),
         compression_ratio_violations=_count_compression_violations(segments),
     )
@@ -536,7 +566,9 @@ def transcribe_audio(
         raise FileNotFoundError(f"WAV file not found: {wav_path}")
 
     try:
-        model = _load_model(model_size, compute_type, device, device_index, model_cache_dir)
+        model = _load_model(
+            model_size, compute_type, device, device_index, model_cache_dir
+        )
     except ImportError:
         raise
 

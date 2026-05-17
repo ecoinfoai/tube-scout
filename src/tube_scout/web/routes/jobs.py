@@ -204,18 +204,16 @@ async def post_jobs(request: Request) -> Response:
     session = getattr(request.state, "session", None)
     actor = session.username if session is not None else "anonymous"
 
-    repo.insert_pending(
-        {
-            "job_id": job_id,
-            "department_alias": normalized["department_alias"],
-            "professor_name": normalized["professor_name"],
-            "course_name": normalized["course_name"],
-            "period_start": normalized["period_start"].isoformat(),
-            "period_end": normalized["period_end"].isoformat(),
-            "started_at": started_at,
-            "created_by": actor,
-        }
-    )
+    repo.insert_pending({
+        "job_id": job_id,
+        "department_alias": normalized["department_alias"],
+        "professor_name": normalized["professor_name"],
+        "course_name": normalized["course_name"],
+        "period_start": normalized["period_start"].isoformat(),
+        "period_end": normalized["period_end"].isoformat(),
+        "started_at": started_at,
+        "created_by": actor,
+    })
 
     try:
         runner.spawn(job_id, department_alias=normalized["department_alias"])
@@ -362,18 +360,16 @@ async def post_retry(request: Request) -> Response:
     session = getattr(request.state, "session", None)
     actor = session.username if session is not None else "anonymous"
 
-    repo.insert_pending(
-        {
-            "job_id": new_id,
-            "department_alias": original.department_alias,
-            "professor_name": original.professor_name,
-            "course_name": original.course_name,
-            "period_start": original.period_start,
-            "period_end": original.period_end,
-            "started_at": started_at,
-            "created_by": actor,
-        }
-    )
+    repo.insert_pending({
+        "job_id": new_id,
+        "department_alias": original.department_alias,
+        "professor_name": original.professor_name,
+        "course_name": original.course_name,
+        "period_start": original.period_start,
+        "period_end": original.period_end,
+        "started_at": started_at,
+        "created_by": actor,
+    })
 
     try:
         runner.spawn(

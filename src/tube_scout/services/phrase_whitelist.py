@@ -20,7 +20,8 @@ from tube_scout.models.reuse_v2 import (
 
 # Korean and ASCII punctuation to strip (research.md R-7)
 _PUNCT_PATTERN = re.compile(
-    r"[。、，．・「」『』""''‥…—–·〈〉《》【】｢｣〔〕"
+    r"[。、，．・「」『』"
+    "''‥…—–·〈〉《》【】｢｣〔〕"
     r',.!?;:()[\]{}\-—–…"\'`~@#$%^&*+=|\\/<>]'
 )
 
@@ -148,15 +149,24 @@ def add_phrase_whitelist(
         try:
             conn.execute(
                 "INSERT INTO phrase_whitelist "
-                "(professor_id, phrase_normalized, phrase_raw, reason, registered_by, registered_at) "
+                "(professor_id, phrase_normalized, phrase_raw, reason, "
+                "registered_by, registered_at) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                (professor_id, phrase_normalized, phrase_raw, reason, registered_by, now),
+                (
+                    professor_id,
+                    phrase_normalized,
+                    phrase_raw,
+                    reason,
+                    registered_by,
+                    now,
+                ),
             )
             if own_conn:
                 conn.commit()
         except sqlite3.IntegrityError as exc:
             raise ValueError(
-                f"already whitelisted: professor_id={professor_id!r} phrase={phrase_raw!r}"
+                f"already whitelisted: professor_id={professor_id!r} "
+                f"phrase={phrase_raw!r}"
             ) from exc
     finally:
         if own_conn:
@@ -275,7 +285,9 @@ def export_whitelist(
     if not isinstance(output_path, Path):
         raise TypeError(f"output_path must be a Path, got {type(output_path).__name__}")
     if fmt not in ("csv", "xlsx", "markdown"):
-        raise ValueError(f"Unsupported format: {fmt!r}. Use 'csv', 'xlsx', or 'markdown'.")
+        raise ValueError(
+            f"Unsupported format: {fmt!r}. Use 'csv', 'xlsx', or 'markdown'."
+        )
 
     view = list_whitelist(db_path)
 
@@ -307,8 +319,14 @@ def export_whitelist(
     ]
 
     fieldnames = [
-        "kind", "source_video_id", "target_video_id",
-        "professor_id", "phrase_raw", "reason", "admin", "registered_at",
+        "kind",
+        "source_video_id",
+        "target_video_id",
+        "professor_id",
+        "phrase_raw",
+        "reason",
+        "admin",
+        "registered_at",
     ]
 
     if fmt == "csv":
@@ -379,9 +397,7 @@ def remove_whitelist(
     conn = sqlite3.connect(str(db_path)) if own_conn else _conn
     try:
         if kind == "phrase":
-            cur = conn.execute(
-                "DELETE FROM phrase_whitelist WHERE id = ?", (entry_id,)
-            )
+            cur = conn.execute("DELETE FROM phrase_whitelist WHERE id = ?", (entry_id,))
         else:
             cur = conn.execute(
                 "UPDATE comparison_results SET review_status = 'UNREVIEWED', "

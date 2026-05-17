@@ -258,7 +258,6 @@ def test_print_summary_table_shows_top3_failures_when_failures_exist(
         completed_at=later,
     )
 
-    output_buf = []
     console = Console(record=True, width=120)
     _print_summary_table(summary, console=console)
     rendered = console.export_text()

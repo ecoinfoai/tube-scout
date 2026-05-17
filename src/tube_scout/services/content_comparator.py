@@ -76,9 +76,7 @@ def compute_new_term_count(source_text: str, target_text: str) -> int:
     return len(target_words - source_words)
 
 
-def compute_duration_diff(
-    source_duration: float, target_duration: float
-) -> float:
+def compute_duration_diff(source_duration: float, target_duration: float) -> float:
     """Compute absolute duration difference in seconds.
 
     Args:
@@ -91,9 +89,7 @@ def compute_duration_diff(
     return abs(target_duration - source_duration)
 
 
-def compute_cosine_similarity(
-    vec_a: list[float], vec_b: list[float]
-) -> float:
+def compute_cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
     """Compute cosine similarity between two vectors.
 
     Args:
@@ -303,8 +299,10 @@ def match_comparison_pairs(
 
         # Skip if any required field is missing
         required = [
-            professor, course,
-            week is not None, session is not None,
+            professor,
+            course,
+            week is not None,
+            session is not None,
             year is not None,
         ]
         if not all(required):

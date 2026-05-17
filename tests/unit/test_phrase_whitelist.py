@@ -213,7 +213,7 @@ def test_remove_whitelist_phrase_returns_true(tmp_path: Path) -> None:
     )
 
     db = _make_db(tmp_path)
-    entry = add_phrase_whitelist("prof-wl", "제거할 구문", "test", db, "admin")
+    add_phrase_whitelist("prof-wl", "제거할 구문", "test", db, "admin")
 
     # Get the entry id
     conn = sqlite3.connect(str(db))
@@ -238,7 +238,7 @@ def test_remove_whitelist_pair_resets_to_unreviewed(tmp_path: Path) -> None:
     )
 
     db = _make_db(tmp_path)
-    affected_id = add_pair_whitelist("vid_a", "vid_b", "test", db, "admin")
+    add_pair_whitelist("vid_a", "vid_b", "test", db, "admin")
 
     # Get comparison result id
     conn = sqlite3.connect(str(db))

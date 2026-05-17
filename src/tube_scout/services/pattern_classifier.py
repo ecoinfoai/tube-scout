@@ -114,7 +114,8 @@ def classify(
     min_duration = min(src_duration, tgt_duration)
     if min_duration <= 0.0:
         raise ValueError(
-            f"duration must be positive to compute contiguity ratio, got ({src_duration}, {tgt_duration})"
+            f"duration must be positive to compute contiguity ratio, "
+            f"got ({src_duration}, {tgt_duration})"
         )
 
     i6 = pair.i6_longest_contiguous_seconds
@@ -131,6 +132,7 @@ def classify(
 
     # Override 2: TAIL_UPDATE via i8 half-split
     from tube_scout.services.time_axis_indicators import compute_i8_half_split
+
     i8_first, i8_second = compute_i8_half_split(spans, src_duration)
     if i8_first >= 0.85 and i8_second <= 0.15:
         return ReusePatternLabel.TAIL_UPDATE

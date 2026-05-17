@@ -40,8 +40,9 @@ def _ensure_content_db_symlink(db_real: Path, channel_analyze_dir: Path) -> None
         existing_target = Path(os.readlink(link_path)).resolve()
         if existing_target != target:
             console.print(
-                f"[yellow]Warning: symlink {link_path} points to {existing_target}, "
-                f"expected {target}. Remove it manually and re-run ingest to fix.[/yellow]"
+                f"[yellow]Warning: symlink {link_path} points to "
+                f"{existing_target}, expected {target}. Remove it manually "
+                f"and re-run ingest to fix.[/yellow]"
             )
         return
 
@@ -58,7 +59,8 @@ def _ensure_content_db_symlink(db_real: Path, channel_analyze_dir: Path) -> None
         console.print(f"[dim]symlink created: {link_path} → {target}[/dim]")
     except OSError as exc:
         console.print(
-            f"[yellow]Warning: could not create DB symlink at {link_path}: {exc}[/yellow]"
+            f"[yellow]Warning: could not create DB symlink at "
+            f"{link_path}: {exc}[/yellow]"
         )
 
 
@@ -760,6 +762,7 @@ def _collect_transcripts_asr(  # noqa: C901
 
         import os as _os
         import tempfile as _tempfile
+
         transcript = {
             "video_id": video_id,
             "source": result.caption_source_detail,
@@ -773,6 +776,7 @@ def _collect_transcripts_asr(  # noqa: C901
         fd, tmp_name = _tempfile.mkstemp(dir=transcript_dir, suffix=".tmp")
         try:
             import json as _json
+
             with _os.fdopen(fd, "w", encoding="utf-8") as f:
                 _json.dump(transcript, f, ensure_ascii=False, indent=2)
             _os.replace(tmp_name, json_path)
@@ -955,7 +959,7 @@ def collect_transcripts_command(
     if channel and all_channels is True:
         console.print(
             "[red]Error: --channel and --all-channels are mutually exclusive.[/red]",
-            )
+        )
 
         raise typer.Exit(code=2)
 
@@ -1010,7 +1014,9 @@ def collect_transcripts_command(
 
     # Dispatch hook for api source (testable seam)
     dispatch_transcript_source(
-        resolved_source, channel=channel, all_channels=all_channels,
+        resolved_source,
+        channel=channel,
+        all_channels=all_channels,
         project_dir=project_dir,
     )
 
@@ -1142,20 +1148,18 @@ def collect_transcripts_command(
                     f"  [dim]{vid_id}: cached ({cached_segments} segments)[/dim]"
                 )
                 meta = video_meta_by_id.get(vid_id, {})
-                audit_rows.append(
-                    {
-                        "video_id": vid_id,
-                        "title": meta.get("title", ""),
-                        "published_at": meta.get("published_at", ""),
-                        "privacy_status": meta.get("privacy_status", ""),
-                        "classification": "skipped",
-                        "hint": (
-                            f"Existing transcript at {output_path} "
-                            f"({cached_segments} segments); pass "
-                            f"--force-refresh to override."
-                        ),
-                    }
-                )
+                audit_rows.append({
+                    "video_id": vid_id,
+                    "title": meta.get("title", ""),
+                    "published_at": meta.get("published_at", ""),
+                    "privacy_status": meta.get("privacy_status", ""),
+                    "classification": "skipped",
+                    "hint": (
+                        f"Existing transcript at {output_path} "
+                        f"({cached_segments} segments); pass "
+                        f"--force-refresh to override."
+                    ),
+                })
                 progress.advance(task)
                 continue
 
@@ -1183,16 +1187,14 @@ def collect_transcripts_command(
                         video_meta_by_id.get(vid_id, {"video_id": vid_id}),
                     )
                     meta = video_meta_by_id.get(vid_id, {})
-                    audit_rows.append(
-                        {
-                            "video_id": vid_id,
-                            "title": meta.get("title", ""),
-                            "published_at": meta.get("published_at", ""),
-                            "privacy_status": meta.get("privacy_status", ""),
-                            "classification": classification,
-                            "hint": hint,
-                        }
-                    )
+                    audit_rows.append({
+                        "video_id": vid_id,
+                        "title": meta.get("title", ""),
+                        "published_at": meta.get("published_at", ""),
+                        "privacy_status": meta.get("privacy_status", ""),
+                        "classification": classification,
+                        "hint": hint,
+                    })
             except Exception as e:
                 primary_error = e
                 progress.console.print(f"  [red]{vid_id}: {e}[/red]")
@@ -1202,16 +1204,14 @@ def collect_transcripts_command(
                     video_meta_by_id.get(vid_id, {"video_id": vid_id}),
                 )
                 meta = video_meta_by_id.get(vid_id, {})
-                audit_rows.append(
-                    {
-                        "video_id": vid_id,
-                        "title": meta.get("title", ""),
-                        "published_at": meta.get("published_at", ""),
-                        "privacy_status": meta.get("privacy_status", ""),
-                        "classification": classification,
-                        "hint": hint,
-                    }
-                )
+                audit_rows.append({
+                    "video_id": vid_id,
+                    "title": meta.get("title", ""),
+                    "published_at": meta.get("published_at", ""),
+                    "privacy_status": meta.get("privacy_status", ""),
+                    "classification": classification,
+                    "hint": hint,
+                })
             progress.advance(task)
 
     # FR-016: emit per-channel transcripts_audit.csv listing every miss.
@@ -1844,6 +1844,7 @@ def build_signal_handler(
                 except Exception as _exc:
                     # AT-12.3: log to stderr so SS-5 is not silently swallowed
                     import sys
+
                     print(
                         f"[signal handler] audit write failed: {_exc}",
                         file=sys.stderr,
@@ -2396,6 +2397,7 @@ def collect_takeout_command(
     try:
         from tube_scout.services.auth import load_registry
         from tube_scout.web.repo.departments_repo import DepartmentsRepo
+
         channels_reg = load_registry()
         depts_reg = {d.alias: d for d in DepartmentsRepo().list_all()}
         if channel in channels_reg and channel in depts_reg:
@@ -2423,12 +2425,14 @@ def collect_takeout_command(
 
     if takeout_path.is_symlink() and not takeout_path.exists():
         console.print(
-            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' is a broken symlink.[/red]"
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' "
+            f"is a broken symlink.[/red]"
         )
         raise typer.Exit(code=1)
     if not takeout_path.exists():
         console.print(
-            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' does not exist.[/red]"
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' "
+            f"does not exist.[/red]"
         )
         raise typer.Exit(code=1)
 
@@ -2533,7 +2537,7 @@ def collect_audio_extract_command(
     cache_dir = Path(audio_cache_dir)
 
     if not db.exists():
-        console.print(f"[red]DB not found: {db}. Run \'collect takeout\' first.[/red]")
+        console.print(f"[red]DB not found: {db}. Run 'collect takeout' first.[/red]")
         raise typer.Exit(code=2)
 
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -2578,16 +2582,19 @@ def collect_audio_extract_command(
         ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
         if mp4_rel is None:
-            audit.append_row("audio_extract", {
-                "video_id": video_id,
-                "result": "skip",
-                "reason": "no_mp4_path",
-                "input_kind": "mp4",
-                "output_path": "",
-                "wav_size_bytes": 0,
-                "elapsed_s": 0.0,
-                "timestamp": ts,
-            })
+            audit.append_row(
+                "audio_extract",
+                {
+                    "video_id": video_id,
+                    "result": "skip",
+                    "reason": "no_mp4_path",
+                    "input_kind": "mp4",
+                    "output_path": "",
+                    "wav_size_bytes": 0,
+                    "elapsed_s": 0.0,
+                    "timestamp": ts,
+                },
+            )
             continue
 
         mp4_path = work_root / channel / mp4_rel
@@ -2601,30 +2608,38 @@ def collect_audio_extract_command(
                 force=force,
             )
             elapsed = time.monotonic() - t0
-            audit.append_row("audio_extract", {
-                "video_id": video_id,
-                "result": "success",
-                "reason": "extracted",
-                "input_kind": "mp4",
-                "output_path": str(wav_path),
-                "wav_size_bytes": wav_path.stat().st_size if wav_path.exists() else 0,
-                "elapsed_s": round(elapsed, 3),
-                "timestamp": ts,
-            })
+            audit.append_row(
+                "audio_extract",
+                {
+                    "video_id": video_id,
+                    "result": "success",
+                    "reason": "extracted",
+                    "input_kind": "mp4",
+                    "output_path": str(wav_path),
+                    "wav_size_bytes": wav_path.stat().st_size
+                    if wav_path.exists()
+                    else 0,
+                    "elapsed_s": round(elapsed, 3),
+                    "timestamp": ts,
+                },
+            )
             console.print(f"[green]ok[/green] {video_id} -> {wav_path.name}")
         except (FileNotFoundError, RuntimeError) as exc:
             any_failed = True
             elapsed = time.monotonic() - t0
-            audit.append_row("audio_extract", {
-                "video_id": video_id,
-                "result": "fail",
-                "reason": "audio_decode_failed",
-                "input_kind": "mp4",
-                "output_path": "",
-                "wav_size_bytes": 0,
-                "elapsed_s": round(elapsed, 3),
-                "timestamp": ts,
-            })
+            audit.append_row(
+                "audio_extract",
+                {
+                    "video_id": video_id,
+                    "result": "fail",
+                    "reason": "audio_decode_failed",
+                    "input_kind": "mp4",
+                    "output_path": "",
+                    "wav_size_bytes": 0,
+                    "elapsed_s": round(elapsed, 3),
+                    "timestamp": ts,
+                },
+            )
             console.print(f"[yellow]fail[/yellow] {video_id}: {exc}")
 
     if any_failed:
@@ -2739,12 +2754,14 @@ def collect_ingest_command(
 
     if takeout_path.is_symlink() and not takeout_path.exists():
         console.print(
-            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' is a broken symlink.[/red]"
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' "
+            f"is a broken symlink.[/red]"
         )
         raise typer.Exit(code=1)
     if not takeout_path.exists():
         console.print(
-            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' does not exist.[/red]"
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' "
+            f"does not exist.[/red]"
         )
         raise typer.Exit(code=1)
 

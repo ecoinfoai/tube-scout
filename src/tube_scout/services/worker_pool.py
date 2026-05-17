@@ -224,7 +224,9 @@ def run_asr_worker(
         mp4_path = _resolve_mp4_path(db_path, video_id)
         if mp4_path is None:
             skipped += 1
-            _update_status(db_path, video_id, "asr_failed", error_message="mp4_path missing")
+            _update_status(
+                db_path, video_id, "asr_failed", error_message="mp4_path missing"
+            )
             continue
 
         transcript_path = transcripts_dir / f"{video_id}.json"
@@ -233,8 +235,11 @@ def run_asr_worker(
         device, resolved_compute_type = _resolve_device_and_compute_type(compute_type)
 
         try:
-            with WavLifecycle(mp4_path, audio_cache_dir, video_id, keep=keep_audio) as wav_path:
+            with WavLifecycle(
+                mp4_path, audio_cache_dir, video_id, keep=keep_audio
+            ) as wav_path:
                 from tube_scout.services.audio_extract import extract_wav_16k_mono
+
                 extract_wav_16k_mono(mp4_path, wav_path, force=True)
 
                 result = transcribe_audio(
@@ -257,9 +262,8 @@ def run_asr_worker(
             }
 
             import tempfile
-            tmp_fd, tmp_name = tempfile.mkstemp(
-                dir=transcripts_dir, suffix=".tmp"
-            )
+
+            tmp_fd, tmp_name = tempfile.mkstemp(dir=transcripts_dir, suffix=".tmp")
             try:
                 with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
                     json.dump(transcript, f, ensure_ascii=False, indent=2)
@@ -272,7 +276,9 @@ def run_asr_worker(
                 raise
 
             _update_status(
-                db_path, video_id, "collected",
+                db_path,
+                video_id,
+                "collected",
                 caption_source="whisper",
                 caption_source_detail=result.caption_source_detail,
             )
@@ -294,7 +300,9 @@ def run_asr_worker(
                 "ASR failed for %s (worker pid=%d)", video_id, os.getpid()
             )
             _update_status(
-                db_path, video_id, "asr_failed",
+                db_path,
+                video_id,
+                "asr_failed",
                 error_message=str(exc)[:500],
             )
 
@@ -425,6 +433,7 @@ def run_pool(
         # context can cause OOM on first transcribe (F-22 / ADV-42).
         try:
             from tube_scout.services.asr import _load_model
+
             _load_model.cache_clear()
         except Exception as exc:
             _logger.debug("worker cache_clear skipped: %s", exc)

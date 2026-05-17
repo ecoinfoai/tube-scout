@@ -7,14 +7,27 @@ from pathlib import Path
 
 from tube_scout.models.parsed_title import ParsedTitle
 
-SUPPLEMENTARY_KEYWORDS = frozenset(
-    {"핵심영상", "보완영상", "질문응답", "보충", "특강", "OT"}
-)
+SUPPLEMENTARY_KEYWORDS = frozenset({
+    "핵심영상",
+    "보완영상",
+    "질문응답",
+    "보충",
+    "특강",
+    "OT",
+})
 
 # Korean suffixes that should never be treated as professor names
-_NON_PROFESSOR_SUFFIXES = frozenset(
-    {"주차", "차시", "학과", "학기", "학년도", "학년", "학기말", "중간", "기말"}
-)
+_NON_PROFESSOR_SUFFIXES = frozenset({
+    "주차",
+    "차시",
+    "학과",
+    "학기",
+    "학년도",
+    "학년",
+    "학기말",
+    "중간",
+    "기말",
+})
 
 
 @dataclass(frozen=True)

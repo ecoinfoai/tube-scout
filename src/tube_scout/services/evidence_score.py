@@ -35,6 +35,7 @@ _NORMALIZE_PATTERN = re.compile(r"[\s\-_.,()\[\]?!~]+")
 # EvidenceSignals
 # ---------------------------------------------------------------------------
 
+
 class EvidenceSignals(BaseModel):
     """Per-(mp4, video_id) candidate signal breakdown."""
 
@@ -70,6 +71,7 @@ class EvidenceSignals(BaseModel):
 # MappingDecision
 # ---------------------------------------------------------------------------
 
+
 class MappingDecision(BaseModel):
     """Result of decide_mapping for a single mp4 file."""
 
@@ -86,6 +88,7 @@ class MappingDecision(BaseModel):
 # ---------------------------------------------------------------------------
 # internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _normalize_for_match(s: str) -> str:
     """Normalize string for fuzzy title matching.
@@ -147,9 +150,13 @@ def _probe_duration_via_ffprobe(mp4_path: Path) -> float | None:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "csv=p=0",
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "csv=p=0",
                 str(mp4_path),
             ],
             capture_output=True,
@@ -158,6 +165,7 @@ def _probe_duration_via_ffprobe(mp4_path: Path) -> float | None:
         )
         if result.returncode != 0:
             import logging
+
             logging.getLogger(__name__).warning(
                 "ffprobe failed for %s: %s",
                 mp4_path,
@@ -167,9 +175,8 @@ def _probe_duration_via_ffprobe(mp4_path: Path) -> float | None:
         return float(result.stdout.strip())
     except (ValueError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
         import logging
-        logging.getLogger(__name__).warning(
-            "ffprobe error for %s: %s", mp4_path, exc
-        )
+
+        logging.getLogger(__name__).warning("ffprobe error for %s: %s", mp4_path, exc)
         return None
 
 
@@ -256,6 +263,7 @@ def _duration_match_with_cached(
 # ---------------------------------------------------------------------------
 # public API
 # ---------------------------------------------------------------------------
+
 
 def score_mp4_candidates(
     mp4_path: Path,

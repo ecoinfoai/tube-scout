@@ -151,6 +151,10 @@ select = ["E", "F", "I", "N", "W", "UP"]
 # InteractiveAuthRequired) predate the N818 rule; their public name is part
 # of the runtime contract.
 "src/tube_scout/services/auth.py" = ["N818"]
+# ConcurrentWriteRejected is the documented public exception type returned by
+# the advisory_lock contract (referenced from CLI + web). Renaming would break
+# error-handling code already shipped to operators.
+"src/tube_scout/services/advisory_lock.py" = ["N818"]
 # Test files routinely embed long fixture strings (URLs, error messages,
 # JSON literals); the 88-char line cap fights readability there. Test
 # mock classes also mirror upstream library exception names verbatim

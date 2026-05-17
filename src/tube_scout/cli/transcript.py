@@ -50,15 +50,18 @@ def export_command(
         with_meta=with_meta,
     )
 
-    AuditWriter(_audit_dir).append_row("kb_export", {
-        "video_id": video_id,
-        "result": "success",
-        "reason": "exported",
-        "format": format_,
-        "output_path": str(output),
-        "byte_count": result.byte_count,
-        "timestamp": timestamp,
-    })
+    AuditWriter(_audit_dir).append_row(
+        "kb_export",
+        {
+            "video_id": video_id,
+            "result": "success",
+            "reason": "exported",
+            "format": format_,
+            "output_path": str(output),
+            "byte_count": result.byte_count,
+            "timestamp": timestamp,
+        },
+    )
 
 
 def export_bulk_command(
@@ -77,7 +80,8 @@ def export_bulk_command(
     Args:
         transcripts_dir: Directory containing <video_id>.json transcript files.
         output_dir: Destination directory (must exist).
-        video_ids_file: Path to text file with one video_id per line; None = use export_all.
+        video_ids_file: Path to text file with one video_id per line;
+            None = use export_all.
         export_all: Export all transcripts found in transcripts_dir.
         format_: Output format — 'txt', 'md', or 'jsonl'.
         keep_timestamps: Include timestamps.
@@ -105,7 +109,11 @@ def export_bulk_command(
 
     from tube_scout.services.progress_reporter import make_progress_reporter
 
-    total = len(video_ids) if video_ids is not None else len(list(transcripts_dir.glob("*.json")))
+    total = (
+        len(video_ids)
+        if video_ids is not None
+        else len(list(transcripts_dir.glob("*.json")))
+    )
     with make_progress_reporter("kb_export", total) as progress:
         bulk_result = export_bulk(
             transcripts_dir,
@@ -127,28 +135,35 @@ def export_bulk_command(
     for vid in ids_to_audit:
         out_file = output_dir / f"{vid}.{format_}"
         if out_file.exists():
-            writer.append_row("kb_export", {
-                "video_id": vid,
-                "result": "success",
-                "reason": "exported",
-                "format": format_,
-                "output_path": str(out_file),
-                "byte_count": out_file.stat().st_size,
-                "timestamp": timestamp,
-            })
+            writer.append_row(
+                "kb_export",
+                {
+                    "video_id": vid,
+                    "result": "success",
+                    "reason": "exported",
+                    "format": format_,
+                    "output_path": str(out_file),
+                    "byte_count": out_file.stat().st_size,
+                    "timestamp": timestamp,
+                },
+            )
         else:
-            writer.append_row("kb_export", {
-                "video_id": vid,
-                "result": "skip",
-                "reason": "transcript_not_found",
-                "format": format_,
-                "output_path": "",
-                "byte_count": 0,
-                "timestamp": timestamp,
-            })
+            writer.append_row(
+                "kb_export",
+                {
+                    "video_id": vid,
+                    "result": "skip",
+                    "reason": "transcript_not_found",
+                    "format": format_,
+                    "output_path": "",
+                    "byte_count": 0,
+                    "timestamp": timestamp,
+                },
+            )
 
     console.print(
-        f"[green]Exported {bulk_result.exported_count}/{bulk_result.total_videos} transcripts "
+        f"[green]Exported {bulk_result.exported_count}/"
+        f"{bulk_result.total_videos} transcripts "
         f"to {output_dir}[/green]"
     )
 
@@ -159,10 +174,18 @@ def transcript_export_typer(
         "./01_collect/transcripts", "--transcripts-dir", help="Transcripts directory."
     ),
     output: str | None = typer.Option(None, "--output", help="Output file path."),
-    format_: str = typer.Option("txt", "--format", help="Output format: txt, md, jsonl."),
-    keep_timestamps: bool = typer.Option(False, "--keep-timestamps", help="Include timestamps."),
-    clean_fillers: bool = typer.Option(False, "--clean-fillers", help="Remove Korean ASR fillers."),
-    with_meta: bool = typer.Option(False, "--with-meta", help="Include metadata header."),
+    format_: str = typer.Option(
+        "txt", "--format", help="Output format: txt, md, jsonl."
+    ),
+    keep_timestamps: bool = typer.Option(
+        False, "--keep-timestamps", help="Include timestamps."
+    ),
+    clean_fillers: bool = typer.Option(
+        False, "--clean-fillers", help="Remove Korean ASR fillers."
+    ),
+    with_meta: bool = typer.Option(
+        False, "--with-meta", help="Include metadata header."
+    ),
     data_dir: str = typer.Option("./data", "--data-dir", help="Data directory."),
 ) -> None:
     """Export a single transcript to KB-ingestible plain text."""
@@ -198,14 +221,20 @@ def transcript_export_bulk_typer(
         None, "--video-ids-file", help="Text file with one video_id per line."
     ),
     export_all: bool = typer.Option(False, "--all", help="Export all transcripts."),
-    format_: str = typer.Option("txt", "--format", help="Output format: txt, md, jsonl."),
-    output_dir: str | None = typer.Option(None, "--output-dir", help="Output directory."),
+    format_: str = typer.Option(
+        "txt", "--format", help="Output format: txt, md, jsonl."
+    ),
+    output_dir: str | None = typer.Option(
+        None, "--output-dir", help="Output directory."
+    ),
     keep_timestamps: bool = typer.Option(False, "--keep-timestamps"),
     clean_fillers: bool = typer.Option(False, "--clean-fillers"),
     with_meta: bool = typer.Option(False, "--with-meta"),
     data_dir: str = typer.Option("./data", "--data-dir"),
     transcripts_dir: str | None = typer.Option(
-        None, "--transcripts-dir", help="Transcripts directory (overrides --channel default)."
+        None,
+        "--transcripts-dir",
+        help="Transcripts directory (overrides --channel default).",
     ),
 ) -> None:
     """Bulk-export transcripts to a directory."""

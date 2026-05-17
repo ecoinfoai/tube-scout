@@ -71,7 +71,8 @@ class YouTubeDataService:
         """
         self._wait()
         response = (
-            self._client.channels()
+            self._client
+            .channels()
             .list(part="snippet,contentDetails,statistics", id=channel_id)
             .execute()
         )
@@ -123,13 +124,11 @@ class YouTubeDataService:
 
             for item in response.get("items", []):
                 snippet = item["snippet"]
-                videos.append(
-                    {
-                        "video_id": snippet["resourceId"]["videoId"],
-                        "title": snippet["title"],
-                        "published_at": snippet["publishedAt"],
-                    }
-                )
+                videos.append({
+                    "video_id": snippet["resourceId"]["videoId"],
+                    "title": snippet["title"],
+                    "published_at": snippet["publishedAt"],
+                })
 
             token = response.get("nextPageToken")
             if not token:
@@ -152,7 +151,8 @@ class YouTubeDataService:
             batch = video_ids[i : i + 50]
             self._wait()
             response = (
-                self._client.videos()
+                self._client
+                .videos()
                 .list(
                     part="snippet,contentDetails,statistics,status,topicDetails",
                     id=",".join(batch),
@@ -244,18 +244,16 @@ class YouTubeDataService:
                     comment_snippet = top_comment["snippet"]
                     reply_count = thread_snippet.get("totalReplyCount", 0)
 
-                    comments.append(
-                        {
-                            "comment_id": top_comment["id"],
-                            "video_id": video_id,
-                            "author": comment_snippet.get("authorDisplayName", ""),
-                            "text": comment_snippet.get("textDisplay", ""),
-                            "published_at": comment_snippet.get("publishedAt", ""),
-                            "like_count": comment_snippet.get("likeCount", 0),
-                            "parent_comment_id": None,
-                            "reply_count": reply_count,
-                        }
-                    )
+                    comments.append({
+                        "comment_id": top_comment["id"],
+                        "video_id": video_id,
+                        "author": comment_snippet.get("authorDisplayName", ""),
+                        "text": comment_snippet.get("textDisplay", ""),
+                        "published_at": comment_snippet.get("publishedAt", ""),
+                        "like_count": comment_snippet.get("likeCount", 0),
+                        "parent_comment_id": None,
+                        "reply_count": reply_count,
+                    })
 
                 token = response.get("nextPageToken")
                 if not token:
@@ -304,18 +302,16 @@ class YouTubeDataService:
 
             for item in response.get("items", []):
                 snippet = item["snippet"]
-                replies.append(
-                    {
-                        "comment_id": item["id"],
-                        "video_id": video_id,
-                        "author": snippet.get("authorDisplayName", ""),
-                        "text": snippet.get("textDisplay", ""),
-                        "published_at": snippet.get("publishedAt", ""),
-                        "like_count": snippet.get("likeCount", 0),
-                        "parent_comment_id": parent_id,
-                        "reply_count": 0,
-                    }
-                )
+                replies.append({
+                    "comment_id": item["id"],
+                    "video_id": video_id,
+                    "author": snippet.get("authorDisplayName", ""),
+                    "text": snippet.get("textDisplay", ""),
+                    "published_at": snippet.get("publishedAt", ""),
+                    "like_count": snippet.get("likeCount", 0),
+                    "parent_comment_id": parent_id,
+                    "reply_count": 0,
+                })
 
             token = response.get("nextPageToken")
             if not token:

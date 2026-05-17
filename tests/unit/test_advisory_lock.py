@@ -66,8 +66,10 @@ def test_second_concurrent_writer_rejected(tmp_path: Path) -> None:
 
     t1 = threading.Thread(target=first_writer)
     t2 = threading.Thread(target=second_writer)
-    t1.start(); t2.start()
-    t1.join(); t2.join()
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
 
     assert len(errors) == 1
     assert isinstance(errors[0], ConcurrentWriteRejected)

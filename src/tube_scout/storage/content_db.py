@@ -146,8 +146,16 @@ class ContentDB:
                 ),
                 updated_at = excluded.updated_at
             """,
-            (video_id, channel_id, status, caption_source, error_message,
-             collected_at, fingerprinted_at, self._now()),
+            (
+                video_id,
+                channel_id,
+                status,
+                caption_source,
+                error_message,
+                collected_at,
+                fingerprinted_at,
+                self._now(),
+            ),
         )
         self._conn.commit()
 
@@ -313,10 +321,24 @@ class ContentDB:
                  suspicion_score, grade, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (source_video_id, target_video_id, professor, course, week, session,
-             year_from, year_to, int(i1_hash_match), i2_cosine_similarity,
-             i3_change_rate, i4_new_term_count, i5_duration_diff_seconds,
-             suspicion_score, grade, self._now()),
+            (
+                source_video_id,
+                target_video_id,
+                professor,
+                course,
+                week,
+                session,
+                year_from,
+                year_to,
+                int(i1_hash_match),
+                i2_cosine_similarity,
+                i3_change_rate,
+                i4_new_term_count,
+                i5_duration_diff_seconds,
+                suspicion_score,
+                grade,
+                self._now(),
+            ),
         )
         self._conn.commit()
         return cursor.lastrowid  # type: ignore[return-value]
@@ -435,9 +457,16 @@ class ContentDB:
                 pass_count = excluded.pass_count,
                 checked_at = excluded.checked_at
             """,
-            (video_id, int(q001_voice_present), int(q002_min_duration),
-             q003_course_relevance, q004_silence_ratio, q005_speech_density,
-             pass_count, self._now()),
+            (
+                video_id,
+                int(q001_voice_present),
+                int(q002_min_duration),
+                q003_course_relevance,
+                q004_silence_ratio,
+                q005_speech_density,
+                pass_count,
+                self._now(),
+            ),
         )
         self._conn.commit()
 
@@ -647,8 +676,13 @@ def migrate_to_v2(db_path: Path) -> None:
             ).fetchall()
         }
         for table in (
-            "professor_pool", "professor_pool_membership", "baseline_corpus",
-            "phrase_whitelist", "pair_checkpoint", "match_spans", "_schema_version",
+            "professor_pool",
+            "professor_pool_membership",
+            "baseline_corpus",
+            "phrase_whitelist",
+            "pair_checkpoint",
+            "match_spans",
+            "_schema_version",
         ):
             if table not in final_tables:
                 raise RuntimeError(
@@ -901,13 +935,13 @@ CREATE INDEX IF NOT EXISTS idx_video_meta_privacy ON video_metadata(privacy_stat
 """
 
 _V4_ALTER_COLUMNS: list[tuple[str, str, str]] = [
-    ("processing_status",  "match_confidence",        "TEXT"),
-    ("processing_status",  "caption_source_detail",   "TEXT"),
-    ("quality_results",    "asr_quality_flags",        "TEXT"),
-    ("comparison_results", "audio_fp_hamming",         "INTEGER"),
-    ("comparison_results", "audio_fp_best_offset",     "REAL"),
+    ("processing_status", "match_confidence", "TEXT"),
+    ("processing_status", "caption_source_detail", "TEXT"),
+    ("quality_results", "asr_quality_flags", "TEXT"),
+    ("comparison_results", "audio_fp_hamming", "INTEGER"),
+    ("comparison_results", "audio_fp_best_offset", "REAL"),
     ("comparison_results", "audio_fp_overlap_seconds", "REAL"),
-    ("comparison_results", "source_type_pair",         "TEXT"),
+    ("comparison_results", "source_type_pair", "TEXT"),
 ]
 
 # Allowlist for DDL identifier interpolation in _add_column_if_missing
@@ -948,8 +982,7 @@ def _add_column_if_missing(
             f"column={column!r}. Update _V4_ALTER_COLUMNS to allow."
         )
     existing = {
-        row[1]
-        for row in cur.execute(f"PRAGMA table_info({table});").fetchall()
+        row[1] for row in cur.execute(f"PRAGMA table_info({table});").fetchall()
     }
     if column in existing:
         return False

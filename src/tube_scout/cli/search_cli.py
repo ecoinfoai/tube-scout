@@ -196,9 +196,7 @@ def _load_parsed_titles(
                 f"parsed_titles.json directory missing: {parsed_dir}. "
                 "Title parsing has not run for this collection yet."
             ),
-            next_command=(
-                f"tube-scout analyze parse-titles --channel {alias_hint}"
-            ),
+            next_command=(f"tube-scout analyze parse-titles --channel {alias_hint}"),
         )
 
     results = []

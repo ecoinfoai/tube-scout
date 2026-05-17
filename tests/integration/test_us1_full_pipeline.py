@@ -102,7 +102,7 @@ def test_us1_full_pipeline(tmp_path: Path) -> None:
     db_path = work_root / "content_reuse.db"
     # report output_dir aligned with work_root channel dir so audit CSV lands in 01_collect/
     channel_dir = work_root / _CHANNEL
-    output_dir = channel_dir / "03_report"
+    channel_dir / "03_report"
     audio_cache = tmp_path / "audio_cache"
     audio_cache.mkdir()
 

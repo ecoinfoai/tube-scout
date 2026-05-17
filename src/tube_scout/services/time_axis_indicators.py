@@ -57,6 +57,7 @@ def find_match_spans(
 
     # Build index: normalized_text -> list of B indices (in order)
     from collections import defaultdict
+
     b_index: dict[str, list[int]] = defaultdict(list)
     for j, txt in enumerate(norm_b):
         if txt:

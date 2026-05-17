@@ -85,8 +85,7 @@ class RetryManifest:
         version = data.get("schema_version")
         if version not in (1, 2):
             raise ValueError(
-                "Unknown retry manifest schema_version: "
-                f"{version!r}. Expected 1 or 2."
+                f"Unknown retry manifest schema_version: {version!r}. Expected 1 or 2."
             )
 
         raw_entries = data.get("entries", [])
@@ -94,30 +93,34 @@ class RetryManifest:
 
         for e in raw_entries:
             if version == 1:
-                # v1 entries had only video_id + failed_stage in {"transcript","fingerprint"}
+                # v1: only video_id + failed_stage in {"transcript","fingerprint"}
                 stage_v1 = e.get("failed_stage", "asr")
                 # map legacy names to v2 enum
                 stage_map = {"transcript": "asr", "fingerprint": "fingerprint"}
                 failed_stage = stage_map.get(stage_v1, "asr")
-                entries.append(RetryManifestEntry(
-                    video_id=e["video_id"],
-                    mp4_filename=None,
-                    title=e.get("title", ""),
-                    failed_stage=failed_stage,  # type: ignore[arg-type]
-                    failure_reason=e.get("failure_reason", ""),
-                    last_attempt_at=datetime.fromisoformat(e["last_attempt_at"]),
-                    attempt_count=e.get("attempt_count", 1),
-                ))
+                entries.append(
+                    RetryManifestEntry(
+                        video_id=e["video_id"],
+                        mp4_filename=None,
+                        title=e.get("title", ""),
+                        failed_stage=failed_stage,  # type: ignore[arg-type]
+                        failure_reason=e.get("failure_reason", ""),
+                        last_attempt_at=datetime.fromisoformat(e["last_attempt_at"]),
+                        attempt_count=e.get("attempt_count", 1),
+                    )
+                )
             else:
-                entries.append(RetryManifestEntry(
-                    video_id=e.get("video_id"),
-                    mp4_filename=e.get("mp4_filename"),
-                    title=e.get("title", ""),
-                    failed_stage=e["failed_stage"],
-                    failure_reason=e.get("failure_reason", ""),
-                    last_attempt_at=datetime.fromisoformat(e["last_attempt_at"]),
-                    attempt_count=e.get("attempt_count", 1),
-                ))
+                entries.append(
+                    RetryManifestEntry(
+                        video_id=e.get("video_id"),
+                        mp4_filename=e.get("mp4_filename"),
+                        title=e.get("title", ""),
+                        failed_stage=e["failed_stage"],
+                        failure_reason=e.get("failure_reason", ""),
+                        last_attempt_at=datetime.fromisoformat(e["last_attempt_at"]),
+                        attempt_count=e.get("attempt_count", 1),
+                    )
+                )
 
         return cls(
             schema_version=_SCHEMA_VERSION,
@@ -164,7 +167,8 @@ def load_manifest(
             data = json.loads(manifest_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise ValueError(
-                f"retry_pending.json at {manifest_path} is corrupt (invalid JSON): {exc}"
+                f"retry_pending.json at {manifest_path} is corrupt "
+                f"(invalid JSON): {exc}"
             ) from exc
         base = RetryManifest.from_dict(data)
 
@@ -192,7 +196,11 @@ def load_manifest(
                 if _pk(e) not in existing_pks:
                     base.entries.append(e)
             recovery_path.unlink(missing_ok=True)
-            _logger.warning("Merged %d entries from recovery file %s", len(rec_manifest.entries), recovery_path)
+            _logger.warning(
+                "Merged %d entries from recovery file %s",
+                len(rec_manifest.entries),
+                recovery_path,
+            )
         except Exception as exc:  # noqa: BLE001
             _logger.warning("Could not merge recovery file %s: %s", recovery_path, exc)
 
@@ -253,9 +261,7 @@ def _write_recovery(manifest_path: Path, data: str) -> None:
     recovery_path = manifest_path.with_suffix(".recovery.json")
     try:
         recovery_path.write_text(data, encoding="utf-8")
-        _logger.warning(
-            "save_manifest failed; recovery written to %s", recovery_path
-        )
+        _logger.warning("save_manifest failed; recovery written to %s", recovery_path)
     except OSError as exc2:
         _logger.error("Recovery write also failed: %s", exc2)
 
@@ -491,6 +497,8 @@ def select_retry_targets(
                 encoding="utf-8",
             )
         except OSError as exc:
-            _logger.warning("Could not write overflow manifest to %s: %s", overflow_path, exc)
+            _logger.warning(
+                "Could not write overflow manifest to %s: %s", overflow_path, exc
+            )
 
     return result

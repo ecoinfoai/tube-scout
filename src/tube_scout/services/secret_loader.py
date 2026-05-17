@@ -86,9 +86,7 @@ def _decode_b64_to_tmpfs(payload: str) -> Path:
                 f"{ENV_B64} is not valid base64: {exc}. "
                 "Verify the secret was encoded with `base64 -w0`."
             ),
-            next_command=(
-                f"export {ENV_B64}=$(base64 -w0 client_secret.json)"
-            ),
+            next_command=(f"export {ENV_B64}=$(base64 -w0 client_secret.json)"),
         ) from exc
 
     try:
@@ -106,9 +104,7 @@ def _decode_b64_to_tmpfs(payload: str) -> Path:
         ) from exc
 
     runtime = _runtime_dir()
-    fd, tmp_str = tempfile.mkstemp(
-        prefix="client_secret.", suffix=".json", dir=runtime
-    )
+    fd, tmp_str = tempfile.mkstemp(prefix="client_secret.", suffix=".json", dir=runtime)
     tmp = Path(tmp_str)
     try:
         os.set_inheritable(fd, False)  # A4-9: no fork inheritance.
@@ -143,12 +139,9 @@ def resolve_client_secret_path() -> Path:
         path = Path(path_env)
         if not path.exists():
             raise SecretConfigError(
-                message=(
-                    f"{ENV_PATH}={path_env!r} but the file does not exist."
-                ),
+                message=(f"{ENV_PATH}={path_env!r} but the file does not exist."),
                 next_command=(
-                    f"ls -l {path_env}  # verify the path or set "
-                    f"{ENV_B64} instead"
+                    f"ls -l {path_env}  # verify the path or set {ENV_B64} instead"
                 ),
             )
         return path

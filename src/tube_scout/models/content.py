@@ -23,9 +23,15 @@ class SuspicionGrade(StrEnum):
 
 
 VALID_PROCESSING_STATUSES = frozenset({
-    "pending", "collecting", "collected",
-    "fingerprinted", "compared", "failed", "no_caption",
-    "asr_in_progress", "asr_failed",
+    "pending",
+    "collecting",
+    "collected",
+    "fingerprinted",
+    "compared",
+    "failed",
+    "no_caption",
+    "asr_in_progress",
+    "asr_failed",
 })
 
 VALID_MATCH_CONFIDENCES = frozenset({"high", "medium", "ambiguous"})
@@ -33,7 +39,10 @@ VALID_MATCH_CONFIDENCES = frozenset({"high", "medium", "ambiguous"})
 VALID_CAPTION_SOURCES = frozenset({"transcript_api", "captions_api", "whisper"})
 
 VALID_REVIEW_STATUSES = frozenset({
-    "UNREVIEWED", "PENDING", "CONFIRMED_DUPLICATE", "FALSE_POSITIVE",
+    "UNREVIEWED",
+    "PENDING",
+    "CONFIRMED_DUPLICATE",
+    "FALSE_POSITIVE",
 })
 
 VALID_GRADES = frozenset({"critical", "high", "moderate", "normal"})
@@ -323,6 +332,7 @@ class VideoMetadata(BaseModel):
 # spec 017 E-5: FailureEntry
 # ---------------------------------------------------------------------------
 
+
 class FailureEntry(BaseModel):
     """Single transcript or fingerprint stage failure for one video.
 
@@ -346,6 +356,7 @@ class FailureEntry(BaseModel):
 # ---------------------------------------------------------------------------
 # spec 017 E-2: TranscriptStageResult
 # ---------------------------------------------------------------------------
+
 
 class TranscriptStageResult(BaseModel):
     """Transcript generation stage summary.
@@ -382,6 +393,7 @@ class TranscriptStageResult(BaseModel):
 # spec 017 E-3: FingerprintStageResult
 # ---------------------------------------------------------------------------
 
+
 class FingerprintStageResult(BaseModel):
     """Audio fingerprint extraction stage summary.
 
@@ -416,6 +428,7 @@ class FingerprintStageResult(BaseModel):
 # ---------------------------------------------------------------------------
 # spec 017 E-4: CleanupResult
 # ---------------------------------------------------------------------------
+
 
 class CleanupResult(BaseModel):
     """Source video deletion stage result (--delete-source option).
@@ -461,6 +474,7 @@ class CleanupResult(BaseModel):
 # spec 017 E-6: RetryManifestDelta
 # ---------------------------------------------------------------------------
 
+
 class RetryManifestDelta(BaseModel):
     """Change summary for the retry manifest file after one ingest call.
 
@@ -486,8 +500,12 @@ class RetryManifestDelta(BaseModel):
 # ---------------------------------------------------------------------------
 
 VALID_FAILED_STAGES = frozenset({
-    "asr", "fingerprint", "audio_decode",
-    "aborted_by_user", "ingest_mapping", "ingest_no_mp4",
+    "asr",
+    "fingerprint",
+    "audio_decode",
+    "aborted_by_user",
+    "ingest_mapping",
+    "ingest_no_mp4",
 })
 
 
@@ -513,8 +531,12 @@ class RetryManifestEntry(BaseModel):
     mp4_filename: str | None = None
     title: str
     failed_stage: Literal[
-        "asr", "fingerprint", "audio_decode",
-        "aborted_by_user", "ingest_mapping", "ingest_no_mp4",
+        "asr",
+        "fingerprint",
+        "audio_decode",
+        "aborted_by_user",
+        "ingest_mapping",
+        "ingest_no_mp4",
     ]
     failure_reason: str
     last_attempt_at: datetime
@@ -533,6 +555,7 @@ class RetryManifestEntry(BaseModel):
 # ---------------------------------------------------------------------------
 # spec 017 E-1: UnifiedIngestSummary
 # ---------------------------------------------------------------------------
+
 
 class UnifiedIngestSummary(BaseModel):
     """Full result of a single collect ingest command invocation.

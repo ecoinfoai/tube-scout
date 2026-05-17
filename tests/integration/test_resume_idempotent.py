@@ -64,7 +64,7 @@ def test_resume_yields_only_unfinished(tmp_path: Path) -> None:
     finalize_run(run_id, db, "completed")
 
     conn = sqlite3.connect(str(db))
-    done = conn.execute(
+    conn.execute(
         "SELECT pair_count_done FROM pair_checkpoint WHERE run_id=?", (run_id,)
     ).fetchone()
     conn.close()

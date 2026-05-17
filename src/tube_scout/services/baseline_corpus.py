@@ -105,8 +105,16 @@ def bootstrap_baseline(
                     "(professor_id, phrase_normalized, phrase_raw, occurrences, "
                     " source_video_ids, seeded, registered_at, registered_by) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (professor_id, norm, raw, occurrence_count,
-                     source_ids_json, 1, _now(), registered_by),
+                    (
+                        professor_id,
+                        norm,
+                        raw,
+                        occurrence_count,
+                        source_ids_json,
+                        1,
+                        _now(),
+                        registered_by,
+                    ),
                 )
                 phrases_added += 1
                 if len(sample_phrases) < 5:
@@ -183,8 +191,16 @@ def add_baseline_phrase(
                 "(professor_id, phrase_normalized, phrase_raw, occurrences, "
                 " source_video_ids, seeded, registered_at, registered_by) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (professor_id, norm, phrase_raw, 1,
-                 source_ids_json, 0, _now(), registered_by),
+                (
+                    professor_id,
+                    norm,
+                    phrase_raw,
+                    1,
+                    source_ids_json,
+                    0,
+                    _now(),
+                    registered_by,
+                ),
             )
             occurrences = 1
             seeded = False
@@ -242,14 +258,16 @@ def list_baseline(professor_id: str | None, db_path: Path) -> list[BaselinePhras
             ids = json.loads(row[4]) if row[4] else []
         except (json.JSONDecodeError, TypeError):
             ids = []
-        result.append(BaselinePhrase(
-            professor_id=row[0],
-            phrase_normalized=row[1],
-            phrase_raw=row[2],
-            occurrences=row[3],
-            source_video_ids=ids,
-            seeded=bool(row[5]),
-        ))
+        result.append(
+            BaselinePhrase(
+                professor_id=row[0],
+                phrase_normalized=row[1],
+                phrase_raw=row[2],
+                occurrences=row[3],
+                source_video_ids=ids,
+                seeded=bool(row[5]),
+            )
+        )
     return result
 
 

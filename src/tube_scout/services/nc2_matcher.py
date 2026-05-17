@@ -74,9 +74,7 @@ def _source_type_pair(a: str, b: str) -> str:
     Returns:
         Hyphen-joined ordered label.
     """
-    return "-".join(
-        sorted([a, b], key=lambda t: _SOURCE_TYPE_PRIORITY.get(t, 99))
-    )
+    return "-".join(sorted([a, b], key=lambda t: _SOURCE_TYPE_PRIORITY.get(t, 99)))
 
 
 def _audio_fp_metrics(
@@ -115,6 +113,7 @@ def _audio_fp_metrics(
             best_alignment_hamming,
             decode_fingerprint_to_array,
         )
+
         src_arr = decode_fingerprint_to_array(src_fp_b64)
         tgt_arr = decode_fingerprint_to_array(tgt_fp_b64)
     except Exception:
@@ -293,10 +292,12 @@ def _persist_match_spans_for_pair(
     baseline_norms = {p.phrase_normalized for p in baseline_phrases}
 
     marked = [
-        s.model_copy(update={
-            "baseline_subtracted": normalize_phrase(s.matched_text_sample)
-            in baseline_norms
-        })
+        s.model_copy(
+            update={
+                "baseline_subtracted": normalize_phrase(s.matched_text_sample)
+                in baseline_norms
+            }
+        )
         for s in spans
     ]
     insert_match_spans(comparison_id, marked, db_path)
@@ -372,7 +373,8 @@ def generate_nc2_pairs(
 ) -> list[CandidatePair] | Iterator[VideoPairRef]:
     """Generate nC2 pairs — dispatches to spec 011 or spec 013 implementation.
 
-    spec 011 call (positional): generate_nc2_pairs(professor_id, db_path, captions_dir, threshold)
+    spec 011 call (positional):
+        generate_nc2_pairs(professor_id, db_path, captions_dir, threshold)
     spec 013 call (keyword): generate_nc2_pairs(professor, db, layer_a_min_seconds=N)
 
     Args:
@@ -386,10 +388,15 @@ def generate_nc2_pairs(
         list[CandidatePair] for spec 011, Iterator[VideoPairRef] for spec 013.
     """
     from tube_scout.storage.content_db import ContentDB as _ContentDB
+
     if isinstance(db_path, _ContentDB):
         min_s = 30.0 if layer_a_min_seconds is None else layer_a_min_seconds
-        return _generate_nc2_pairs_v013(professor_id, db_path, layer_a_min_seconds=min_s)
-    return _generate_nc2_candidate_pairs(professor_id, db_path, captions_dir, cosine_cull_threshold)
+        return _generate_nc2_pairs_v013(
+            professor_id, db_path, layer_a_min_seconds=min_s
+        )
+    return _generate_nc2_candidate_pairs(
+        professor_id, db_path, captions_dir, cosine_cull_threshold
+    )
 
 
 def _generate_nc2_candidate_pairs(
@@ -420,7 +427,9 @@ def _generate_nc2_candidate_pairs(
     if not isinstance(db_path, Path):
         raise TypeError(f"db_path must be a Path, got {type(db_path).__name__}")
     if captions_dir is not None and not isinstance(captions_dir, Path):
-        raise TypeError(f"captions_dir must be a Path, got {type(captions_dir).__name__}")
+        raise TypeError(
+            f"captions_dir must be a Path, got {type(captions_dir).__name__}"
+        )
 
     try:
         pool = get_caption_pool(professor_id, db_path)
@@ -511,8 +520,14 @@ def _generate_nc2_pairs_v013(
 
     # Build list of (video_id, duration) from rows
     videos: list[tuple[str, float]] = [
-        (row[0] if isinstance(row, (list, tuple)) else row["video_id"],
-         float(row[1] if isinstance(row, (list, tuple)) else row["duration_seconds"] or 0.0))
+        (
+            row[0] if isinstance(row, (list, tuple)) else row["video_id"],
+            float(
+                row[1]
+                if isinstance(row, (list, tuple))
+                else row["duration_seconds"] or 0.0
+            ),
+        )
         for row in rows
     ]
 
@@ -576,7 +591,9 @@ def run_nc2_analysis(
 
     t0 = time.monotonic()
 
-    all_pairs = list(generate_nc2_pairs(professor, db, layer_a_min_seconds=layer_a_min_seconds))
+    all_pairs = list(
+        generate_nc2_pairs(professor, db, layer_a_min_seconds=layer_a_min_seconds)
+    )
     total_pairs_generated = len(all_pairs)
     # Layer A already applied inside generate_nc2_pairs; culled = all - generated
     # We need raw count to compute culled. Get raw pair count from cartesian.
@@ -730,4 +747,5 @@ def run_nc2_analysis(
 
 def _now_iso() -> str:
     from datetime import UTC, datetime
+
     return datetime.now(UTC).isoformat()

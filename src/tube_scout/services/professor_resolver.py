@@ -76,7 +76,8 @@ def map_professor(
         )
         conn.execute(
             "INSERT OR IGNORE INTO professor_pool_membership "
-            "(professor_id, channel_alias, author_marker, registered_at, registered_by) "
+            "(professor_id, channel_alias, author_marker, registered_at, "
+            "registered_by) "
             "VALUES (?, ?, ?, ?, ?)",
             (professor_id, channel_alias, author_marker, now, registered_by),
         )
