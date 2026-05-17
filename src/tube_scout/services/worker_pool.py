@@ -48,6 +48,40 @@ def _ensure_wal_mode(db_path: Path) -> None:
         conn.execute("PRAGMA busy_timeout=30000;")
 
 
+def _resolve_device_and_compute_type(compute_type: str) -> tuple[str, str]:
+    """Resolve ASR device + compute_type for the current host.
+
+    Honors ``TUBE_SCOUT_ASR_DEVICE`` env override (``cuda`` or ``cpu``).
+    Otherwise auto-detects: presence of ``nvidia-smi`` and a non-empty
+    ``CUDA_VISIBLE_DEVICES`` => ``cuda``; else ``cpu``. When CPU is
+    selected, ``float16`` is silently downgraded to ``int8`` because
+    CTranslate2 does not support float16 on CPU.
+
+    Args:
+        compute_type: Requested compute type (e.g. ``float16``, ``int8``).
+
+    Returns:
+        Tuple of ``(device, compute_type)``. ``device`` is one of
+        ``"cuda"`` or ``"cpu"``.
+    """
+    import shutil
+
+    explicit = os.environ.get("TUBE_SCOUT_ASR_DEVICE")
+    if explicit in ("cuda", "cpu"):
+        device = explicit
+    elif (
+        shutil.which("nvidia-smi") is None
+        or os.environ.get("CUDA_VISIBLE_DEVICES") == ""
+    ):
+        device = "cpu"
+    else:
+        device = "cuda"
+
+    if device == "cpu" and compute_type == "float16":
+        compute_type = "int8"
+    return device, compute_type
+
+
 def _atomic_claim(db_path: Path, *, retry_failed: bool = False) -> str | None:
     """Atomically claim one unclaimed row from processing_status.
 
@@ -157,6 +191,8 @@ def run_asr_worker(
         transcript_path = transcripts_dir / f"{video_id}.json"
         ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
 
+        device, resolved_compute_type = _resolve_device_and_compute_type(compute_type)
+
         try:
             with WavLifecycle(mp4_path, audio_cache_dir, video_id, keep=keep_audio) as wav_path:
                 from tube_scout.services.audio_extract import extract_wav_16k_mono
@@ -165,9 +201,9 @@ def run_asr_worker(
                 result = transcribe_audio(
                     wav_path,
                     model_size=model_size,
-                    compute_type=compute_type,
-                    device="cuda",
-                    device_index=device_index,
+                    compute_type=resolved_compute_type,
+                    device=device,
+                    device_index=device_index if device == "cuda" else 0,
                     language=language,
                 )
 
