@@ -145,22 +145,24 @@ def test_retry_followup_max_attempts_excluded_from_priority(tmp_path: Path) -> N
 
     over_max = RetryManifestEntry(
         video_id="overMaxVid001",
+        mp4_filename=None,
         title="한도 초과 영상",
-        failed_stage="transcript",
+        failed_stage="asr",
         failure_reason="model_loading_failed",
         last_attempt_at=NOW,
         attempt_count=5,
     )
     under_max = RetryManifestEntry(
         video_id="underMaxVid01",
+        mp4_filename=None,
         title="재시도 가능 영상",
-        failed_stage="transcript",
+        failed_stage="asr",
         failure_reason="model_loading_failed",
         last_attempt_at=NOW,
         attempt_count=3,
     )
     manifest = RetryManifest(
-        schema_version=1,
+        schema_version=2,
         alias=_ALIAS,
         updated_at=NOW,
         entries=[over_max, under_max],

@@ -365,25 +365,48 @@ def select_retry_targets(
     *,
     max_attempts: int = 5,
     stage: str | None = None,
+    overflow_path: Path | None = None,
 ) -> list[str | None]:
     """Return video_ids eligible for automated retry.
 
     Excludes entries where attempt_count >= max_attempts (operator must intervene).
     Each (video_id, mp4_filename, stage) triple is evaluated independently.
+    Expired entries (attempt_count >= max_attempts) are written to overflow_path
+    as a JSON manifest for operator review (ADV-54).
 
     Args:
         manifest: Current retry manifest.
         max_attempts: Entries at or above this count are excluded.
         stage: If provided, only return entries matching this stage.
+        overflow_path: If provided, write expired entries here as JSON.
 
     Returns:
         List of video_id values (may include None for unmapped entries).
     """
     result = []
+    expired: list[RetryManifestEntry] = []
     for e in manifest.entries:
         if e.attempt_count >= max_attempts:
+            expired.append(e)
             continue
         if stage is not None and e.failed_stage != stage:
             continue
         result.append(e.video_id)
+
+    if expired and overflow_path is not None:
+        overflow_manifest = RetryManifest(
+            schema_version=_SCHEMA_VERSION,
+            alias=manifest.alias,
+            updated_at=manifest.updated_at,
+            entries=expired,
+        )
+        try:
+            overflow_path.parent.mkdir(parents=True, exist_ok=True)
+            overflow_path.write_text(
+                json.dumps(overflow_manifest.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            _logger.warning("Could not write overflow manifest to %s: %s", overflow_path, exc)
+
     return result
