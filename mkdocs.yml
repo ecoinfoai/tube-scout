@@ -1,5 +1,8 @@
 site_name: Tube Scout
-site_description: YouTube lecture-video analytics — collect, analyze, and report on lecture content from a single channel.
+site_description: >-
+  A toolkit for university lecture-video pipelines: cross-faculty duplication
+  detection, transcript-driven CQI support, and YouTube caption extraction
+  for downstream data consumers.
 site_url: https://ecoinfoai.github.io/tube-scout/
 repo_url: https://github.com/ecoinfoai/tube-scout
 repo_name: ecoinfoai/tube-scout
@@ -33,8 +36,11 @@ theme:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
+  - Use cases:
+      - Duplication detection: use-cases/01-duplication-detection.md
+      - CQI support: use-cases/02-cqi-support.md
+      - Caption extraction: use-cases/03-caption-extraction.md
   - Tutorial: tutorial.md
-  - For Educators: for-new-teachers.md
 
 markdown_extensions:
   - admonition

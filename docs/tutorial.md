@@ -249,15 +249,17 @@ tube-scout analyze eqs [--video-id VIDEO_ID] [--data-dir ./data]
 
 The RACED 5-axis evaluation:
 
-| Korean | English | Description | Range |
-|--------|---------|-------------|-------|
-| 관련성 | Relevance | Alignment with the learning goal | 0.0–1.0 |
-| 정확성 | Accuracy | Factual correctness | 0.0–1.0 |
-| 명료성 | Clarity | Ease of understanding | 0.0–1.0 |
-| 참여도 | Engagement | Holds student attention | 0.0–1.0 |
-| 깊이 | Depth | Topic coverage | 0.0–1.0 |
+| Axis | Description | Range |
+|------|-------------|-------|
+| Relevance | Alignment with the learning goal | 0.0–1.0 |
+| Accuracy | Factual correctness | 0.0–1.0 |
+| Clarity | Ease of understanding | 0.0–1.0 |
+| Engagement | Holds student attention | 0.0–1.0 |
+| Depth | Topic coverage | 0.0–1.0 |
 
-The **Overall** score is a weighted average of the five axes.
+The **Overall** score is a weighted average of the five axes. The
+operator-facing UI renders each axis label in Korean — that mapping
+is part of the runtime UI, not the docs.
 
 ### `analyze forecast` — time-series forecast
 
