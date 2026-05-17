@@ -1,6 +1,6 @@
 # Project directories (local only)
-# idea/
-# specs/
+idea/
+specs/
 projects/
 project/
 data/
@@ -9,6 +9,9 @@ output/
 results/
 _workspace/
 _archive/
+
+# Internal incident reports (local only — external comms policy)
+docs/incidents/
 
 # Python
 __pycache__/
