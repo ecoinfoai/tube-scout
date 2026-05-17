@@ -2635,9 +2635,12 @@ def collect_ingest_command(
         None,
         "--preset",
         help=(
-            "ASR preset — poc-laptop / prod-a6000 / prod-a6000-pool / cpu-fallback. "
+            "ASR preset — gpu-quantized / gpu-native / gpu-pool / cpu. "
             "미지정 시 TUBE_SCOUT_ASR_PRESET 환경변수, 그것도 없으면 "
-            "GPU VRAM 자동 감지(≥8GiB → poc-laptop, 그 외 → cpu-fallback)."
+            "GPU 자동 감지(<4GiB → cpu, 4-16GiB → gpu-quantized, "
+            "≥16GiB 단일 → gpu-native, ≥16GiB 멀티 → gpu-pool). "
+            "이전 이름(poc-laptop/prod-a6000/prod-a6000-pool/cpu-fallback)도 "
+            "별칭으로 계속 동작합니다."
         ),
     ),
 ) -> None:

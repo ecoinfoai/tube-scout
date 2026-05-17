@@ -22,23 +22,85 @@ ComputeType = Literal["float32", "float16", "int8_float16", "int8"]
 Device = Literal["cuda", "cpu"]
 
 PRESET_TABLE: dict[str, dict[str, str | int | None]] = {
-    "poc-laptop":      {"model": "large-v3", "compute_type": "int8_float16", "device": "cuda", "device_index": 0},
-    "prod-a6000":      {"model": "large-v3", "compute_type": "float16",      "device": "cuda", "device_index": 0},
-    "prod-a6000-pool": {"model": "large-v3", "compute_type": "float16",      "device": "cuda", "device_index": None},
-    "cpu-fallback":    {"model": "medium",   "compute_type": "int8",         "device": "cpu",  "device_index": 0},
+    "gpu-quantized": {"model": "large-v3", "compute_type": "int8_float16", "device": "cuda", "device_index": 0},
+    "gpu-native":    {"model": "large-v3", "compute_type": "float16",      "device": "cuda", "device_index": 0},
+    "gpu-pool":      {"model": "large-v3", "compute_type": "float16",      "device": "cuda", "device_index": None},
+    "cpu":           {"model": "medium",   "compute_type": "int8",         "device": "cpu",  "device_index": 0},
+}
+
+# Backward-compat aliases for preset names. Released as 0.6.0 with the old
+# machine/role-tagged keys; rename here keeps existing CLI invocations and
+# `TUBE_SCOUT_ASR_PRESET` env values working transparently until a deprecation
+# window expires.
+PRESET_ALIASES: dict[str, str] = {
+    "poc-laptop":      "gpu-quantized",
+    "prod-a6000":      "gpu-native",
+    "prod-a6000-pool": "gpu-pool",
+    "cpu-fallback":    "cpu",
 }
 
 # Environment variable that overrides preset auto-detection when --preset is
 # not passed on the command line. Operator-level shell rc setting.
 ENV_ASR_PRESET = "TUBE_SCOUT_ASR_PRESET"
 
-# GPU VRAM threshold (GiB) above which large-v3 models are considered safe
-# to load. Below this we fall back to medium+cpu so OOM does not silently
-# kill every video in the batch. Calibrated against the spec 018 implementation
-# baseline ("RTX 3060 + 9 mp4 fresh = 14m42s") where large-v3 + int8_float16
-# fits a 6 GiB card under standard load, so 4 GiB is a safer threshold than
-# the prior 8 GiB which forced laptop-class GPUs into the slow CPU path.
-_GPU_VRAM_SAFE_THRESHOLD_GIB: float = 4.0
+# GPU VRAM threshold (GiB) above which large-v3 fits a single card with the
+# native float16 compute_type. Below this we still use a GPU but with the
+# int8_float16 quantized preset to stay inside VRAM budgets. Below the lower
+# threshold we drop to CPU.
+_GPU_VRAM_NATIVE_THRESHOLD_GIB: float = 16.0
+_GPU_VRAM_QUANTIZED_THRESHOLD_GIB: float = 4.0
+
+
+def _canonical_preset(name: str) -> str:
+    """Return the canonical preset name, translating any deprecated alias.
+
+    Args:
+        name: Preset name as supplied by CLI flag, env variable, or caller.
+
+    Returns:
+        Canonical name (key of :data:`PRESET_TABLE`) if input matched a
+        current key or a known alias; otherwise the input unchanged so that
+        downstream validation can raise with the original spelling.
+    """
+    if name in PRESET_TABLE:
+        return name
+    return PRESET_ALIASES.get(name, name)
+
+
+def _detect_gpu_count() -> int:
+    """Return the visible CUDA GPU count, or 0 if no CUDA runtime is available.
+
+    Used to upgrade :func:`resolve_preset` to ``gpu-pool`` when more than one
+    workstation-class GPU is present.
+
+    Returns:
+        Number of GPUs visible to torch.cuda or nvidia-smi; 0 when neither
+        path reports a GPU.
+    """
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return int(torch.cuda.device_count())
+    except Exception:
+        pass
+
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=count", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            # nvidia-smi returns one line per GPU; count returns each GPU's
+            # idx field which equals the total count when summed across rows.
+            return len(out.stdout.strip().splitlines())
+    except Exception:
+        pass
+
+    return 0
 
 
 @dataclass(frozen=True)
@@ -124,49 +186,83 @@ def resolve_preset(
     env_map = env if env is not None else os.environ
 
     if explicit_preset:
-        if explicit_preset not in PRESET_TABLE:
+        canon = _canonical_preset(explicit_preset)
+        if canon not in PRESET_TABLE:
             raise ValueError(
                 f"Unknown ASR preset {explicit_preset!r}. "
                 f"Valid: {sorted(PRESET_TABLE.keys())}."
             )
         return PresetResolution(
-            preset_name=explicit_preset,
+            preset_name=canon,
             source="explicit",
-            rationale=f"--preset {explicit_preset}",
+            rationale=(
+                f"--preset {canon}" if canon == explicit_preset
+                else f"--preset {explicit_preset} → {canon}"
+            ),
         )
 
     env_value = env_map.get(ENV_ASR_PRESET)
     if env_value:
-        if env_value not in PRESET_TABLE:
+        canon = _canonical_preset(env_value)
+        if canon not in PRESET_TABLE:
             raise ValueError(
                 f"Environment {ENV_ASR_PRESET}={env_value!r} is not a known "
                 f"preset. Valid: {sorted(PRESET_TABLE.keys())}."
             )
         return PresetResolution(
-            preset_name=env_value,
+            preset_name=canon,
             source="env",
-            rationale=f"{ENV_ASR_PRESET}={env_value}",
+            rationale=(
+                f"{ENV_ASR_PRESET}={canon}" if canon == env_value
+                else f"{ENV_ASR_PRESET}={env_value} → {canon}"
+            ),
         )
 
     vram = _detect_gpu_vram_gib()
     if vram is None:
         return PresetResolution(
-            preset_name="cpu-fallback",
+            preset_name="cpu",
             source="auto",
             rationale="no CUDA GPU detected",
         )
-    if vram >= _GPU_VRAM_SAFE_THRESHOLD_GIB:
+    if vram < _GPU_VRAM_QUANTIZED_THRESHOLD_GIB:
         return PresetResolution(
-            preset_name="poc-laptop",
+            preset_name="cpu",
             source="auto",
-            rationale=f"GPU has {vram:.1f} GiB (>= {_GPU_VRAM_SAFE_THRESHOLD_GIB} GiB)",
+            rationale=(
+                f"GPU has {vram:.1f} GiB (< {_GPU_VRAM_QUANTIZED_THRESHOLD_GIB} GiB) — "
+                "even quantized large-v3 would OOM"
+            ),
+        )
+    if vram < _GPU_VRAM_NATIVE_THRESHOLD_GIB:
+        return PresetResolution(
+            preset_name="gpu-quantized",
+            source="auto",
+            rationale=(
+                f"GPU has {vram:.1f} GiB "
+                f"(>= {_GPU_VRAM_QUANTIZED_THRESHOLD_GIB} GiB, "
+                f"< {_GPU_VRAM_NATIVE_THRESHOLD_GIB} GiB) — "
+                "int8_float16 fits, float16 would not"
+            ),
+        )
+    gpu_count = _detect_gpu_count()
+    if gpu_count > 1:
+        return PresetResolution(
+            preset_name="gpu-pool",
+            source="auto",
+            rationale=(
+                f"{gpu_count} GPUs detected, GPU 0 has {vram:.1f} GiB "
+                f"(>= {_GPU_VRAM_NATIVE_THRESHOLD_GIB} GiB) — "
+                "native float16 with multi-GPU pool"
+            ),
         )
     return PresetResolution(
-        preset_name="cpu-fallback",
+        preset_name="gpu-native",
         source="auto",
         rationale=(
-            f"GPU has {vram:.1f} GiB (< {_GPU_VRAM_SAFE_THRESHOLD_GIB} GiB) — "
-            "large-v3 would OOM"
+            f"GPU has {vram:.1f} GiB "
+            f"(>= {_GPU_VRAM_NATIVE_THRESHOLD_GIB} GiB) — "
+            "native float16 on single GPU"
         ),
     )
 
@@ -174,21 +270,25 @@ def resolve_preset(
 def preset_kwargs(preset_name: str) -> dict[str, str | int]:
     """Return ``transcribe_audio`` kwargs for a preset name.
 
+    Accepts either a current canonical name from :data:`PRESET_TABLE` or a
+    deprecated alias from :data:`PRESET_ALIASES`.
+
     Args:
-        preset_name: One of :data:`PRESET_TABLE` keys.
+        preset_name: One of :data:`PRESET_TABLE` keys (or an alias).
 
     Returns:
         Dict ready to splat into :func:`transcribe_audio` — keys
         ``model_size``, ``compute_type``, ``device``, ``device_index``.
 
     Raises:
-        KeyError: ``preset_name`` not in :data:`PRESET_TABLE`.
+        KeyError: ``preset_name`` not in :data:`PRESET_TABLE` or aliases.
     """
-    if preset_name not in PRESET_TABLE:
+    canon = _canonical_preset(preset_name)
+    if canon not in PRESET_TABLE:
         raise KeyError(
             f"Unknown preset {preset_name!r}. Valid: {sorted(PRESET_TABLE.keys())}."
         )
-    p = PRESET_TABLE[preset_name]
+    p = PRESET_TABLE[canon]
     device_index = p["device_index"]
     return {
         "model_size": str(p["model"]),
