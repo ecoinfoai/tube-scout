@@ -22,20 +22,24 @@ def test_stage_fieldnames_has_8_entries() -> None:
     assert len(STAGE_FIELDNAMES) == len(spec013_keys) + len(spec017_keys)
 
 
-def test_append_row_rejects_unknown_stage(tmp_path: Path) -> None:
-    """append_row must raise KeyError for stage not in STAGE_FIELDNAMES."""
+def test_append_row_unknown_stage_logged_not_raised(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """append_row must log a warning and NOT raise for unknown stage (ADV-59 graceful)."""
+    import logging
     writer = AuditWriter(tmp_path)
-    with pytest.raises(KeyError):
+    with caplog.at_level(logging.WARNING, logger="tube_scout.services.audit_writer"):
         writer.append_row("nonexistent_stage", {"result": "success", "reason": "ok"})
+    assert any("nonexistent_stage" in r.message for r in caplog.records)
 
 
-def test_append_row_rejects_invalid_result(tmp_path: Path) -> None:
-    """append_row must raise ValueError when result not in VALID_RESULTS."""
+def test_append_row_invalid_result_logged_not_raised(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    """append_row must log a warning and NOT raise for invalid result (ADV-59 graceful)."""
+    import logging
     writer = AuditWriter(tmp_path)
     row = {k: "x" for k in STAGE_FIELDNAMES["transcripts"]}
     row["result"] = "bad_result"
-    with pytest.raises(ValueError, match="result"):
+    with caplog.at_level(logging.WARNING, logger="tube_scout.services.audit_writer"):
         writer.append_row("transcripts", row)
+    assert any("bad_result" in r.message or "result" in r.message for r in caplog.records)
 
 
 def test_append_row_drops_extra_keys(tmp_path: Path) -> None:
