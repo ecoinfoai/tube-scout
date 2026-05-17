@@ -5,7 +5,6 @@ Ref: data-model.md §E-9.
 
 import json
 
-import pytest
 from pydantic import BaseModel
 
 from tube_scout.models.content import AsrQualityFlags

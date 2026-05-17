@@ -36,7 +36,12 @@ def _setup_v4_db_with_videos(tmp_path: Path) -> Path:
     """Create v4 DB with 9 videos and professor pool."""
     db_path = tmp_path / "content_reuse.db"
 
-    from tube_scout.storage.content_db import ContentDB, migrate_to_v2, migrate_to_v3, _ensure_v4
+    from tube_scout.storage.content_db import (
+        ContentDB,
+        _ensure_v4,
+        migrate_to_v2,
+        migrate_to_v3,
+    )
     ContentDB(db_path).close()
     migrate_to_v2(db_path)
     migrate_to_v3(db_path)

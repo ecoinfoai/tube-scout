@@ -10,10 +10,7 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from tube_scout.services.unified_ingest import _persist_transcript
-
 
 EXPECTED_TOP_LEVEL_KEYS = frozenset({
     "video_id", "source", "language", "duration",

@@ -7,14 +7,18 @@ from pathlib import Path
 
 import pytest
 
-
 _PROFESSOR = "test-prof-T078"
 _CHANNEL = "test-channel-T078"
 _VIDEO_IDS = [f"REPT078{i:03d}" for i in range(1, 10)]  # 9 videos → C(9,2)=36 pairs
 
 
 def _setup_db(db_path: Path) -> None:
-    from tube_scout.storage.content_db import ContentDB, migrate_to_v2, migrate_to_v3, _ensure_v4
+    from tube_scout.storage.content_db import (
+        ContentDB,
+        _ensure_v4,
+        migrate_to_v2,
+        migrate_to_v3,
+    )
 
     ContentDB(db_path).close()
     migrate_to_v2(db_path)
@@ -59,7 +63,9 @@ def _setup_db(db_path: Path) -> None:
 @pytest.mark.slow
 def test_nc2_report_html_generated(tmp_path: Path) -> None:
     """36 pairs → render HTML → file exists and pair_count == 36."""
-    from tube_scout.reporting.professor_nc2 import AppendixThresholds, render_professor_nc2_report
+    from tube_scout.reporting.professor_nc2 import (
+        render_professor_nc2_report,
+    )
     from tube_scout.storage.content_db import ContentDB
 
     db_path = tmp_path / "reuse.db"
@@ -88,7 +94,10 @@ def test_nc2_report_html_generated(tmp_path: Path) -> None:
 @pytest.mark.slow
 def test_nc2_report_appendix_threshold_filters_pairs(tmp_path: Path) -> None:
     """Setting i2_cosine threshold → only pairs above threshold enter appendix."""
-    from tube_scout.reporting.professor_nc2 import AppendixThresholds, render_professor_nc2_report
+    from tube_scout.reporting.professor_nc2 import (
+        AppendixThresholds,
+        render_professor_nc2_report,
+    )
     from tube_scout.storage.content_db import ContentDB
 
     db_path = tmp_path / "reuse.db"
@@ -117,7 +126,9 @@ def test_nc2_report_appendix_threshold_filters_pairs(tmp_path: Path) -> None:
 @pytest.mark.slow
 def test_nc2_report_html_no_forbidden_tokens(tmp_path: Path) -> None:
     """SC-007 regression in rendered HTML: no definitive-verdict tokens."""
-    from tube_scout.reporting.professor_nc2 import AppendixThresholds, render_professor_nc2_report
+    from tube_scout.reporting.professor_nc2 import (
+        render_professor_nc2_report,
+    )
     from tube_scout.storage.content_db import ContentDB
 
     db_path = tmp_path / "reuse.db"
@@ -144,7 +155,9 @@ def test_nc2_report_html_no_forbidden_tokens(tmp_path: Path) -> None:
 @pytest.mark.slow
 def test_nc2_report_audio_fp_columns_in_top_pairs(tmp_path: Path) -> None:
     """G1/G2: audio_fp_hamming and source_type_pair are present in top_pairs data."""
-    from tube_scout.reporting.professor_nc2 import AppendixThresholds, render_professor_nc2_report, ReportResult
+    from tube_scout.reporting.professor_nc2 import (
+        render_professor_nc2_report,
+    )
     from tube_scout.storage.content_db import ContentDB
 
     db_path = tmp_path / "reuse.db"
@@ -176,7 +189,9 @@ def test_nc2_report_pdf_generated_if_weasyprint_available(tmp_path: Path) -> Non
     """PDF output created when weasyprint extra is installed."""
     pytest.importorskip("weasyprint", reason="weasyprint not installed — skip PDF test")
 
-    from tube_scout.reporting.professor_nc2 import AppendixThresholds, render_professor_nc2_report
+    from tube_scout.reporting.professor_nc2 import (
+        render_professor_nc2_report,
+    )
     from tube_scout.storage.content_db import ContentDB
 
     db_path = tmp_path / "reuse.db"

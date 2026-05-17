@@ -106,9 +106,9 @@ def test_decode_fingerprint_to_uint32_array() -> None:
     numpy = pytest.importorskip("numpy")
     pytest.importorskip("chromaprint")
 
-    from tube_scout.services.audio_fingerprint import decode_fingerprint_to_array
-
     import re
+
+    from tube_scout.services.audio_fingerprint import decode_fingerprint_to_array
 
     fixture_path = Path(__file__).parent.parent / "fixtures" / "spec012" / "spike_fp_v1.txt"
     fp_text = fixture_path.read_text()

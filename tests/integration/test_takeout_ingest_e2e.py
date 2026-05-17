@@ -11,8 +11,6 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 FIXTURE_TAKEOUT = Path(__file__).parent.parent / "fixtures" / "takeout_sample" / "Takeout"
 
 
@@ -197,8 +195,9 @@ def test_e2e_dry_run_no_db(tmp_path: Path) -> None:
 
 def test_e2e_json_files_written(tmp_path: Path) -> None:
     """After ingest, channel_meta.json and videos_meta.json are written."""
-    from tube_scout.services.takeout_ingest import ingest_takeout
     import json
+
+    from tube_scout.services.takeout_ingest import ingest_takeout
 
     db_path = tmp_path / "content_reuse.db"
     work_root = tmp_path / "data"

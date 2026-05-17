@@ -8,7 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from tube_scout.services.audit_writer import STAGE_FIELDNAMES, VALID_RESULTS, AuditWriter
+from tube_scout.services.audit_writer import (
+    STAGE_FIELDNAMES,
+    AuditWriter,
+)
 
 
 def test_stage_fieldnames_has_8_entries() -> None:

@@ -156,8 +156,8 @@ def _make_spans_for_classify(
 
 def test_classify_whole_same_week() -> None:
     """classify() returns WHOLE_SAME_WEEK for high I-6 ratio + same_week=True."""
+    from tube_scout.models.reuse_v2 import MatchSpan, ReusePatternLabel
     from tube_scout.services.pattern_classifier import classify
-    from tube_scout.models.reuse_v2 import ReusePatternLabel, MatchSpan
 
     # i6=2000, min_duration=2400: 2000/2400=0.833 >= 0.80 → whole
     comparison = _make_comparison(
@@ -184,8 +184,8 @@ def test_classify_whole_same_week() -> None:
 
 def test_classify_scattered_different_week() -> None:
     """classify() returns SCATTERED_DIFF_WEEK for low I-6 ratio + same_week=False."""
-    from tube_scout.services.pattern_classifier import classify
     from tube_scout.models.reuse_v2 import ReusePatternLabel
+    from tube_scout.services.pattern_classifier import classify
 
     comparison = _make_comparison(
         i6_longest_contiguous_seconds=200.0,  # 200/2400 = 0.083 < 0.80 → scattered
@@ -207,8 +207,8 @@ def test_classify_re_recorded_same_content_when_audio_differs() -> None:
     """classify() returns RE_RECORDED_SAME_CONTENT when audio fp hamming > threshold
     and i2 cosine >= 0.85 and i6 covers >= 50% of shorter duration.
     """
-    from tube_scout.services.pattern_classifier import classify
     from tube_scout.models.reuse_v2 import ReusePatternLabel
+    from tube_scout.services.pattern_classifier import classify
 
     # i6 = 1300 / 2000 = 0.65 >= 0.50 → qualifies for override
     # i2 >= 0.85 → qualifies
@@ -238,8 +238,8 @@ def test_classify_tail_update_when_i8_drops() -> None:
     Creates spans covering 9 out of 10 bins in the first half (i8_first≈0.9)
     and no spans in the second half (i8_second=0.0).
     """
+    from tube_scout.models.reuse_v2 import MatchSpan, ReusePatternLabel
     from tube_scout.services.pattern_classifier import classify
-    from tube_scout.models.reuse_v2 import ReusePatternLabel, MatchSpan
 
     # 9 spans spread across the first 500 s of a 1000 s video (bins 0-8 of 10)
     # each span covers 40s, placed at 40s intervals → 9 bins out of 10 in first half

@@ -71,8 +71,8 @@ def _make_asr_result() -> MagicMock:
 
 def test_process_audio_wav_deleted_after_processing(tmp_path: Path) -> None:
     """C-1: WAV file is deleted after per-video processing (keep_audio=False)."""
-    from tube_scout.cli.collect import collect_process_audio_command
     from typer.testing import CliRunner
+
     from tube_scout.cli.main import app
 
     channel = "test-ch"
@@ -142,6 +142,7 @@ def test_process_audio_keep_audio_flag(tmp_path: Path) -> None:
     asr_result = _make_asr_result()
 
     from typer.testing import CliRunner
+
     from tube_scout.cli.main import app
 
     runner = CliRunner()
@@ -186,6 +187,7 @@ def test_process_audio_skip_asr(tmp_path: Path) -> None:
     asr_mock = MagicMock()
 
     from typer.testing import CliRunner
+
     from tube_scout.cli.main import app
 
     runner = CliRunner()
@@ -230,6 +232,7 @@ def test_process_audio_transcript_json_written(tmp_path: Path) -> None:
     asr_result = _make_asr_result()
 
     from typer.testing import CliRunner
+
     from tube_scout.cli.main import app
 
     runner = CliRunner()

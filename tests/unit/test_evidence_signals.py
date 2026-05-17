@@ -18,8 +18,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 def _make_ffprobe_result(duration: float = 3600.0) -> MagicMock:
     proc = MagicMock(spec=subprocess.CompletedProcess)
@@ -215,7 +213,7 @@ def test_mtime_match_within_1d(tmp_path: Path) -> None:
     mp4.write_bytes(b"\x00" * 100)
 
     # Set mtime to now
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     # created_at 12 hours ago — within 1 day
     created_at = now - datetime.timedelta(hours=12)
 
@@ -233,7 +231,7 @@ def test_mtime_match_outside_1d(tmp_path: Path) -> None:
     mp4 = tmp_path / "test.mp4"
     mp4.write_bytes(b"\x00" * 100)
 
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     created_at = now - datetime.timedelta(days=30)  # 30 days ago
 
     import os

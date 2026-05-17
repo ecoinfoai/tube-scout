@@ -14,14 +14,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # _build_ingest_sigint_handler must be importable from unified_ingest
 # ---------------------------------------------------------------------------
 
 def test_build_ingest_sigint_handler_importable() -> None:
     """_build_ingest_sigint_handler must be exported from unified_ingest (F-11 API)."""
-    from tube_scout.services.unified_ingest import _build_ingest_sigint_handler  # noqa: F401
+    from tube_scout.services.unified_ingest import (
+        _build_ingest_sigint_handler,  # noqa: F401
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -88,10 +89,10 @@ def test_sigint_handler_writes_aborted_by_user_row(tmp_path: Path) -> None:
         f"audit row stage must be 'ingest_orchestrator', got {aborted[0][0]!r}"
     )
     assert aborted[0][1].get("video_id") == "vid0001", (
-        f"aborted_by_user row must contain the in-flight video_id"
+        "aborted_by_user row must contain the in-flight video_id"
     )
     assert aborted[0][1].get("result") == "fail", (
-        f"aborted_by_user row result must be 'fail'"
+        "aborted_by_user row result must be 'fail'"
     )
 
 
@@ -164,8 +165,8 @@ def test_sigint_handler_no_row_when_no_video_in_flight(tmp_path: Path) -> None:
 
 def test_original_sigint_handler_restored_after_run(tmp_path: Path) -> None:
     """Original SIGINT handler must be restored after _run_transcript_and_fingerprint returns."""
-    import sqlite3
     from unittest.mock import patch
+
     from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
 
     db_path = tmp_path / "test.db"

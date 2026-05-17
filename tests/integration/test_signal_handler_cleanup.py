@@ -16,7 +16,7 @@ import csv
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -45,7 +45,9 @@ def test_sigint_handler_cleans_audio_temp(tmp_path: Path) -> None:
     # Import the signal handler builder from collect.py
     # T042/T043 must expose a build_signal_handler(audio_temp, audit_writer, current_video_id)
     # function that returns the SIGINT/SIGTERM handler callable.
-    from tube_scout.cli.collect import build_signal_handler  # type: ignore[attr-defined]
+    from tube_scout.cli.collect import (
+        build_signal_handler,  # type: ignore[attr-defined]
+    )
 
     mock_audit = MagicMock()
     handler = build_signal_handler(
@@ -73,8 +75,10 @@ def test_sigint_handler_cleans_audio_temp(tmp_path: Path) -> None:
 
 def test_sigint_handler_writes_interrupted_audit_row(tmp_path: Path) -> None:
     """Signal handler must append audit row with reason='interrupted' for in-progress video."""
+    from tube_scout.cli.collect import (
+        build_signal_handler,  # type: ignore[attr-defined]
+    )
     from tube_scout.services.audit_writer import AuditWriter
-    from tube_scout.cli.collect import build_signal_handler  # type: ignore[attr-defined]
 
     audio_temp = tmp_path / "audio_temp"
     audio_temp.mkdir()

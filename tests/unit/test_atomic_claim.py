@@ -11,8 +11,6 @@ import sqlite3
 import threading
 from pathlib import Path
 
-import pytest
-
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS processing_status (
     video_id TEXT PRIMARY KEY,

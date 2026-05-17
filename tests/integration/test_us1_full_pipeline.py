@@ -18,7 +18,7 @@ import json
 import sqlite3
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -85,15 +85,17 @@ def _write_fake_transcripts(work_root: Path, video_ids: list[str]) -> None:
 @pytest.mark.slow
 def test_us1_full_pipeline(tmp_path: Path) -> None:
     """US1 full pipeline: Takeout ingest → audio process → nC2 analyze → report."""
-    from tube_scout.services.takeout_ingest import ingest_takeout
-    from tube_scout.services.professor_resolver import map_professor
-    from tube_scout.services.nc2_matcher import run_nc2_analysis
-    from tube_scout.reporting.professor_nc2 import AppendixThresholds, render_professor_nc2_report
-    from tube_scout.storage.content_db import (
-        ContentDB, insert_audio_fingerprint,
-        migrate_to_v2, migrate_to_v3, _ensure_v4,
+    from tube_scout.reporting.professor_nc2 import (
+        render_professor_nc2_report,
     )
     from tube_scout.services.audit_writer import AuditWriter
+    from tube_scout.services.nc2_matcher import run_nc2_analysis
+    from tube_scout.services.professor_resolver import map_professor
+    from tube_scout.services.takeout_ingest import ingest_takeout
+    from tube_scout.storage.content_db import (
+        ContentDB,
+        insert_audio_fingerprint,
+    )
 
     work_root = tmp_path / "data"
     work_root.mkdir()
@@ -132,7 +134,7 @@ def test_us1_full_pipeline(tmp_path: Path) -> None:
     db_obj = ContentDB(db_path)
     try:
         import datetime as _dt
-        ts = _dt.datetime.now(tz=_dt.timezone.utc).isoformat()
+        ts = _dt.datetime.now(tz=_dt.UTC).isoformat()
         fake_fp_bytes = b"\x00" * 128
         fake_fp_dur = 60.0
         for vid in video_ids:
@@ -248,11 +250,13 @@ def test_us1_full_pipeline(tmp_path: Path) -> None:
 @pytest.mark.slow
 def test_us1_pipeline_report_html_no_forbidden_tokens(tmp_path: Path) -> None:
     """SC-007: rendered US1 pipeline report HTML must not contain definitive-verdict tokens."""
-    from tube_scout.services.takeout_ingest import ingest_takeout
-    from tube_scout.services.professor_resolver import map_professor
+    from tube_scout.reporting.professor_nc2 import (
+        render_professor_nc2_report,
+    )
     from tube_scout.services.nc2_matcher import run_nc2_analysis
-    from tube_scout.reporting.professor_nc2 import AppendixThresholds, render_professor_nc2_report
-    from tube_scout.storage.content_db import ContentDB, insert_audio_fingerprint
+    from tube_scout.services.professor_resolver import map_professor
+    from tube_scout.services.takeout_ingest import ingest_takeout
+    from tube_scout.storage.content_db import ContentDB
 
     work_root = tmp_path / "data"
     work_root.mkdir()

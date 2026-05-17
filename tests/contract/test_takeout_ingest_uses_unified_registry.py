@@ -17,7 +17,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 _ALIAS_UNREGISTERED = "ghost_alias_xyz"
 _ALIAS_CHANNELS_ONLY = "channels_only_alias"
 _CHANNEL_ID = "UCfakeRegistryTest000000"

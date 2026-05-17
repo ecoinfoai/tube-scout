@@ -6,8 +6,6 @@ T012 RED — 5 scenarios for migrate_to_v3 + 3 audio_fingerprint helpers.
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 
 def _create_v2_db(db_path: Path) -> None:
     """Bootstrap a minimal v2-compatible DB (spec 011 schema baseline)."""

@@ -9,9 +9,6 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # T048-1: run_asr_worker signature matches contract
 # ---------------------------------------------------------------------------
@@ -58,8 +55,9 @@ def test_run_pool_returns_pool_result_with_n_workers_entries(
     tmp_path: Path,
 ) -> None:
     """run_pool returns PoolResult with workers list of length n_workers."""
-    from tube_scout.services.worker_pool import run_pool, PoolResult, WorkerResult
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
+
+    from tube_scout.services.worker_pool import PoolResult, WorkerResult, run_pool
 
     db_path = tmp_path / "test.db"
     audio_dir = tmp_path / "audio"

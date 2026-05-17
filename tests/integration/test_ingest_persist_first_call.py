@@ -12,7 +12,6 @@ ASR and fingerprint extraction are mocked to avoid model loading in CI.
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -99,8 +98,8 @@ class TestIngestPersistFirstCall:
         self, tmp_path: Path, work_env: dict
     ) -> None:
         """After first call: transcript JSON 3개 생성, *.tmp 0개 (FR-018A)."""
-        from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
         from tube_scout.services.audit_writer import AuditWriter
+        from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
 
         mp4_dir = _FIXTURE_ARCHIVE / "YouTube and YouTube Music" / "videos"
         mp4_files = sorted(mp4_dir.glob("*.mp4"))
@@ -148,8 +147,8 @@ class TestIngestPersistFirstCall:
         self, tmp_path: Path, work_env: dict
     ) -> None:
         """WAV temp files are removed after WavLifecycle exits (SC-005)."""
-        from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
         from tube_scout.services.audit_writer import AuditWriter
+        from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
 
         mp4_dir = _FIXTURE_ARCHIVE / "YouTube and YouTube Music" / "videos"
         mp4_files = sorted(mp4_dir.glob("*.mp4"))

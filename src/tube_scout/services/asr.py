@@ -7,7 +7,6 @@ import logging
 import os
 import re
 import shutil
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -363,7 +362,7 @@ def _load_model(
     device: str,
     device_index: int | None,
     model_cache_dir: Path | None,
-) -> "WhisperModel":
+) -> WhisperModel:
     """Load WhisperModel singleton per (model_size, compute_type, device, device_index)."""
     try:
         from faster_whisper import WhisperModel

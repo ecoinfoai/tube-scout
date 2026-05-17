@@ -29,8 +29,9 @@ def _make_video_meta(
     channel_id: str = "UCfake",
     privacy: str = "unlisted",
     created_at: str = "2026-04-01T09:00:00Z",
-) -> "VideoMetadata":
+) -> VideoMetadata:
     import datetime
+
     from tube_scout.models.content import VideoMetadata
     return VideoMetadata(
         video_id=video_id,
@@ -40,7 +41,7 @@ def _make_video_meta(
         privacy_status=privacy,
         created_at=datetime.datetime.fromisoformat(created_at.replace("Z", "+00:00")),
         source="takeout",
-        ingested_at=datetime.datetime.now(tz=datetime.timezone.utc),
+        ingested_at=datetime.datetime.now(tz=datetime.UTC),
     )
 
 

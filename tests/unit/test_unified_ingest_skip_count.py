@@ -11,10 +11,7 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
-
 
 _V3_BASELINE_SQL = """
 CREATE TABLE IF NOT EXISTS audio_fingerprint (

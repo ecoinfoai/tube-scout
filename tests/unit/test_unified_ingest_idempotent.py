@@ -9,13 +9,10 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from tube_scout.services.unified_ingest import (
     IdempotencyGuardResult,
     _check_already_processed,
 )
-
 
 _V3_BASELINE_SQL = """
 CREATE TABLE IF NOT EXISTS audio_fingerprint (

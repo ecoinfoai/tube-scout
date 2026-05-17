@@ -12,7 +12,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 _ALIAS = "nursing_csv_test"
 _CHANNEL_ID = "UCfakeCsvEmptyTest000000"
 _VID = "vid0001CsvTest"

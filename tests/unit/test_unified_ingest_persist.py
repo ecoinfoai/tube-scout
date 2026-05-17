@@ -5,9 +5,7 @@ mtime update on second call, and PermissionError fail-fast (Principle II).
 """
 
 import json
-import os
 import stat
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

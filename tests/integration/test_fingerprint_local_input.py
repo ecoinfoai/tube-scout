@@ -13,8 +13,6 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 FIXTURE_MP4 = (
     Path(__file__).parent.parent
     / "fixtures"
