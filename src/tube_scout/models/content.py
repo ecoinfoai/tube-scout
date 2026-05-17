@@ -485,26 +485,49 @@ class RetryManifestDelta(BaseModel):
 # spec 017 E-7: RetryManifestEntry
 # ---------------------------------------------------------------------------
 
+VALID_FAILED_STAGES = frozenset({
+    "asr", "fingerprint", "audio_decode",
+    "aborted_by_user", "ingest_mapping", "ingest_no_mp4",
+})
+
+
 class RetryManifestEntry(BaseModel):
-    """Single entry in the retry_pending.json manifest.
+    """Single entry in the retry_pending.json manifest (schema_version=2).
 
     Ref: data-model.md §E-7 Entry (RetryEntry).
 
+    PK = (video_id, mp4_filename, failed_stage) — at least one of video_id
+    or mp4_filename must be non-None (validated by model_validator).
+
     Attributes:
-        video_id: YouTube video_id matching SQLite video_metadata.
+        video_id: YouTube video_id; None for unmapped mp4 (ingest_mapping stage).
+        mp4_filename: mp4 basename; None for metadata-only failures.
         title: Video title for operator identification.
-        failed_stage: Last stage that produced a failure.
-        failure_reason: Last failure cause token.
+        failed_stage: Stage that produced the failure.
+        failure_reason: Failure cause token.
         last_attempt_at: UTC timestamp of the last attempt.
-        attempt_count: Cumulative attempt count (minimum 1).
+        attempt_count: Per-stage independent attempt counter (minimum 1).
     """
 
-    video_id: str
+    video_id: str | None
+    mp4_filename: str | None = None
     title: str
-    failed_stage: Literal["transcript", "fingerprint"]
+    failed_stage: Literal[
+        "asr", "fingerprint", "audio_decode",
+        "aborted_by_user", "ingest_mapping", "ingest_no_mp4",
+    ]
     failure_reason: str
     last_attempt_at: datetime
     attempt_count: int = Field(..., ge=1)
+
+    @model_validator(mode="after")
+    def _pk_at_least_one_id(self) -> "RetryManifestEntry":
+        if self.video_id is None and self.mp4_filename is None:
+            raise ValueError(
+                "RetryManifestEntry requires at least one of video_id or "
+                "mp4_filename to be non-None."
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------
