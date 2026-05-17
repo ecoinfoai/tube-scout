@@ -3767,6 +3767,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "ctranslate2" },
     { name = "faster-whisper" },
     { name = "prophet" },
     { name = "statsmodels" },
@@ -3775,6 +3776,7 @@ all = [
     { name = "weasyprint" },
 ]
 asr = [
+    { name = "ctranslate2" },
     { name = "faster-whisper" },
 ]
 dev = [
@@ -3821,6 +3823,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.40.0" },
     { name = "bcrypt", specifier = ">=4.1.0" },
+    { name = "ctranslate2", marker = "extra == 'asr'", specifier = ">=4.7.0,<5.0.0" },
     { name = "faster-whisper", marker = "extra == 'asr'", specifier = ">=1.0.0,<2.0.0" },
     { name = "google-api-python-client", specifier = ">=2.100.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.1.0" },
