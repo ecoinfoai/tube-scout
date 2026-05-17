@@ -31,6 +31,15 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install system dependencies
+        # ffmpeg powers audio_extract; libchromaprint-tools ships the
+        # fpcalc binary used by audio_fingerprint. Both are dlopened /
+        # subprocess-spawned at runtime, so they must exist on the
+        # runner — uv sync only handles Python wheels.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libchromaprint-tools
+
       - name: Install uv
         run: pip install uv
 

@@ -9,8 +9,20 @@ Contract: collect-ingest-force.md §1~§4.
 from __future__ import annotations
 
 import inspect
+import re
 
 from typer.testing import CliRunner
+
+# Rich/Typer wrap --help output with ANSI color codes (and may split a
+# single token across them when columns are tight); 2026-05-18 CI run
+# 25995007674 failed because the literal substring "--force" landed
+# between escape sequences and broke ``in result.output``. Strip ANSI
+# escapes before substring assertions so the check is environment-agnostic.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mGKHF]")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
 
 
 class TestForceOptionInHelp:
@@ -24,8 +36,9 @@ class TestForceOptionInHelp:
         result = runner.invoke(app, ["collect", "ingest", "--help"])
 
         assert result.exit_code == 0, f"help failed: {result.output}"
-        assert "--force" in result.output, (
-            f"--force not found in collect ingest --help output:\n{result.output}"
+        clean_output = _strip_ansi(result.output)
+        assert "--force" in clean_output, (
+            f"--force not found in collect ingest --help output:\n{clean_output}"
         )
 
     def test_collect_ingest_help_force_mentions_idempotency(self) -> None:
@@ -36,13 +49,13 @@ class TestForceOptionInHelp:
         result = runner.invoke(app, ["collect", "ingest", "--help"])
 
         assert result.exit_code == 0
-        # Help text should contain key phrase about guard bypass
-        output_lower = result.output.lower()
+        clean_output = _strip_ansi(result.output)
+        output_lower = clean_output.lower()
         assert any(
             phrase in output_lower
             for phrase in ["강제", "force", "멱등", "우회", "재처리"]
         ), (
-            f"--force help text does not describe idempotency bypass:\n{result.output}"
+            f"--force help text does not describe idempotency bypass:\n{clean_output}"
         )
 
 
