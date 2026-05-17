@@ -51,8 +51,8 @@ def _make_config_json(channel_id: str = "UC_TEST") -> dict:
 
 
 # ===========================================================================
-# PERSONA 1: VideoFilter 모델 파괴자
-# 목표: 잘못된 타입·범위로 Pydantic 모델을 크래시
+# PERSONA 1: VideoFilter model destroyer
+# Goal: crash the Pydantic model with wrong types / ranges
 # ===========================================================================
 class TestVideoFilterModelCrash:
     """Persona: feeds garbage into VideoFilter model."""
@@ -97,8 +97,8 @@ class TestVideoFilterModelCrash:
 
 
 # ===========================================================================
-# PERSONA 2: HTML/Script Injection 공격자
-# 목표: --keyword에 HTML·JS 페이로드 주입해 출력 파일 오염
+# PERSONA 2: HTML/Script-injection attacker
+# Goal: inject HTML / JS payloads via --keyword and poison the output file
 # ===========================================================================
 class TestKeywordInjectionAttacker:
     """Persona: injects HTML/script tags via --keyword."""
@@ -148,8 +148,8 @@ class TestKeywordInjectionAttacker:
 
 
 # ===========================================================================
-# PERSONA 3: 경로 순회(Path Traversal) 공격자
-# 목표: --output 또는 --data-dir에 ../../../etc/passwd 시도
+# PERSONA 3: path-traversal attacker
+# Goal: try ../../../etc/passwd against --output or --data-dir
 # ===========================================================================
 class TestPathTraversalAttacker:
     """Persona: attempts path traversal via output and data-dir arguments."""
@@ -216,8 +216,8 @@ class TestPathTraversalAttacker:
 
 
 # ===========================================================================
-# PERSONA 4: 손상된 videos_meta.json 공급자
-# 목표: 필드 누락, 잘못된 타입으로 필터 서비스 크래시
+# PERSONA 4: corrupted videos_meta.json supplier
+# Goal: crash the filter service with missing fields or wrong types
 # ===========================================================================
 class TestCorruptedVideoMetaAttacker:
     """Persona: feeds malformed video metadata to filter service."""
@@ -267,8 +267,8 @@ class TestCorruptedVideoMetaAttacker:
 
 
 # ===========================================================================
-# PERSONA 5: 대량 데이터 처리자
-# 목표: 10000개 영상으로 필터 성능·메모리 검증
+# PERSONA 5: bulk-data processor
+# Goal: stress filter performance / memory with 10,000 videos
 # ===========================================================================
 class TestMassiveVideoListAttacker:
     """Persona: feeds 10000 videos to the filter service."""
@@ -332,8 +332,8 @@ class TestMassiveVideoListAttacker:
 
 
 # ===========================================================================
-# PERSONA 6: 잘못된 날짜 형식 입력자
-# 목표: CLI --published-after/before에 비-ISO 형식 주입
+# PERSONA 6: wrong-date-format submitter
+# Goal: inject non-ISO formats into --published-after / --published-before
 # ===========================================================================
 class TestBadDateFormatAttacker:
     """Persona: passes malformed dates to CLI date options."""
@@ -344,7 +344,7 @@ class TestBadDateFormatAttacker:
             date.fromisoformat("2025/03/01")
 
     def test_date_fromisoformat_rejects_korean_format(self) -> None:
-        """date.fromisoformat('2025년3월1일') must raise ValueError."""
+        """date.fromisoformat with a Korean-style date ('2025년3월1일') must raise ValueError."""
         with pytest.raises(ValueError):
             date.fromisoformat("2025년3월1일")
 
@@ -387,8 +387,8 @@ class TestBadDateFormatAttacker:
 
 
 # ===========================================================================
-# PERSONA 7: 빈 채널 데이터 허무주의자
-# 목표: videos_meta.json이 없거나 빈 채널에서 bundle 생성 시도
+# PERSONA 7: empty-channel nihilist
+# Goal: try to build a bundle when videos_meta.json is missing or empty
 # ===========================================================================
 class TestEmptyChannelNihilist:
     """Persona: attempts bundle report on channels with no data."""
@@ -464,8 +464,8 @@ class TestEmptyChannelNihilist:
 
 
 # ===========================================================================
-# PERSONA 8: 정렬 옵션 파괴자
-# 목표: sort_by에 알 수 없는 값·주입 시도
+# PERSONA 8: sort-option destroyer
+# Goal: send unknown values or injection payloads via sort_by
 # ===========================================================================
 class TestSortOptionAttacker:
     """Persona: passes invalid sort_by values to BundleReportGenerator."""
@@ -508,8 +508,8 @@ class TestSortOptionAttacker:
 
 
 # ===========================================================================
-# PERSONA 9: 상호 배타 옵션 혼합자
-# 목표: --video-id와 --video-ids 동시 사용 시 exit code 1 강제
+# PERSONA 9: mutually-exclusive option mixer
+# Goal: force exit code 1 when --video-id and --video-ids are passed together
 # ===========================================================================
 class TestMutualExclusionAttacker:
     """Persona: uses mutually exclusive CLI options simultaneously."""
@@ -572,8 +572,8 @@ class TestMutualExclusionAttacker:
 
 
 # ===========================================================================
-# PERSONA 10: 특수문자·유니코드 키워드 폭격자
-# 목표: 극단적 키워드로 필터·보고서 생성 파이프라인 공격
+# PERSONA 10: special-char / Unicode keyword bomber
+# Goal: attack the filter + report pipeline with extreme keywords
 # ===========================================================================
 class TestUnicodeAndSpecialKeywordAttacker:
     """Persona: fires Unicode, emoji, and control characters as keywords."""

@@ -45,10 +45,10 @@ def _make_videos_meta(collect_dir: Path, channel_id: str, videos: list[dict]) ->
 # Combo 1: A-01 + A-05 — New staff with wrong department token
 # ============================================================
 class TestCombo01NewStaffWrongToken:
-    """A-01 신입직원 + A-05 권한없는조교: Wrong token for wrong channel."""
+    """A-01 new staff + A-05 wrong-permission TA: wrong token paired with the wrong channel."""
 
     def test_register_then_use_wrong_alias(self, tmp_path: Path) -> None:
-        """Staff uses 간호학과 token to collect for 물리치료학과 channel."""
+        """Staff uses the 간호학과 token to collect for the 물리치료학과 channel."""
         from tube_scout.services.auth import load_registry, save_registry
 
         tokens_dir = tmp_path / "tokens"
@@ -129,7 +129,7 @@ class TestCombo01NewStaffWrongToken:
 # Combo 2: A-02 + B-03 — Rushed department head + Wi-Fi unstable
 # ============================================================
 class TestCombo02RushedWithUnstableWifi:
-    """A-02 급한학과장 + B-03 네트워크장애: Collect during network drops."""
+    """A-02 rushed dept head + B-03 network failure: collecting during network drops."""
 
     def test_api_fails_mid_collection_checkpoint_preserves(
         self, tmp_path: Path
@@ -198,7 +198,7 @@ class TestCombo02RushedWithUnstableWifi:
 # Combo 3: A-03 + B-07 — DX operator 15 channels simultaneous
 # ============================================================
 class TestCombo03ParallelMultiChannel:
-    """A-03 DX운영자 + B-07 동시성: 15 channels running concurrently."""
+    """A-03 DX operator + B-07 concurrency: 15 channels running concurrently."""
 
     def test_15_channel_checkpoints_no_corruption(self, tmp_path: Path) -> None:
         """15 channel checkpoints written sequentially should all be intact."""
@@ -265,13 +265,13 @@ class TestCombo03ParallelMultiChannel:
 # Combo 4: A-04 + B-04 — Creative titles + Unicode chaos
 # ============================================================
 class TestCombo04CreativeTitlesUnicode:
-    """A-04 교수 + B-04 유니코드: Emoji+multilingual titles through pipeline."""
+    """A-04 creative professor + B-04 unicode: emoji + multilingual titles through the pipeline."""
 
     def setup_method(self) -> None:
         self.parser = TitleParser()
 
     def test_emoji_mixed_korean_english_title(self) -> None:
-        """'🧬 Microbiology W3-1 감염미생물학' — full pipeline parse."""
+        """Full pipeline parse for the title '🧬 Microbiology W3-1 감염미생물학'."""
         result = self.parser.parse("🧬 Microbiology W3-1 감염미생물학", "vid1")
         assert result.video_id == "vid1"
         assert result.parse_error is True  # non-standard format
@@ -325,7 +325,7 @@ class TestCombo04CreativeTitlesUnicode:
 # Combo 5: A-06 + B-02 — Historical auditor + deleted video 404
 # ============================================================
 class TestCombo05HistoricalDeletedVideo:
-    """A-06 감사관 + B-02 비정상응답: Re-collecting deleted videos."""
+    """A-06 auditor + B-02 abnormal API response: re-collecting deleted videos."""
 
     def test_deleted_video_api_error_propagates(self) -> None:
         """Requesting deleted video from API should raise HttpError."""
@@ -383,7 +383,7 @@ class TestCombo05HistoricalDeletedVideo:
 # Combo 6: A-07 + A-08 — Bad YAML + External evaluator
 # ============================================================
 class TestCombo06BrokenYAMLExternalUser:
-    """A-07 YAML서툰사용자 + A-08 외부평가위원: Broken YAML from email."""
+    """A-07 YAML-novice user + A-08 external evaluator: broken YAML received via email."""
 
     def test_yaml_with_bom_from_windows(self, tmp_path: Path) -> None:
         """YAML with UTF-8 BOM (from Windows) should parse or fail clearly."""
@@ -441,7 +441,7 @@ class TestCombo06BrokenYAMLExternalUser:
 # Combo 7: A-09 + A-03 — Multi-project + channel crossover
 # ============================================================
 class TestCombo07MultiProjectChannelCross:
-    """A-09 멀티프로젝트 + A-03 DX운영자: Cross-project channel contamination."""
+    """A-09 multi-project + A-03 DX operator: cross-project channel contamination."""
 
     def test_channel_in_two_projects_isolated(self, tmp_path: Path) -> None:
         """Same channel collected in two projects should have separate data."""
@@ -527,7 +527,7 @@ class TestCombo07MultiProjectChannelCross:
 # Combo 8: A-10 + B-01 — New machine + disk error
 # ============================================================
 class TestCombo08NewMachineDiskError:
-    """A-10 새머신 + B-01 파일시스템: Missing env + corrupt files."""
+    """A-10 new machine + B-01 filesystem: missing env vars + corrupt files."""
 
     def test_no_env_vars_graceful_defaults(self) -> None:
         """Without any env vars, system should use safe defaults."""

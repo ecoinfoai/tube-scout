@@ -40,7 +40,7 @@ def _make_entry(video_id: str = "abc123def45"):
     )
 
 
-# T023-1: top-level 필드 schema_version == 2
+# T023-1: top-level field schema_version == 2
 def test_contract_schema_version_is_2(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import save_manifest
 
@@ -51,7 +51,7 @@ def test_contract_schema_version_is_2(tmp_path: Path) -> None:
     assert data["schema_version"] == 2, "schema_version must be integer 2"
 
 
-# T023-2: alias 필드 존재 및 non-empty string
+# T023-2: alias field is present and a non-empty string
 def test_contract_alias_field_present_and_nonempty(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import save_manifest
 
@@ -63,7 +63,7 @@ def test_contract_alias_field_present_and_nonempty(tmp_path: Path) -> None:
     assert len(data["alias"]) > 0
 
 
-# T023-3: updated_at 는 ISO 8601 timezone-aware string
+# T023-3: updated_at is an ISO 8601 timezone-aware string
 def test_contract_updated_at_is_iso8601_tz_aware(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import save_manifest
 
@@ -76,7 +76,7 @@ def test_contract_updated_at_is_iso8601_tz_aware(tmp_path: Path) -> None:
     assert parsed.tzinfo is not None, "updated_at must be timezone-aware"
 
 
-# T023-4: entries 는 array
+# T023-4: entries is an array
 def test_contract_entries_is_array(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import save_manifest
 
@@ -87,7 +87,7 @@ def test_contract_entries_is_array(tmp_path: Path) -> None:
     assert isinstance(data["entries"], list)
 
 
-# T023-5: entry 필드 셋 완전 일치 (v2: mp4_filename 추가)
+# T023-5: entry field set must match exactly (v2 adds mp4_filename)
 def test_contract_entry_field_set_complete(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import save_manifest
 
@@ -102,7 +102,7 @@ def test_contract_entry_field_set_complete(tmp_path: Path) -> None:
     assert required == set(row.keys()), f"Entry fields mismatch: {set(row.keys())}"
 
 
-# T023-6: failed_stage Literal 제약 (v2 enum)
+# T023-6: failed_stage Literal constraint (v2 enum)
 _VALID_STAGES = {"asr", "fingerprint", "audio_decode", "aborted_by_user", "ingest_mapping", "ingest_no_mp4"}
 
 
@@ -134,7 +134,7 @@ def test_contract_entry_attempt_count_ge_1(tmp_path: Path) -> None:
     assert row["attempt_count"] >= 1
 
 
-# T023-8: last_attempt_at 는 ISO 8601 timezone-aware
+# T023-8: last_attempt_at is ISO 8601 timezone-aware
 def test_contract_entry_last_attempt_at_is_iso8601_tz_aware(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import save_manifest
 

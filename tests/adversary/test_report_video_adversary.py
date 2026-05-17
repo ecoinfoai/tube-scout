@@ -87,8 +87,8 @@ def _app():
 
 
 # ===========================================================================
-# PERSONA 1: report video 필터 CLI 직접 공격자
-# 목표: report video 명령의 필터 옵션 조합으로 비정상 동작 유도
+# PERSONA 1: direct CLI attacker on the report-video filter options
+# Goal: trigger abnormal behavior by combining filter options on the report video command
 # ===========================================================================
 class TestReportVideoFilterCLI:
     """Persona: fires extreme filter combinations at report video command."""
@@ -230,8 +230,8 @@ class TestReportVideoFilterCLI:
 
 
 # ===========================================================================
-# PERSONA 2: --dry-run 기능 공격자
-# 목표: dry-run이 실제 파일을 생성하지 않는지, 에지케이스에서 동작 확인
+# PERSONA 2: --dry-run feature attacker
+# Goal: verify dry-run never writes real files and behaves correctly on edge cases
 # ===========================================================================
 class TestDryRunAttacker:
     """Persona: verifies --dry-run does not generate files and handles edge cases."""
@@ -379,8 +379,8 @@ class TestDryRunAttacker:
 
 
 # ===========================================================================
-# PERSONA 3: _print_dry_run_table 데이터 주입 공격자
-# 목표: 손상된/위험한 데이터가 테이블 출력 시 크래시 유발
+# PERSONA 3: _print_dry_run_table data-injection attacker
+# Goal: force a crash by injecting corrupted / hostile data into the table renderer
 # ===========================================================================
 class TestDryRunTableDataInjection:
     """Persona: feeds malformed video dicts to _print_dry_run_table."""
@@ -441,8 +441,8 @@ class TestDryRunTableDataInjection:
 
 
 # ===========================================================================
-# PERSONA 4: 200개 초과 영상 경고 미구현 문서화자
-# 목표: spec 요구(200개 초과 시 경고) vs 현재 구현 차이를 테스트로 문서화
+# PERSONA 4: "200+ videos warning not implemented yet" documenter
+# Goal: document the gap between the spec (warn when > 200 videos) and the current behavior
 # ===========================================================================
 class TestOver200VideosSpec:
     """Persona: verifies 200+ video behavior matches spec intent (Phase 9 not yet done).
@@ -517,13 +517,13 @@ class TestOver200VideosSpec:
                 "--dry-run",
             ],
         )
-        # Phase 9 미구현: 현재 경고 없음 -- no assertion on warning content
+        # Phase 9 not yet implemented: no warning surfaced today, so no assertion on warning content
         assert result.exit_code == 0
 
 
 # ===========================================================================
-# PERSONA 5: --video-id / --video-ids 상호 배타 경계 공격자
-# 목표: 상호 배타 검증의 경계 조건 공략
+# PERSONA 5: --video-id / --video-ids mutual-exclusion boundary attacker
+# Goal: probe the boundary conditions of the mutual-exclusion check
 # ===========================================================================
 class TestMutualExclusionEdgeCases:
     """Persona: finds cracks in --video-id / --video-ids mutual exclusion."""
@@ -606,8 +606,8 @@ class TestMutualExclusionEdgeCases:
 
 
 # ===========================================================================
-# PERSONA 6: 필터 후 report 생성 실패 공격자
-# 목표: 필터는 성공하지만 실제 report 생성 시 데이터 없어 실패하는 경로
+# PERSONA 6: filter-succeeds-but-report-fails attacker
+# Goal: exercise the path where filtering succeeds but report generation fails for lack of data
 # ===========================================================================
 class TestFilterSuccessReportFailure:
     """Persona: filter matches video IDs in meta but have no processed data."""

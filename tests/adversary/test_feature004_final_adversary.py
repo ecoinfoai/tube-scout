@@ -84,8 +84,8 @@ def _app():
 
 
 # ===========================================================================
-# PERSONA 1: --from-html 심볼릭 링크 / 권한 없는 디렉터리 공격자
-# 목표: 외부 디렉터리 심볼릭 링크, chmod 000, 손상된 HTML 파일
+# PERSONA 1: --from-html symlink / unreadable-directory attacker
+# Goal: external-dir symlinks, chmod 000, corrupted HTML files
 # ===========================================================================
 class TestFromHtmlFilesystemAttacker:
     """Persona: attacks generate_from_html with hostile filesystem setups."""
@@ -215,8 +215,8 @@ class TestFromHtmlFilesystemAttacker:
 
 
 # ===========================================================================
-# PERSONA 2: _extract_html_body 악성 HTML 공격자
-# 목표: 스크립트 삽입, 무한 중첩, body 없음, 이진 데이터
+# PERSONA 2: _extract_html_body malicious-HTML attacker
+# Goal: script injection, infinite nesting, missing body tag, binary blobs
 # ===========================================================================
 class TestExtractHtmlBodyAttacker:
     """Persona: feeds hostile HTML content to _extract_html_body."""
@@ -278,8 +278,8 @@ class TestExtractHtmlBodyAttacker:
 
 
 # ===========================================================================
-# PERSONA 3: _compute_summary 비정상 메타데이터 공격자
-# 목표: None 값, 음수, 타입 오류로 TypeError/ZeroDivisionError 유도
+# PERSONA 3: _compute_summary abnormal-metadata attacker
+# Goal: None values, negative numbers, and type errors that should trigger TypeError / ZeroDivisionError
 # ===========================================================================
 class TestComputeSummaryAttacker:
     """Persona: feeds abnormal metadata to _compute_summary."""
@@ -364,8 +364,8 @@ class TestComputeSummaryAttacker:
 
 
 # ===========================================================================
-# PERSONA 4: course 정렬 극단 타이틀 공격자
-# 목표: None title, 초장문, 특수문자 타이틀로 정렬 크래시 유도
+# PERSONA 4: course-sort extreme-title attacker
+# Goal: try to crash sorting with None titles, ultra-long titles, special-character titles
 # ===========================================================================
 class TestCourseSortAttacker:
     """Persona: attacks _sort_videos with course sort and hostile titles."""
@@ -432,8 +432,8 @@ class TestCourseSortAttacker:
 
 
 # ===========================================================================
-# PERSONA 5: Regression 검증자
-# 목표: 수정된 버그 3건이 실제로 fix됐는지 확인 (regression 없음)
+# PERSONA 5: regression verifier
+# Goal: confirm the three fixed bugs are actually fixed (no regression)
 # ===========================================================================
 class TestBugFixRegression:
     """Persona: verifies all 3 fixed bugs remain fixed (no regression)."""

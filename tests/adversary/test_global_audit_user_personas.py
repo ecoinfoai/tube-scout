@@ -54,7 +54,7 @@ def _make_videos_meta(collect_dir: Path, channel_id: str, videos: list[dict]) ->
 
 
 # ============================================================
-# A-01: 신입 교무과 직원 (첫 날) — New admin staff, no handover
+# A-01: New admin-office staff member on day one (no handover)
 # ============================================================
 class TestA01NewAdminStaff:
     """Persona: New staff runs tube-scout for the first time without guidance."""
@@ -141,7 +141,7 @@ class TestA01NewAdminStaff:
 
 
 # ============================================================
-# A-02: 급한 학과장 — Rushed department head
+# A-02: Rushed department head
 # ============================================================
 class TestA02RushedDepartmentHead:
     """Persona: Department head in a hurry, copies commands blindly."""
@@ -218,7 +218,7 @@ class TestA02RushedDepartmentHead:
 
 
 # ============================================================
-# A-03: DX운영자 병렬실행 — DX operator parallel execution
+# A-03: DX operator running pipelines in parallel
 # ============================================================
 class TestA03DXOperatorParallel:
     """Persona: DX center operator running 15 channels via shell script."""
@@ -350,7 +350,7 @@ class TestA03DXOperatorParallel:
 
 
 # ============================================================
-# A-04: 자유분방 교수 — Professor with creative titles
+# A-04: Professor who uses creative video titles
 # ============================================================
 class TestA04CreativeProfessorTitles:
     """Persona: Professor who titles videos however they want."""
@@ -359,7 +359,7 @@ class TestA04CreativeProfessorTitles:
         self.parser = TitleParser()
 
     def test_no_professor_name_in_title(self) -> None:
-        """'3주차 강의' — no professor, no course name."""
+        """Title '3주차 강의' has no professor and no course name."""
         result = self.parser.parse("3주차 강의", "vid1")
         assert result.parse_error is True
         assert result.week == 3
@@ -367,19 +367,19 @@ class TestA04CreativeProfessorTitles:
         # this is a known limitation
 
     def test_abbreviated_title(self) -> None:
-        """'정교수 미생물 3' — abbreviation, no standard format."""
+        """Title '정교수 미생물 3' is an abbreviation; no standard format."""
         result = self.parser.parse("정교수 미생물 3", "vid2")
         assert result.parse_error is True
 
     def test_ultra_short_title(self) -> None:
-        """'2024-2 감미 4주 2차' — ultra-abbreviated."""
+        """Title '2024-2 감미 4주 2차' is ultra-abbreviated."""
         result = self.parser.parse("2024-2 감미 4주 2차", "vid3")
         # Should not crash even with non-standard format
         assert result.video_id == "vid3"
         assert result.original_title == "2024-2 감미 4주 2차"
 
     def test_filename_as_title(self) -> None:
-        """'강의영상_최종_진짜최종(2).mp4' — uploaded with filename."""
+        """Title '강의영상_최종_진짜최종(2).mp4' is the raw uploaded filename."""
         result = self.parser.parse("강의영상_최종_진짜최종(2).mp4", "vid4")
         assert result.parse_error is True
         assert result.week is None
@@ -415,7 +415,7 @@ class TestA04CreativeProfessorTitles:
 
 
 # ============================================================
-# A-05: 권한 없는 조교 — Teaching assistant with wrong permissions
+# A-05: Teaching assistant with wrong permissions
 # ============================================================
 class TestA05WrongPermissionsTA:
     """Persona: TA tries to collect from channels they don't own."""
@@ -466,7 +466,7 @@ class TestA05WrongPermissionsTA:
         assert len(result) == 0
 
     def test_mixed_case_alias_lookup(self, tmp_path: Path) -> None:
-        """Alias lookup should be case-sensitive — '간호학과' != '간호 학과'."""
+        """Alias lookup must be exact: '간호학과' is not equal to '간호 학과'."""
         from tube_scout.services.auth import load_registry, save_registry
 
         tokens_dir = tmp_path / "tokens"
@@ -499,7 +499,7 @@ class TestA05WrongPermissionsTA:
 
 
 # ============================================================
-# A-06: 과거 데이터 감사관 — Historical data auditor
+# A-06: Historical-data auditor
 # ============================================================
 class TestA06HistoricalAuditor:
     """Persona: Auditor trying to analyze 3+ years of data."""
@@ -586,7 +586,7 @@ class TestA06HistoricalAuditor:
 
 
 # ============================================================
-# A-07: YAML 서툰 사용자 — User bad at YAML
+# A-07: User who is bad at YAML
 # ============================================================
 class TestA07BadYAMLUser:
     """Persona: User writes broken YAML search configs."""
@@ -645,7 +645,7 @@ class TestA07BadYAMLUser:
 
 
 # ============================================================
-# A-08: 외부 평가위원 — External evaluator with partial data
+# A-08: External evaluator with only partial data
 # ============================================================
 class TestA08ExternalEvaluator:
     """Persona: External evaluator who only has partial output data."""
@@ -719,7 +719,7 @@ class TestA08ExternalEvaluator:
 
 
 # ============================================================
-# A-09: 멀티프로젝트 운영자 — Multi-project operator
+# A-09: Multi-project operator
 # ============================================================
 class TestA09MultiProjectOperator:
     """Persona: Operator managing multiple tube-scout projects."""
@@ -779,7 +779,7 @@ class TestA09MultiProjectOperator:
 
 
 # ============================================================
-# A-10: 새 머신 사용자 — New machine user, missing env setup
+# A-10: New-machine user (env setup not yet done)
 # ============================================================
 class TestA10NewMachineUser:
     """Persona: Fresh NixOS install, .envrc not loaded, secrets not decrypted."""

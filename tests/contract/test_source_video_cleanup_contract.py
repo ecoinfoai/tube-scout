@@ -80,7 +80,7 @@ def _collect_reasons(audit: MagicMock) -> list[str]:
     return reasons
 
 
-# T024-1: present_failure_table 호출 시 audit reason = 'presented_failures' (글자 단위)
+# T024-1: present_failure_table writes audit reason = 'presented_failures' (exact string)
 def test_contract_audit_reason_presented_failures(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import present_failure_table
 
@@ -93,7 +93,7 @@ def test_contract_audit_reason_presented_failures(tmp_path: Path) -> None:
     )
 
 
-# T024-2: yes 응답 시 audit reason = 'confirmed_yes' (글자 단위)
+# T024-2: yes response → audit reason = 'confirmed_yes' (exact string)
 def test_contract_audit_reason_confirmed_yes(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import confirm_and_cleanup
 
@@ -107,7 +107,7 @@ def test_contract_audit_reason_confirmed_yes(tmp_path: Path) -> None:
     )
 
 
-# T024-3: no 응답 시 audit reason = 'confirmed_no' (글자 단위)
+# T024-3: no response → audit reason = 'confirmed_no' (exact string)
 def test_contract_audit_reason_confirmed_no(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import confirm_and_cleanup
 
@@ -121,7 +121,7 @@ def test_contract_audit_reason_confirmed_no(tmp_path: Path) -> None:
     )
 
 
-# T024-4: EOF 시 audit reason = 'timeout' (글자 단위)
+# T024-4: EOF → audit reason = 'timeout' (exact string)
 def test_contract_audit_reason_timeout(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import confirm_and_cleanup
 
@@ -135,7 +135,7 @@ def test_contract_audit_reason_timeout(tmp_path: Path) -> None:
     )
 
 
-# T024-5: Ctrl+C 시 audit reason = 'interrupted' (글자 단위)
+# T024-5: Ctrl+C → audit reason = 'interrupted' (exact string)
 def test_contract_audit_reason_interrupted(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import confirm_and_cleanup
 
@@ -149,7 +149,7 @@ def test_contract_audit_reason_interrupted(tmp_path: Path) -> None:
     )
 
 
-# T024-6: yes 응답 + 성공 시 audit reason = 'deleted' (글자 단위)
+# T024-6: yes response + success → audit reason = 'deleted' (exact string)
 def test_contract_audit_reason_deleted(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import confirm_and_cleanup
 
@@ -163,7 +163,7 @@ def test_contract_audit_reason_deleted(tmp_path: Path) -> None:
     )
 
 
-# T024-7: 파일 잠금 시 audit reason = 'delete_failed_locked' (글자 단위)
+# T024-7: file locked → audit reason = 'delete_failed_locked' (exact string)
 def test_contract_audit_reason_delete_failed_locked(tmp_path: Path) -> None:
     import errno
     from unittest.mock import patch
@@ -185,7 +185,7 @@ def test_contract_audit_reason_delete_failed_locked(tmp_path: Path) -> None:
     )
 
 
-# T024-8: I/O 오류 시 audit reason = 'delete_failed_io' (글자 단위)
+# T024-8: I/O error → audit reason = 'delete_failed_io' (exact string)
 def test_contract_audit_reason_delete_failed_io(tmp_path: Path) -> None:
     import errno
     from unittest.mock import patch
@@ -207,7 +207,7 @@ def test_contract_audit_reason_delete_failed_io(tmp_path: Path) -> None:
     )
 
 
-# T024-9: Stage 1 출력에 '처리 실패 영상' 한글 어휘 포함 (Rich Table 헤더)
+# T024-9: Stage 1 output must contain Korean vocabulary like '처리 실패 영상' (Rich Table header)
 def test_contract_stage1_korean_header_in_output(tmp_path: Path, capsys) -> None:
     from tube_scout.services.source_video_cleanup import present_failure_table
 
@@ -221,7 +221,7 @@ def test_contract_stage1_korean_header_in_output(tmp_path: Path, capsys) -> None
     )
 
 
-# T024-10: audit reason 어휘가 CLEANUP_REASONS 상수와 일치
+# T024-10: audit reason vocabulary matches the CLEANUP_REASONS constant
 def test_contract_cleanup_reasons_vocabulary_matches_spec() -> None:
     from tube_scout.services.audit_writer import CLEANUP_REASONS
 

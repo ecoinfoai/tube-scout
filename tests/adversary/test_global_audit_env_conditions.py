@@ -37,7 +37,7 @@ from tube_scout.storage.parquet_store import (
 
 
 # ============================================================
-# B-01: 부패한 파일시스템 — Corrupt filesystem
+# B-01: Corrupt filesystem
 # ============================================================
 class TestB01CorruptFilesystem:
     """Condition: Power loss, disk failure, partial writes."""
@@ -137,7 +137,7 @@ class TestB01CorruptFilesystem:
 
 
 # ============================================================
-# B-02: 비정상 API 응답 — Abnormal YouTube API responses
+# B-02: Abnormal YouTube API responses
 # ============================================================
 class TestB02AbnormalAPIResponses:
     """Condition: YouTube API returning unexpected data."""
@@ -219,7 +219,7 @@ class TestB02AbnormalAPIResponses:
 
 
 # ============================================================
-# B-03: 네트워크 장애 — Network failures
+# B-03: Network failures
 # ============================================================
 class TestB03NetworkFailures:
     """Condition: Wi-Fi drops, timeouts, DNS failures."""
@@ -318,7 +318,7 @@ class TestB03NetworkFailures:
 
 
 # ============================================================
-# B-04: 유니코드/인코딩 지뢰 — Unicode edge cases
+# B-04: Unicode / encoding edge cases
 # ============================================================
 class TestB04UnicodeEdgeCases:
     """Condition: Exotic characters in video titles."""
@@ -387,7 +387,7 @@ class TestB04UnicodeEdgeCases:
 
 
 # ============================================================
-# B-05: 시간 이상 — Time anomalies
+# B-05: Time anomalies
 # ============================================================
 class TestB05TimeAnomalies:
     """Condition: Clock errors, timezone issues, epoch dates."""
@@ -489,7 +489,7 @@ class TestB05TimeAnomalies:
 
 
 # ============================================================
-# B-06: 대용량 스케일 — Large-scale data
+# B-06: Large-scale data
 # ============================================================
 class TestB06LargeScale:
     """Condition: Massive data volumes."""
@@ -584,7 +584,7 @@ class TestB06LargeScale:
 
 
 # ============================================================
-# B-07: 동시성/경합 — Concurrency and race conditions
+# B-07: Concurrency and race conditions
 # ============================================================
 class TestB07Concurrency:
     """Condition: Parallel execution, file contention."""

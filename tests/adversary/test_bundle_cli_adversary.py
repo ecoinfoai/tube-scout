@@ -114,8 +114,8 @@ def _get_app():
 
 
 # ===========================================================================
-# PERSONA 1: --keyword 극단 입력자
-# 목표: 빈 문자열, Jinja2 표현식, 초장문으로 CLI 파이프라인 공격
+# PERSONA 1: --keyword extreme inputter
+# Goal: attack the CLI pipeline with empty strings, Jinja2 expressions, and ultra-long input
 # ===========================================================================
 class TestKeywordExtremeInput:
     """Persona: feeds extreme keyword values to report bundle."""
@@ -223,8 +223,8 @@ class TestKeywordExtremeInput:
 
 
 # ===========================================================================
-# PERSONA 2: --title Jinja2 인젝션 공격자
-# 목표: 사용자 제공 --title이 템플릿 컨텍스트에 그대로 전달될 때 SSTI 발생 확인
+# PERSONA 2: --title Jinja2 injection attacker
+# Goal: verify SSTI does not occur when user-supplied --title is passed through the template context
 # ===========================================================================
 class TestTitleJinja2Injection:
     """Persona: injects Jinja2 template expressions via --title."""
@@ -295,8 +295,8 @@ class TestTitleJinja2Injection:
 
 
 # ===========================================================================
-# PERSONA 3: --published-after/before 날짜 공격자
-# 목표: 비정상 형식, 역방향 범위, 극단 날짜로 CLI 크래시 유도
+# PERSONA 3: --published-after / --published-before date attacker
+# Goal: try to crash the CLI with malformed formats, inverted ranges, and extreme dates
 # ===========================================================================
 class TestDateFormatAttacker:
     """Persona: attacks date parsing in report bundle CLI."""
@@ -405,8 +405,8 @@ class TestDateFormatAttacker:
 
 
 # ===========================================================================
-# PERSONA 4: --video-ids 형식 파괴자
-# 목표: 빈 값, 공백 포함, 모두 존재하지 않는 ID
+# PERSONA 4: --video-ids format destroyer
+# Goal: empty values, embedded whitespace, every-ID-nonexistent
 # ===========================================================================
 class TestVideoIdsFormatAttacker:
     """Persona: feeds malformed --video-ids values."""
@@ -498,8 +498,8 @@ class TestVideoIdsFormatAttacker:
 
 
 # ===========================================================================
-# PERSONA 5: --output 경로 순회 및 파일시스템 공격자
-# 목표: ../../../ 경로, 기존 파일 덮어쓰기, 쓰기 불가 디렉터리
+# PERSONA 5: --output path-traversal + filesystem attacker
+# Goal: ../../../ paths, overwriting existing files, write-locked directories
 # ===========================================================================
 class TestOutputPathAttacker:
     """Persona: attacks --output file path."""
@@ -575,8 +575,8 @@ class TestOutputPathAttacker:
 
 
 # ===========================================================================
-# PERSONA 6: --from-html 미구현 기능 탐색자
-# 목표: --from-html 옵션이 CLI에 아직 없으므로 unknown option 처리 확인
+# PERSONA 6: --from-html not-implemented-yet feature probe
+# Goal: verify the CLI rejects --from-html as an unknown option (feature is not yet wired)
 # ===========================================================================
 class TestFromHtmlAttacker:
     """Persona: attacks --from-html with bad dir, traversal, empty dir, symlinks."""
@@ -647,8 +647,8 @@ class TestFromHtmlAttacker:
 
 
 # ===========================================================================
-# PERSONA 7: --data-dir 비정상 경로 공격자
-# 목표: 존재하지 않는 경로, 파일을 디렉터리로, 심볼릭 링크
+# PERSONA 7: --data-dir abnormal-path attacker
+# Goal: nonexistent paths, a file passed where a directory is expected, symlinks
 # ===========================================================================
 class TestDataDirAttacker:
     """Persona: feeds malformed --data-dir paths."""
@@ -742,8 +742,8 @@ class TestDataDirAttacker:
 
 
 # ===========================================================================
-# PERSONA 8: --sort 인젝션 공격자
-# 목표: 알 수 없는 sort 값, 쉘 인젝션 문자열
+# PERSONA 8: --sort injection attacker
+# Goal: unknown sort values, shell-injection strings
 # ===========================================================================
 class TestSortCLIAttacker:
     """Persona: feeds malicious sort values via CLI."""
@@ -806,8 +806,8 @@ class TestSortCLIAttacker:
 
 
 # ===========================================================================
-# PERSONA 9: 자동 파일명 생성 인젝션 공격자
-# 목표: --keyword에 파일시스템 위험 문자 포함 시 auto 파일명 오염
+# PERSONA 9: auto-filename injection attacker
+# Goal: poison the auto-generated filename when --keyword contains filesystem-hostile characters
 # ===========================================================================
 class TestAutoFilenameInjection:
     """Persona: injects filesystem-dangerous chars via --keyword for auto filename."""
@@ -868,8 +868,8 @@ class TestAutoFilenameInjection:
 
 
 # ===========================================================================
-# PERSONA 10: 복합 공격 조합자
-# 목표: 여러 옵션을 동시에 극단 값으로 조합
+# PERSONA 10: combined-attack mixer
+# Goal: combine multiple options with extreme values at the same time
 # ===========================================================================
 class TestCombinedAttackCombo:
     """Persona: combines multiple extreme inputs simultaneously."""
