@@ -1,8 +1,6 @@
 """Professor nC2 reuse report renderer (spec 013 FR-035~FR-039)."""
 
-import base64
 import sqlite3
-import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal

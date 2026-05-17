@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -14,6 +15,13 @@ from typing import Literal
 from pydantic import BaseModel
 
 from tube_scout.models.content import VideoMetadata
+
+# Invisible characters that survive a re.sub punctuation strip and would
+# otherwise prevent two visually-identical titles from matching (e.g.
+# zero-width joiner pasted in from a YouTube studio title). audit v3
+# F-21 / ADV-51.
+_ZERO_WIDTH_CHARS = "​‌‍﻿"
+_ZERO_WIDTH_TABLE = {ord(c): None for c in _ZERO_WIDTH_CHARS}
 
 ConfidenceBucket = Literal["high", "medium", "ambiguous"]
 
@@ -82,13 +90,21 @@ class MappingDecision(BaseModel):
 def _normalize_for_match(s: str) -> str:
     """Normalize string for fuzzy title matching.
 
+    Applies Unicode NFC normalization (so NFD-decomposed Hangul / Latin
+    pasted from external editors compares equal to NFC sources) and
+    strips zero-width characters before the punctuation/whitespace regex
+    pass. audit v3 F-21 / ADV-50 + ADV-51.
+
     Args:
         s: Raw string to normalize.
 
     Returns:
-        Lowercased string with punctuation/whitespace removed.
+        Lowercased, NFC-normalized string with zero-width characters and
+        punctuation/whitespace removed.
     """
-    return _NORMALIZE_PATTERN.sub("", s).lower()
+    nfc = unicodedata.normalize("NFC", s)
+    stripped = nfc.translate(_ZERO_WIDTH_TABLE)
+    return _NORMALIZE_PATTERN.sub("", stripped).lower()
 
 
 def _exact_title_match(mp4_filename: str, video_title: str) -> bool:
@@ -118,6 +134,10 @@ def _normalized_title_match(mp4_filename: str, video_title: str) -> bool:
 def _probe_duration_via_ffprobe(mp4_path: Path) -> float | None:
     """Run ffprobe to get duration in seconds.
 
+    On non-zero exit or parse failure, emits a module-level warning with
+    the first 120 bytes of stderr so operators see why the duration
+    signal was dropped (audit v3 F-21 / ADV-51).
+
     Args:
         mp4_path: Path to mp4 file.
 
@@ -137,9 +157,19 @@ def _probe_duration_via_ffprobe(mp4_path: Path) -> float | None:
             timeout=10,
         )
         if result.returncode != 0:
+            import logging
+            logging.getLogger(__name__).warning(
+                "ffprobe failed for %s: %s",
+                mp4_path,
+                (result.stderr or "")[:120].strip(),
+            )
             return None
         return float(result.stdout.strip())
-    except (ValueError, subprocess.TimeoutExpired, FileNotFoundError):
+    except (ValueError, subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "ffprobe error for %s: %s", mp4_path, exc
+        )
         return None
 
 
@@ -234,6 +264,7 @@ def score_mp4_candidates(
     duration_tolerance_seconds: float = 1.0,
     mtime_tolerance_days: float = 1.0,
     _ffprobe_cache: dict[str, float | None] | None = None,
+    mtime_signal_disabled: bool = False,
 ) -> list[tuple[str, EvidenceSignals]]:
     """Compute evidence signals for every (mp4, video_id) candidate.
 
@@ -249,6 +280,11 @@ def score_mp4_candidates(
             called once for mp4_path. Pass a pre-populated dict to skip
             ffprobe entirely (useful for unit testing and batch callers that
             build the cache externally).
+        mtime_signal_disabled: When True, force ``mtime_match_within_1d``
+            to False regardless of file metadata. Used by batch callers
+            that have detected an archive bulk-extraction signature
+            (every mp4 in the channel sharing one mtime) to neutralize
+            an otherwise useless signal. audit v3 F-21 / ADV-56.
 
     Returns:
         List of (video_id, EvidenceSignals) for every candidate.
@@ -275,7 +311,7 @@ def score_mp4_candidates(
         size_ok = _size_ratio_plausible(mp4_path, dur_s) if dur_s > 0 else False
 
         mtime_ok = False
-        if vm.created_at is not None:
+        if not mtime_signal_disabled and vm.created_at is not None:
             created = vm.created_at
             if created.tzinfo is None:
                 created = created.replace(tzinfo=UTC)

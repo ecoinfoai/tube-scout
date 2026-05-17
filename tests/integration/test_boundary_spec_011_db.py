@@ -5,8 +5,6 @@ Verifies that migrate_to_v3() + audio_fingerprint inserts do NOT touch v2 data.
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 
 def _setup_v2_db(db_path: Path) -> None:
     """Create a v2 schema DB with sample rows.
@@ -85,7 +83,7 @@ def test_b_x1_2_audio_fingerprint_insert_does_not_touch_videos(tmp_path: Path) -
     migrate_to_v3(db_path)
 
     import datetime
-    extracted_at = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    extracted_at = datetime.datetime.now(tz=datetime.UTC).isoformat()
     insert_audio_fingerprint(
         db_path, "VID_V2_001", b"AQADtFMSRUkiJdmE" * 2, 3600.0, extracted_at
     )

@@ -1,10 +1,7 @@
 """T082 RED — contract test for services/kb_export.py."""
 import inspect
 import json
-import tempfile
 from pathlib import Path
-
-import pytest
 
 
 def _make_transcript_json(tmp_path: Path, video_id: str = "vid001") -> Path:

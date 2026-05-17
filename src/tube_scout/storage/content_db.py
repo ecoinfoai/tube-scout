@@ -910,6 +910,13 @@ _V4_ALTER_COLUMNS: list[tuple[str, str, str]] = [
     ("comparison_results", "source_type_pair",         "TEXT"),
 ]
 
+# Allowlist for DDL identifier interpolation in _add_column_if_missing
+# (SQLite does not accept placeholders for table/column names, so values
+# must be vetted by the caller). audit v3 F-24 / SEC-1.
+_V4_ALTER_ALLOWED: frozenset[tuple[str, str]] = frozenset(
+    (table, column) for table, column, _ in _V4_ALTER_COLUMNS
+)
+
 
 def _add_column_if_missing(
     cur: sqlite3.Cursor,
@@ -921,15 +928,29 @@ def _add_column_if_missing(
 
     Args:
         cur: SQLite cursor.
-        table: Table name.
+        table: Table name. MUST appear in :data:`_V4_ALTER_ALLOWED` with
+            ``column``; otherwise raises ``ValueError`` (SEC-1 guard).
         column: Column name to add.
         type_: SQLite type (e.g., 'TEXT', 'INTEGER', 'REAL').
 
     Returns:
         True if column was added (i.e., it was missing), False if it
         already existed (no-op).
+
+    Raises:
+        ValueError: ``(table, column)`` is not in the v4 migration
+            allowlist. Prevents accidental f-string interpolation of
+            untrusted identifiers in DDL.
     """
-    existing = {row[1] for row in cur.execute(f"PRAGMA table_info({table});").fetchall()}
+    if (table, column) not in _V4_ALTER_ALLOWED:
+        raise ValueError(
+            f"DDL identifier not in v4 allowlist: table={table!r}, "
+            f"column={column!r}. Update _V4_ALTER_COLUMNS to allow."
+        )
+    existing = {
+        row[1]
+        for row in cur.execute(f"PRAGMA table_info({table});").fetchall()
+    }
     if column in existing:
         return False
     cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_};")
@@ -937,11 +958,17 @@ def _add_column_if_missing(
 
 
 def migrate_to_v4(db_path: Path) -> None:
-    """Migrate content_reuse.db from v3 → v4. Idempotent.
+    """Migrate content_reuse.db from v3 → v4. Idempotent + atomic.
 
     Adds two new tables (channel_metadata, video_metadata) and alters
-    three existing tables (processing_status, quality_results, comparison_results)
-    to add the columns required by spec 013.
+    three existing tables (processing_status, quality_results,
+    comparison_results) to add the columns required by spec 013.
+
+    All DDL runs inside an explicit transaction; any failure rolls back
+    so the database is never left in a half-applied state (audit v3
+    F-24 / ADV-55). After commit, verification reads ``PRAGMA
+    table_info`` for every expected column and raises ``RuntimeError``
+    if any are still missing (cf. ``migrate_to_v2`` Step 7).
 
     Pre-conditions:
         - db_path exists and is a v3-or-higher SQLite database
@@ -962,6 +989,9 @@ def migrate_to_v4(db_path: Path) -> None:
     Raises:
         FileNotFoundError: db_path does not exist.
         ValueError: PRAGMA user_version < 3 (run migrate_to_v3 first).
+        RuntimeError: post-commit verification could not find an
+            expected v4 table or column (rare — would indicate a SQLite
+            corruption mid-migration).
     """
     if not db_path.exists():
         raise FileNotFoundError(f"Database not found: {db_path}")
@@ -977,12 +1007,46 @@ def migrate_to_v4(db_path: Path) -> None:
     if version >= 4:
         return
 
-    with sqlite3.connect(db_path) as conn:
-        conn.executescript(_V4_SCHEMA_SQL)
-        cur = conn.cursor()
-        for table, column, type_ in _V4_ALTER_COLUMNS:
-            _add_column_if_missing(cur, table, column, type_)
-        conn.execute("PRAGMA user_version = 4;")
+    # ``with sqlite3.connect(...) as conn`` commits on clean exit, rolls
+    # back on any exception. ``executescript`` performs its own
+    # transaction wrapping internally, so we rely on the context manager
+    # rather than an explicit BEGIN/COMMIT pair (which conflicts with
+    # executescript). audit v3 F-24 / ADV-55.
+    try:
+        with sqlite3.connect(str(db_path)) as conn:
+            conn.executescript(_V4_SCHEMA_SQL)
+            cur = conn.cursor()
+            for table, column, type_ in _V4_ALTER_COLUMNS:
+                _add_column_if_missing(cur, table, column, type_)
+            conn.execute("PRAGMA user_version = 4;")
+    except Exception:
+        raise
+
+    with sqlite3.connect(str(db_path)) as verify_conn:
+        final_tables = {
+            row[0]
+            for row in verify_conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        for required in ("channel_metadata", "video_metadata"):
+            if required not in final_tables:
+                raise RuntimeError(
+                    f"v4 migration verification failed: table '{required}' "
+                    f"missing in {db_path}. Inspect with sqlite3 and re-run."
+                )
+        for table, column, _ in _V4_ALTER_COLUMNS:
+            cols = {
+                row[1]
+                for row in verify_conn.execute(
+                    f"PRAGMA table_info({table});"
+                ).fetchall()
+            }
+            if column not in cols:
+                raise RuntimeError(
+                    f"v4 migration verification failed: column "
+                    f"'{table}.{column}' missing in {db_path}."
+                )
 
 
 def _ensure_v4(db_path: Path) -> None:

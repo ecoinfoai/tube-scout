@@ -2,8 +2,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 
 def _write_transcript(tmp_path: Path, segments: list[dict], video_id: str = "vid001") -> Path:
     data = {
@@ -56,9 +54,10 @@ def test_txt_keep_timestamps_includes_brackets(tmp_path: Path) -> None:
 
 def test_md_with_meta_includes_header(tmp_path: Path) -> None:
     """md format with with_meta=True: outputs # title header + meta block."""
-    from tube_scout.services.kb_export import export_transcript
-    from tube_scout.models.content import VideoMetadata
     import datetime
+
+    from tube_scout.models.content import VideoMetadata
+    from tube_scout.services.kb_export import export_transcript
 
     vm = VideoMetadata(
         video_id="vid001",
@@ -67,7 +66,7 @@ def test_md_with_meta_includes_header(tmp_path: Path) -> None:
         duration_seconds=12.0,
         source="takeout",
         privacy_status="unlisted",
-        ingested_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        ingested_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC),
     )
     transcript = _write_transcript(tmp_path, _SEGMENTS)
     out = tmp_path / "out.md"
@@ -112,9 +111,10 @@ def test_jsonl_per_segment_one_line(tmp_path: Path) -> None:
 
 def test_jsonl_with_meta_first_line_is_meta_object(tmp_path: Path) -> None:
     """jsonl with_meta=True: first line has _meta key, followed by segment lines."""
-    from tube_scout.services.kb_export import export_transcript
-    from tube_scout.models.content import VideoMetadata
     import datetime
+
+    from tube_scout.models.content import VideoMetadata
+    from tube_scout.services.kb_export import export_transcript
 
     vm = VideoMetadata(
         video_id="vid001",
@@ -122,7 +122,7 @@ def test_jsonl_with_meta_first_line_is_meta_object(tmp_path: Path) -> None:
         title="테스트 강의",
         duration_seconds=12.0,
         source="takeout",
-        ingested_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        ingested_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.UTC),
     )
     transcript = _write_transcript(tmp_path, _SEGMENTS)
     out = tmp_path / "out.jsonl"

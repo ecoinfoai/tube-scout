@@ -10,16 +10,18 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-import pytest
-
-
 # ─── helpers ─────────────────────────────────────────────────────────────────
 
 def _setup_db(tmp_path: Path, professor: str = "prof-park") -> Path:
     """Create a minimal v4 DB with professor_pool + video_metadata rows."""
     db_path = tmp_path / "content_reuse.db"
 
-    from tube_scout.storage.content_db import ContentDB, migrate_to_v2, migrate_to_v3, _ensure_v4
+    from tube_scout.storage.content_db import (
+        ContentDB,
+        _ensure_v4,
+        migrate_to_v2,
+        migrate_to_v3,
+    )
     ContentDB(db_path).close()
     migrate_to_v2(db_path)
     migrate_to_v3(db_path)
@@ -76,7 +78,12 @@ def _setup_db_with_short_video(tmp_path: Path, professor: str = "prof-short") ->
     """Create a DB where one video is very short (< 30 s) — Layer A should cull it."""
     db_path = tmp_path / "content_reuse_short.db"
 
-    from tube_scout.storage.content_db import ContentDB, migrate_to_v2, migrate_to_v3, _ensure_v4
+    from tube_scout.storage.content_db import (
+        ContentDB,
+        _ensure_v4,
+        migrate_to_v2,
+        migrate_to_v3,
+    )
     ContentDB(db_path).close()
     migrate_to_v2(db_path)
     migrate_to_v3(db_path)
@@ -186,7 +193,7 @@ def test_run_nc2_analysis_resumable_via_checkpoint(tmp_path: Path) -> None:
     Setup: 4 videos → 6 pairs. Mark 2 pairs as already completed in
     pair_checkpoint. With resume=True, only 4 pairs should be analyzed.
     """
-    from tube_scout.services.nc2_matcher import run_nc2_analysis, AnalysisResult
+    from tube_scout.services.nc2_matcher import AnalysisResult, run_nc2_analysis
     from tube_scout.storage.content_db import ContentDB
 
     professor = "prof-park"

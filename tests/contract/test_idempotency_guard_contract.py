@@ -13,7 +13,6 @@ import pytest
 
 from tube_scout.services.unified_ingest import _check_already_processed
 
-
 _V3_BASELINE_SQL = """
 CREATE TABLE IF NOT EXISTS audio_fingerprint (
     video_id     TEXT PRIMARY KEY,

@@ -190,7 +190,9 @@ def test_i7_dispersion_balanced_vs_concentrated() -> None:
     Unequal lengths (one tiny, one large): Gini > 0 → dispersion < 1.0.
     Dispersion = 1 - Gini, so equal lengths yield the highest dispersion.
     """
-    from tube_scout.services.time_axis_indicators import compute_i7_distribution_dispersion
+    from tube_scout.services.time_axis_indicators import (
+        compute_i7_distribution_dispersion,
+    )
 
     equal_lengths = [
         _make_span(0.0, 100.0, 0.0, 100.0, 100.0),

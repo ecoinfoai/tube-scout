@@ -23,6 +23,45 @@ console = Console()
 _ENV_TRANSCRIPT_SOURCE = "TUBE_SCOUT_DEFAULT_TRANSCRIPT_SOURCE"
 
 
+def _ensure_content_db_symlink(db_real: Path, channel_analyze_dir: Path) -> None:
+    """Create <channel>/02_analyze/content/content_reuse.db → db_real symlink.
+
+    Args:
+        db_real: Absolute path to the canonical content_reuse.db written by ingest.
+        channel_analyze_dir: <work_root>/<channel>/02_analyze/content directory.
+    """
+    if not db_real.exists():
+        return
+    link_path = channel_analyze_dir / "content_reuse.db"
+    channel_analyze_dir.mkdir(parents=True, exist_ok=True)
+    target = db_real.resolve()
+
+    if link_path.is_symlink():
+        existing_target = Path(os.readlink(link_path)).resolve()
+        if existing_target != target:
+            console.print(
+                f"[yellow]Warning: symlink {link_path} points to {existing_target}, "
+                f"expected {target}. Remove it manually and re-run ingest to fix.[/yellow]"
+            )
+        return
+
+    if link_path.exists():
+        # Regular file already at link_path — do not overwrite silently.
+        console.print(
+            f"[yellow]Warning: {link_path} is a regular file, not a symlink. "
+            "Remove it manually to enable cross-spec DB sharing.[/yellow]"
+        )
+        return
+
+    try:
+        os.symlink(target, link_path)
+        console.print(f"[dim]symlink created: {link_path} → {target}[/dim]")
+    except OSError as exc:
+        console.print(
+            f"[yellow]Warning: could not create DB symlink at {link_path}: {exc}[/yellow]"
+        )
+
+
 def resolve_alias_to_channel_id(alias: str) -> str:
     """Resolve channel alias to channel ID via spec 003 registry.
 
@@ -2382,9 +2421,14 @@ def collect_takeout_command(
     work_root = Path(data_dir)
     db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
 
+    if takeout_path.is_symlink() and not takeout_path.exists():
+        console.print(
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' is a broken symlink.[/red]"
+        )
+        raise typer.Exit(code=1)
     if not takeout_path.exists():
         console.print(
-            f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]"
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' does not exist.[/red]"
         )
         raise typer.Exit(code=1)
 
@@ -2693,9 +2737,14 @@ def collect_ingest_command(
     work_root = Path(data_dir)
     db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
 
+    if takeout_path.is_symlink() and not takeout_path.exists():
+        console.print(
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' is a broken symlink.[/red]"
+        )
+        raise typer.Exit(code=1)
     if not takeout_path.exists():
         console.print(
-            f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]"
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' does not exist.[/red]"
         )
         raise typer.Exit(code=1)
 
@@ -2733,3 +2782,9 @@ def collect_ingest_command(
         f"fingerprints={summary.fingerprint_result.success_count} "
         f"elapsed={summary.total_elapsed_seconds}s"
     )
+
+    if not dry_run:
+        _ensure_content_db_symlink(
+            db_real=db,
+            channel_analyze_dir=work_root / channel / "02_analyze" / "content",
+        )

@@ -7,7 +7,6 @@ Generates a minimal professor_nC2_report HTML and verifies:
 import re
 from pathlib import Path
 
-
 _FORBIDDEN_TOKENS = ["재활용 확정", "위반", "표절", "복제"]
 _REQUIRED_TOKENS = ["의심 근거", "검토 우선순위 상위", "주의 필요"]
 
@@ -22,7 +21,6 @@ def _read_template() -> str:
 
 def _strip_jinja_comments(content: str) -> str:
     """Remove Jinja2 {# ... #} comment blocks before tone checking."""
-    import re
     return re.sub(r"\{#.*?#\}", "", content, flags=re.DOTALL)
 
 
@@ -46,9 +44,17 @@ def test_template_contains_required_reservation_tokens() -> None:
 
 def test_rendered_html_contains_no_forbidden_verdict_tokens(tmp_path: Path) -> None:
     """SC-007 regression: rendered HTML output must not contain definitive-verdict tokens."""
-    from tube_scout.reporting.professor_nc2 import render_professor_nc2_report, AppendixThresholds
-    from tube_scout.storage.content_db import ContentDB, migrate_to_v2, migrate_to_v3, _ensure_v4
-    import datetime
+
+    from tube_scout.reporting.professor_nc2 import (
+        AppendixThresholds,
+        render_professor_nc2_report,
+    )
+    from tube_scout.storage.content_db import (
+        ContentDB,
+        _ensure_v4,
+        migrate_to_v2,
+        migrate_to_v3,
+    )
 
     db_path = tmp_path / "reuse.db"
     ContentDB(db_path).close()

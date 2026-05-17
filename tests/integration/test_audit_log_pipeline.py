@@ -9,8 +9,6 @@ Ref: contracts/audit_writer_v2_contract.md + data-model.md §E-12.
 import csv
 from pathlib import Path
 
-import pytest
-
 from tube_scout.services.audit_writer import STAGE_FIELDNAMES, AuditWriter
 
 _TS = "2026-05-13T10:00:00+09:00"

@@ -1,14 +1,18 @@
 """Audit CSV writer for transcript and fingerprint processing records.
 
 spec 012 FR-015 + spec 013 FR-057~FR-060.
-Append-only CSV with atomic writes via tempfile+rename.
+Append-only CSV with O(1) append + POSIX flock for concurrent safety.
 Header written once on file creation (data-model E-5, E-12).
 """
 
+import atexit
 import csv
+import logging
 import os
-import tempfile
+import time
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
 
 # ─── fieldnames (unified v2 — spec 012 shims inject missing defaults) ─────────
 
@@ -54,7 +58,7 @@ KB_EXPORT_FIELDNAMES: tuple[str, ...] = (
 
 INGEST_ORCHESTRATOR_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason",
-    "channel_alias", "elapsed_ms", "timestamp",
+    "sub_reason", "channel_alias", "elapsed_ms", "timestamp",
 )
 SOURCE_VIDEO_CLEANUP_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason",
@@ -74,16 +78,16 @@ STAGE_FIELDNAMES: dict[str, tuple[str, ...]] = {
     "source_video_cleanup": SOURCE_VIDEO_CLEANUP_FIELDNAMES,
 }
 
-# spec 017 E-8 (FR-017) + spec 018 (FR-018F) reason vocabulary
-# Idempotency-guard reasons: already_transcribed, already_fingerprinted,
-# already_transcribed_and_fingerprinted (data-model §5 / contract idempotency-guard §8).
+# Closed vocabulary for ingest_orchestrator stage reason field (DOC-2).
+# Each token must be documented here before use in caller code.
+# Dead entries must be removed here and from all callers simultaneously.
+# F-11 owns aborted_by_user activation; F-3b owns sub_reason extension.
 ORCHESTRATOR_REASONS: frozenset[str] = frozenset({
     "started", "completed", "aborted_by_user", "failed_intermediate_stage",
     "stub_not_implemented", "registry_load_failed",
     "asr_transcribed", "captured",
     "asr_fail", "fp_fail",
     "already_transcribed", "already_fingerprinted",
-    "already_transcribed_and_fingerprinted",
     "forced_reprocess",
 })
 CLEANUP_REASONS: frozenset[str] = frozenset({
@@ -94,9 +98,33 @@ CLEANUP_REASONS: frozenset[str] = frozenset({
 
 VALID_RESULTS: frozenset[str] = frozenset({"success", "skip", "fail"})
 
+_RETRY_DELAYS: tuple[float, ...] = (0.1, 0.2, 0.5)
+
+
+def _flock_ex(fd: int) -> None:
+    """Acquire exclusive POSIX flock; no-op on non-POSIX platforms."""
+    try:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except ImportError:
+        pass  # Windows: skip flock, best-effort
+
+
+def _flock_un(fd: int) -> None:
+    """Release POSIX flock; no-op on non-POSIX platforms."""
+    try:
+        import fcntl
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    except ImportError:
+        pass
+
 
 class AuditWriter:
     """Append-only audit CSV writer for spec 012 processing records.
+
+    Writes are O(1) append with POSIX flock for concurrent worker safety.
+    On persistent write failure, rows are buffered in memory and flushed
+    to .audit_recovery.csv on process exit via atexit.
 
     Args:
         project_dir: Project root directory. Audit files are written under
@@ -106,63 +134,98 @@ class AuditWriter:
     def __init__(self, project_dir: Path) -> None:
         self._collect_dir = project_dir / "01_collect"
         self._collect_dir.mkdir(parents=True, exist_ok=True)
+        self._pending: list[tuple[Path, tuple[str, ...], dict]] = []
+        atexit.register(self._flush_pending)
 
     def _append_row(
         self, csv_path: Path, fieldnames: tuple[str, ...], row: dict
     ) -> None:
-        """Append a single row to csv_path using atomic tempfile+rename."""
+        """Append one row via O(1) open-append + flock.
+
+        Retries up to 3 times on OSError with exponential backoff.
+        On persistent failure, buffers to in-memory pending list.
+        """
+        for attempt, delay in enumerate((*_RETRY_DELAYS, None), start=1):
+            try:
+                self._do_append(csv_path, fieldnames, row)
+                return
+            except OSError as exc:
+                if delay is None:
+                    _logger.warning(
+                        "audit_writer: write failed after %d attempts for %s: %s — buffering row",
+                        attempt - 1, csv_path.name, exc,
+                    )
+                    self._pending.append((csv_path, fieldnames, row))
+                    return
+                _logger.debug("audit_writer: write attempt %d failed (%s), retrying in %.1fs", attempt, exc, delay)
+                time.sleep(delay)
+
+    def _do_append(
+        self, csv_path: Path, fieldnames: tuple[str, ...], row: dict
+    ) -> None:
+        """Single O(1) append attempt with flock."""
         write_header = not csv_path.exists()
-
-        # Read existing content if file already exists
-        existing = csv_path.read_bytes() if csv_path.exists() else b""
-
-        # Write to temp file in same directory (same filesystem for atomic rename)
-        fd, tmp_path_str = tempfile.mkstemp(
-            dir=self._collect_dir, prefix=csv_path.name + ".tmp"
+        fd = os.open(
+            str(csv_path),
+            os.O_CREAT | os.O_WRONLY | os.O_APPEND,
+            0o600,
         )
         try:
-            with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
-                if existing:
-                    f.write(existing.decode("utf-8"))
+            _flock_ex(fd)
+            with os.fdopen(fd, "a", newline="", encoding="utf-8", closefd=False) as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
                 if write_header:
                     writer.writeheader()
                 writer.writerow(row)
-            os.replace(tmp_path_str, csv_path)
-        except Exception:
-            try:
-                os.unlink(tmp_path_str)
-            except OSError:
-                pass
-            raise
+        finally:
+            _flock_un(fd)
+            os.close(fd)
+
+    def _flush_pending(self) -> None:
+        """Write buffered rows to .audit_recovery.csv files on exit."""
+        if not self._pending:
+            return
+        recovery = self._collect_dir / ".audit_recovery.csv"
+        try:
+            with recovery.open("a", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                for csv_path, fieldnames, row in self._pending:
+                    writer.writerow([csv_path.name] + [row.get(k, "") for k in fieldnames])
+            _logger.warning(
+                "audit_writer: flushed %d pending rows to %s", len(self._pending), recovery
+            )
+        except OSError as exc:
+            _logger.error("audit_writer: recovery flush failed: %s", exc)
+        self._pending.clear()
 
     def append_row(self, stage: str, row: dict) -> None:
         """Append a row to <project_dir>/01_collect/<stage>_audit.csv.
+
+        Failures are logged and swallowed — callers must not abort on audit errors.
 
         Args:
             stage: One of STAGE_FIELDNAMES keys.
             row: Dict with at least all keys in STAGE_FIELDNAMES[stage].
                 Extra keys are dropped (csv.DictWriter extrasaction='ignore').
-
-        Raises:
-            KeyError: stage not in STAGE_FIELDNAMES.
-            ValueError: row['result'] not in VALID_RESULTS.
         """
-        if stage not in STAGE_FIELDNAMES:
-            valid = sorted(STAGE_FIELDNAMES)
-            raise KeyError(f"Unknown audit stage: {stage!r}. Valid stages: {valid}")
-        if row.get("result") not in VALID_RESULTS:
-            raise ValueError(
-                f"row['result'] must be one of {sorted(VALID_RESULTS)}, "
-                f"got {row.get('result')!r}"
+        try:
+            if stage not in STAGE_FIELDNAMES:
+                valid = sorted(STAGE_FIELDNAMES)
+                raise KeyError(f"Unknown audit stage: {stage!r}. Valid stages: {valid}")
+            if row.get("result") not in VALID_RESULTS:
+                raise ValueError(
+                    f"row['result'] must be one of {sorted(VALID_RESULTS)}, "
+                    f"got {row.get('result')!r}"
+                )
+            if stage == "takeout_ingest":
+                row = {"raw_value": "", "elapsed_ms": 0, **row}
+            self._append_row(
+                self._collect_dir / f"{stage}_audit.csv",
+                STAGE_FIELDNAMES[stage],
+                row,
             )
-        if stage == "takeout_ingest":
-            row = {"raw_value": "", "elapsed_ms": 0, **row}
-        self._append_row(
-            self._collect_dir / f"{stage}_audit.csv",
-            STAGE_FIELDNAMES[stage],
-            row,
-        )
+        except (KeyError, ValueError) as exc:
+            _logger.warning("audit_writer.append_row: validation error (stage=%r): %s", stage, exc)
 
     def append_takeout_ingest_row(self, row: dict) -> None:
         """Append a row to takeout_ingest_audit.csv.

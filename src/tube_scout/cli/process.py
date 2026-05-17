@@ -50,7 +50,10 @@ def process_normalize_transcripts_command(
     import datetime
 
     from tube_scout.services.audit_writer import AuditWriter
-    from tube_scout.services.text_normalizer import detect_source_conflict, normalize_transcript_json
+    from tube_scout.services.text_normalizer import (
+        detect_source_conflict,
+        normalize_transcript_json,
+    )
 
     work_root = Path(data_dir)
     db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
@@ -86,7 +89,7 @@ def process_normalize_transcripts_command(
     audit = AuditWriter(work_root / channel)
 
     for video_id in video_ids:
-        ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+        ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
         raw_path = transcript_dir / f"{video_id}.json"
         norm_path = normalized_dir / f"{video_id}.json"
 

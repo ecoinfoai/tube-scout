@@ -3,15 +3,14 @@
 Ref: data-model.md §E-1, §E-2.
 """
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
 
 from tube_scout.models.content import ChannelMetadata, VideoMetadata
 
-_NOW = datetime(2026, 5, 13, 10, 30, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 5, 13, 10, 30, 0, tzinfo=UTC)
 
 
 def test_channel_metadata_round_trip_json() -> None:

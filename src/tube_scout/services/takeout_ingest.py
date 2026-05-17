@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import datetime
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -16,6 +17,8 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Any, Literal
+
+_logger = logging.getLogger(__name__)
 
 from pydantic import BaseModel, Field
 
@@ -85,6 +88,8 @@ class IngestResult(BaseModel):
     mp4_absent_count: int = 0
     elapsed_seconds: float = 0.0
     mp4_video_id_map: dict[str, str] = Field(default_factory=dict)
+    # ADV-34/35: unmapped mp4 entries for retry_pending (ingest_mapping + ingest_no_mp4)
+    unmapped_mp4_entries: list[dict] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -375,8 +380,16 @@ def ingest_takeout(
     """
     _t_start = time.monotonic()
 
+    # SEC-4: resolve symlinks at entry to prevent symlink escape
+    takeout_dir = takeout_dir.resolve()
+
     if not takeout_dir.exists():
         raise FileNotFoundError(f"takeout_dir not found: {takeout_dir}")
+
+    _logger.info(
+        "ingest_takeout: alias=%s takeout_dir=%s dry_run=%s",
+        channel_alias, takeout_dir, dry_run,
+    )
 
     # Step 1: Validate alias
     registry = _load_alias_registry()
@@ -448,6 +461,10 @@ def ingest_takeout(
             "Resolve before ingesting."
         )
     if reg_channel_id and csv_channel_id != reg_channel_id:
+        _logger.warning(
+            "channel_id mismatch for alias '%s': registry=%r, archive=%r",
+            channel_alias, reg_channel_id, csv_channel_id,
+        )
         raise ValueError(
             f"Channel ID mismatch for alias '{channel_alias}': "
             f"registry={reg_channel_id!r}, archive CSV={csv_channel_id!r}. "
@@ -475,6 +492,7 @@ def ingest_takeout(
     src_video_dir = yt_dir / _VIDEO_SUBDIR
     high_count = medium_count = ambiguous_count = unmapped_count = 0
     mp4_video_id_map: dict[str, str | None] = {}
+    unmapped_mp4_entries: list[dict] = []
 
     if src_video_dir.exists():
         for mp4 in sorted(src_video_dir.glob("*.mp4")):
@@ -488,6 +506,13 @@ def ingest_takeout(
                 ambiguous_count += 1
             else:
                 unmapped_count += 1
+                # ADV-34: unmapped mp4 → retry_pending (ingest_mapping)
+                unmapped_mp4_entries.append({
+                    "video_id": None,
+                    "mp4_filename": mp4.name,
+                    "failed_stage": "ingest_mapping",
+                    "failure_reason": f"no_match score={decision.score}",
+                })
             if not dry_run:
                 audit_writer.append_row("takeout_ingest", {
                     "video_id": decision.video_id or "n/a",
@@ -509,6 +534,13 @@ def ingest_takeout(
     for vm in video_list:
         if vm.video_id not in mapped_video_ids:
             mp4_absent_count += 1
+            # ADV-35: video without mp4 in archive → retry_pending (ingest_no_mp4)
+            unmapped_mp4_entries.append({
+                "video_id": vm.video_id,
+                "mp4_filename": None,
+                "failed_stage": "ingest_no_mp4",
+                "failure_reason": "no_mp4_in_archive",
+            })
             if not dry_run:
                 audit_writer.append_row("takeout_ingest", {
                     "video_id": vm.video_id,
@@ -539,6 +571,7 @@ def ingest_takeout(
             mp4_present_count=mp4_present_count,
             mp4_absent_count=mp4_absent_count,
             elapsed_seconds=elapsed_seconds,
+            unmapped_mp4_entries=unmapped_mp4_entries,
         )
 
     # Step 5: Persist to SQLite v4
@@ -573,6 +606,12 @@ def ingest_takeout(
 
     elapsed_seconds = time.monotonic() - _t_start
 
+    _logger.info(
+        "ingest_takeout complete: alias=%s new=%d high=%d medium=%d ambiguous=%d unmapped=%d absent=%d elapsed=%.1fs",
+        channel_alias, new_videos, high_count, medium_count, ambiguous_count,
+        unmapped_count, mp4_absent_count, elapsed_seconds,
+    )
+
     return IngestResult(
         channel_id=channel_meta.channel_id,
         channel_alias=channel_alias,
@@ -588,6 +627,7 @@ def ingest_takeout(
         mp4_absent_count=mp4_absent_count,
         elapsed_seconds=elapsed_seconds,
         mp4_video_id_map=abs_mp4_video_id_map,
+        unmapped_mp4_entries=unmapped_mp4_entries,
     )
 
 

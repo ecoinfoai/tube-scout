@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 def _get_runner_and_app():
     from typer.testing import CliRunner
+
     from tube_scout.cli.main import app
     return CliRunner(), app
 

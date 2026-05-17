@@ -35,7 +35,7 @@ class TestIngestIdempotent:
     @pytest.fixture(scope="class")
     def two_run_outputs(self, tmp_path_factory):
         """Run collect ingest twice; return (result1, result2, work_root, db_path)."""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         from tube_scout.cli.main import app
 
@@ -301,7 +301,6 @@ class TestSecondCallWallClock:
         self, pre_populated_env: dict
     ) -> None:
         """extract_wav_16k_mono is never called when all videos are skip (FR-018E)."""
-        from unittest.mock import patch
 
         from tube_scout.services.audit_writer import AuditWriter
         from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint

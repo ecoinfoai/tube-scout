@@ -61,6 +61,10 @@ _SPEC011_MIGRATED: bool = False
 def _ensure_v2_schema(project: Path) -> Path:
     """Lazy migration hook: run migrate_to_v2 once per process invocation.
 
+    Also resolves broken symlinks — if the canonical path does not exist but
+    a symlink target in the same directory does, returns the resolved target
+    with an actionable console message.
+
     Args:
         project: Project root directory.
 
@@ -69,6 +73,15 @@ def _ensure_v2_schema(project: Path) -> Path:
     """
     global _SPEC011_MIGRATED
     db_path = project / "02_analyze" / "content" / "content_reuse.db"
+
+    if db_path.is_symlink() and not db_path.exists():
+        broken_target = Path(db_path).resolve()
+        console.print(
+            f"[yellow]Warning: {db_path} is a broken symlink (target: {broken_target}). "
+            "Run 'tube-scout collect ingest' to rebuild the DB and symlink, "
+            "or pass --db-path to specify an existing DB.[/yellow]"
+        )
+
     if not _SPEC011_MIGRATED:
         from tube_scout.storage.content_db import migrate_to_v2
         migrate_to_v2(db_path)

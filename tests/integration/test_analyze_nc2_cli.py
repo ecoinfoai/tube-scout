@@ -21,7 +21,6 @@ from typer.testing import CliRunner
 
 from tube_scout.cli.main import app
 
-
 _PROFESSOR = "prof-cli-e2e"
 _CHANNEL_ID = "UC_CLI_E2E_TEST_0001"
 _CHANNEL_ALIAS = "cli_e2e"

@@ -25,6 +25,7 @@ def test_collect_transcripts_help_has_no_force_asr_flag() -> None:
 def test_collect_transcripts_command_has_no_force_asr_param() -> None:
     """FR-027: collect_transcripts_command must not have a 'force_asr' parameter."""
     import inspect
+
     from tube_scout.cli.collect import collect_transcripts_command
 
     params = inspect.signature(collect_transcripts_command).parameters
@@ -49,7 +50,11 @@ def test_collect_transcripts_command_has_no_force_asr_param() -> None:
 def test_transcript_export_commands_have_no_force_asr_param() -> None:
     """FR-027: transcript export/export-bulk must not expose --force-asr."""
     import inspect
-    from tube_scout.cli.transcript import transcript_export_typer, transcript_export_bulk_typer
+
+    from tube_scout.cli.transcript import (
+        transcript_export_bulk_typer,
+        transcript_export_typer,
+    )
 
     for cmd in (transcript_export_typer, transcript_export_bulk_typer):
         params = inspect.signature(cmd).parameters

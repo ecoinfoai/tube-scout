@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-
 _V3_SCHEMA_SQL = """
 PRAGMA user_version = 3;
 

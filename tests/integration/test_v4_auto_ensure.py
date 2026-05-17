@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-
 _V3_SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS processing_status (
     video_id TEXT PRIMARY KEY,

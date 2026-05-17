@@ -32,6 +32,7 @@ from tube_scout.cli.collect import (
     collect_videos_command,
 )
 from tube_scout.cli.content import content_app
+from tube_scout.cli.doctor import doctor_command
 from tube_scout.cli.process import process_normalize_transcripts_command
 from tube_scout.cli.report import (
     report_bundle_command,
@@ -73,6 +74,7 @@ calendar_app = typer.Typer(help="Manage academic calendar for forecasting.")
 app.command(name="auth")(auth_command)
 app.command(name="search")(search_command)
 app.command(name="validate")(validate_command)
+app.command(name="doctor")(doctor_command)
 app.add_typer(collect_app, name="collect")
 app.add_typer(analyze_app, name="analyze")
 app.add_typer(report_app, name="report")

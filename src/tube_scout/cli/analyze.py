@@ -959,10 +959,11 @@ def analyze_content_reuse_command(
         data_dir: Collect data root used to resolve per-video transcript
             paths for Layer B match_spans persistence (spec 013 T068).
     """
-    from tube_scout.services.nc2_matcher import run_nc2_analysis, AnalysisResult
-    from tube_scout.storage.content_db import ContentDB, _ensure_v4, migrate_to_v3, migrate_to_v2
-    from tube_scout.services.audit_writer import AuditWriter
-    from typing import Literal
+
+    from tube_scout.services.nc2_matcher import run_nc2_analysis
+    from tube_scout.storage.content_db import (
+        ContentDB,
+    )
 
     if mode not in ("M-default", "M-nC2"):
         console.print(f"[red]Invalid mode '{mode}'. Must be M-default or M-nC2.[/red]")

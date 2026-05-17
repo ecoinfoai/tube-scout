@@ -1,5 +1,4 @@
 """T072 RED — unit tests for passes_appendix OR semantics (spec 013 C-3 deferred)."""
-import pytest
 
 
 class _FakePair:

@@ -6,8 +6,6 @@ Module does not exist yet — all tests should fail at import.
 
 from __future__ import annotations
 
-import pytest
-
 
 def _seg(text: str, start: float = 0.0, end: float = 1.0) -> dict:
     return {"start": start, "end": end, "text": text}

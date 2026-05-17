@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 from pathlib import Path
-from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def extract_wav_16k_mono(
@@ -30,6 +32,7 @@ def extract_wav_16k_mono(
     Raises:
         FileNotFoundError: mp4_path does not exist.
         RuntimeError: ffmpeg exits with non-zero code (stderr included in message).
+        subprocess.TimeoutExpired: ffmpeg hung beyond 600 seconds.
     """
     if not mp4_path.exists():
         raise FileNotFoundError(f"mp4 not found: {mp4_path}")
@@ -48,7 +51,13 @@ def extract_wav_16k_mono(
         str(wav_path),
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        stdin=subprocess.DEVNULL,
+        timeout=600,
+    )
     if result.returncode != 0:
         raise RuntimeError(
             f"ffmpeg failed (exit {result.returncode}): {result.stderr[:200]}"
@@ -66,7 +75,11 @@ def cleanup_wav(wav_path: Path, *, keep: bool = False) -> None:
     """
     if keep:
         return
-    wav_path.unlink(missing_ok=True)
+    try:
+        wav_path.unlink(missing_ok=True)
+    except (PermissionError, IsADirectoryError) as exc:
+        logger.warning("cleanup_wav: could not delete %s: %s", wav_path, exc)
+        return
 
 
 class WavLifecycle:
@@ -96,9 +109,12 @@ class WavLifecycle:
 
     def __exit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
+        exc_type: type | None,
+        exc_val: BaseException | None,
         exc_tb: object,
     ) -> None:
-        cleanup_wav(self._wav_path, keep=self._keep)
+        try:
+            cleanup_wav(self._wav_path, keep=self._keep)
+        except (PermissionError, IsADirectoryError) as exc:
+            logger.warning("WavLifecycle.__exit__: cleanup failed for %s: %s", self._wav_path, exc)
         return None

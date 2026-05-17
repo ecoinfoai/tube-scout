@@ -77,8 +77,10 @@ pdf = [
 # `pip install tube-scout[asr]` — faster-whisper local ASR transcription.
 # Required ONLY when TranscriptService(source="asr") or the collect
 # transcripts --source asr subcommand is invoked (spec 013).
+# ctranslate2>=4.7 requires CUDA 12.x runtime when GPU inference is used.
 asr = [
     "faster-whisper>=1.0.0,<2.0.0",
+    "ctranslate2>=4.7.0,<5.0.0",
 ]
 # Everything-and-the-kitchen-sink.
 all = [
