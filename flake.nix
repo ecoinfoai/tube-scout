@@ -108,11 +108,18 @@
         # gpuLibPath centralizes the path list so additions stay in one
         # place. Adding/removing CUDA components requires updating both
         # buildInputs and gpuLibPath (CLAUDE.md Consistency Invariants).
+        #
+        # F-1 follow-up (2026-05-17): cudaPackages.{cudnn, cuda_nvrtc,
+        # libcublas} are multi-output derivations whose default ``out``
+        # contains only LICENSE + nix-support; the actual shared
+        # libraries live in the ``.lib`` output. cuda_cudart keeps its
+        # default ``out`` shape (lib/ + include/). Use ``.lib or .``
+        # so we always pick the output that holds libcublas.so.12 etc.
         gpuLibPath = with pkgsUnfree; [
-          cudaPackages.cudnn
-          cudaPackages.cuda_nvrtc
-          cudaPackages.libcublas
-          cudaPackages.cuda_cudart
+          (cudaPackages.cudnn.lib or cudaPackages.cudnn)
+          (cudaPackages.cuda_nvrtc.lib or cudaPackages.cuda_nvrtc)
+          (cudaPackages.libcublas.lib or cudaPackages.libcublas)
+          (cudaPackages.cuda_cudart.lib or cudaPackages.cuda_cudart)
         ];
 
         gpuLibPathString = pkgs.lib.concatMapStringsSep ":"
