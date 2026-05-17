@@ -82,6 +82,29 @@ def _resolve_device_and_compute_type(compute_type: str) -> tuple[str, str]:
     return device, compute_type
 
 
+_MIN_SQLITE_VERSION: tuple[int, int, int] = (3, 35, 0)
+
+
+def _require_sqlite_returning() -> None:
+    """Raise ``RuntimeError`` if the runtime SQLite is too old for RETURNING.
+
+    SQLite ``RETURNING`` (used by :func:`_atomic_claim`) requires
+    SQLite >= 3.35. NixOS pins the runtime SQLite via
+    ``commonBuildInputs.sqlite`` in ``flake.nix`` (audit v3 F-1). If a
+    user enters a non-flake shell or a system Python with an older
+    SQLite, the worker pool would otherwise raise an opaque
+    ``sqlite3.OperationalError: near "RETURNING": syntax error``.
+    """
+    if sqlite3.sqlite_version_info < _MIN_SQLITE_VERSION:
+        required = ".".join(str(n) for n in _MIN_SQLITE_VERSION)
+        raise RuntimeError(
+            f"SQLite {sqlite3.sqlite_version} is too old for worker_pool "
+            f"atomic claim (requires SQLite >= {required} for RETURNING). "
+            "Re-enter the nix devShell (`nix develop` or `direnv reload`) "
+            "to pick up the pinned sqlite from flake.nix."
+        )
+
+
 def _atomic_claim(db_path: Path, *, retry_failed: bool = False) -> str | None:
     """Atomically claim one unclaimed row from processing_status.
 
@@ -94,11 +117,22 @@ def _atomic_claim(db_path: Path, *, retry_failed: bool = False) -> str | None:
 
     Returns:
         video_id of claimed row, or None if queue is empty.
+
+    Raises:
+        RuntimeError: SQLite runtime is older than 3.35 (RETURNING
+            unsupported). audit v3 F-18 / ADV-45.
     """
+    _require_sqlite_returning()
+
+    # Parameterize the status filter so the SQL stays free of user-
+    # influenced f-string fragments (audit v3 F-18 / SEC-2). Two
+    # placeholders are enough because the worker pool only ever
+    # considers at most two statuses ('collected' [, 'asr_failed']).
     if retry_failed:
-        status_predicate = "'collected', 'asr_failed'"
+        status_values: tuple[str, ...] = ("collected", "asr_failed")
     else:
-        status_predicate = "'collected'"
+        status_values = ("collected",)
+    placeholders = ",".join("?" * len(status_values))
 
     sql = f"""
     UPDATE processing_status
@@ -106,19 +140,20 @@ def _atomic_claim(db_path: Path, *, retry_failed: bool = False) -> str | None:
            updated_at = datetime('now')
      WHERE video_id = (
          SELECT video_id FROM processing_status
-          WHERE status IN ({status_predicate})
+          WHERE status IN ({placeholders})
             AND caption_source IS NULL
           ORDER BY updated_at ASC
           LIMIT 1
      )
-       AND status IN ({status_predicate})
+       AND status IN ({placeholders})
        AND caption_source IS NULL
     RETURNING video_id;
     """
 
     with sqlite3.connect(db_path, isolation_level=None) as conn:
+        conn.execute("PRAGMA busy_timeout=30000;")
         conn.execute("BEGIN IMMEDIATE;")
-        row = conn.execute(sql).fetchone()
+        row = conn.execute(sql, status_values + status_values).fetchone()
         conn.execute("COMMIT;")
 
     return row[0] if row else None
