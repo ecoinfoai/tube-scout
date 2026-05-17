@@ -102,6 +102,7 @@ def extract_chromaprint_fingerprint(
         capture_output=True,
         text=True,
         timeout=timeout_seconds,
+        stdin=subprocess.DEVNULL,
     )
 
     if result.returncode != 0:
