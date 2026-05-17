@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 _ALIAS = "pharmacy_test"
 _CHANNEL_ID = "UCfakeSymlinkTest0000000"
 _VID = "vid0001ExtTest"

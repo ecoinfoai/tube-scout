@@ -157,8 +157,8 @@ def test_ingest_takeout_rejects_unknown_alias(tmp_path: Path) -> None:
 
 def test_ingest_takeout_idempotent_two_runs(tmp_path: Path) -> None:
     """Running ingest_takeout twice on the same takeout produces the same DB row count."""
-    from tube_scout.services.takeout_ingest import ingest_takeout
     from tube_scout.models.config import ChannelRegistration
+    from tube_scout.services.takeout_ingest import ingest_takeout
 
     db_path = tmp_path / "content_reuse.db"
     work_root = tmp_path / "data"
@@ -208,8 +208,8 @@ def test_ingest_takeout_idempotent_two_runs(tmp_path: Path) -> None:
 
 def test_ingest_takeout_dry_run_no_db_write(tmp_path: Path) -> None:
     """dry_run=True must not write any rows to SQLite."""
-    from tube_scout.services.takeout_ingest import ingest_takeout
     from tube_scout.models.config import ChannelRegistration
+    from tube_scout.services.takeout_ingest import ingest_takeout
 
     db_path = tmp_path / "content_reuse.db"
     work_root = tmp_path / "data"

@@ -177,6 +177,7 @@ def test_save_manifest_sets_0600_permission(tmp_path: Path) -> None:
 # T021-10: schema_version=1 파일 로드 시 v2로 마이그레이션 (schema fallback, F-17)
 def test_load_manifest_v1_migrates_to_v2(tmp_path: Path) -> None:
     import json
+
     from tube_scout.services.retry_manifest import load_manifest
 
     path = tmp_path / "retry_pending.json"

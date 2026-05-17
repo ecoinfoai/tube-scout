@@ -8,11 +8,9 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Import surface
@@ -35,7 +33,7 @@ def test_check_result_is_named_tuple() -> None:
 # ---------------------------------------------------------------------------
 
 def test_check_nix_shell_pass_when_set() -> None:
-    from tube_scout.cli.doctor import _check_nix_shell, _PASS
+    from tube_scout.cli.doctor import _PASS, _check_nix_shell
 
     with patch.dict(os.environ, {"IN_NIX_SHELL": "1"}, clear=False):
         r = _check_nix_shell()
@@ -45,7 +43,7 @@ def test_check_nix_shell_pass_when_set() -> None:
 
 
 def test_check_nix_shell_warn_when_absent() -> None:
-    from tube_scout.cli.doctor import _check_nix_shell, _WARN
+    from tube_scout.cli.doctor import _WARN, _check_nix_shell
 
     env = {k: v for k, v in os.environ.items() if k not in ("IN_NIX_SHELL", "NIX_DEVELOP_PROFILE")}
     with patch.dict(os.environ, env, clear=True):
@@ -59,7 +57,7 @@ def test_check_nix_shell_warn_when_absent() -> None:
 # ---------------------------------------------------------------------------
 
 def test_check_faster_whisper_pass_when_importable() -> None:
-    from tube_scout.cli.doctor import _check_faster_whisper, _PASS
+    from tube_scout.cli.doctor import _PASS, _check_faster_whisper
 
     fake_fw = MagicMock()
     fake_fw.__version__ = "1.1.0"
@@ -71,7 +69,7 @@ def test_check_faster_whisper_pass_when_importable() -> None:
 
 
 def test_check_faster_whisper_fail_when_missing() -> None:
-    from tube_scout.cli.doctor import _check_faster_whisper, _FAIL
+    from tube_scout.cli.doctor import _FAIL, _check_faster_whisper
 
     with patch.dict(sys.modules, {"faster_whisper": None}):
         r = _check_faster_whisper()
@@ -85,7 +83,7 @@ def test_check_faster_whisper_fail_when_missing() -> None:
 # ---------------------------------------------------------------------------
 
 def test_check_ld_library_path_pass_with_cuda() -> None:
-    from tube_scout.cli.doctor import _check_ld_library_path, _PASS
+    from tube_scout.cli.doctor import _PASS, _check_ld_library_path
 
     env = {"LD_LIBRARY_PATH": "/nix/store/abc-cudnn/lib:/usr/lib"}
     with patch.dict(os.environ, env, clear=False):
@@ -95,7 +93,7 @@ def test_check_ld_library_path_pass_with_cuda() -> None:
 
 
 def test_check_ld_library_path_warn_when_unset() -> None:
-    from tube_scout.cli.doctor import _check_ld_library_path, _WARN
+    from tube_scout.cli.doctor import _WARN, _check_ld_library_path
 
     env = {k: v for k, v in os.environ.items() if k != "LD_LIBRARY_PATH"}
     with patch.dict(os.environ, env, clear=True):
@@ -110,7 +108,7 @@ def test_check_ld_library_path_warn_when_unset() -> None:
 # ---------------------------------------------------------------------------
 
 def test_check_which_pass_when_found() -> None:
-    from tube_scout.cli.doctor import _check_which, _PASS
+    from tube_scout.cli.doctor import _PASS, _check_which
 
     with patch("shutil.which", return_value="/usr/bin/fpcalc"):
         r = _check_which("fpcalc")
@@ -120,7 +118,7 @@ def test_check_which_pass_when_found() -> None:
 
 
 def test_check_which_fail_when_missing() -> None:
-    from tube_scout.cli.doctor import _check_which, _FAIL
+    from tube_scout.cli.doctor import _FAIL, _check_which
 
     with patch("shutil.which", return_value=None):
         r = _check_which("fpcalc")
@@ -133,7 +131,7 @@ def test_check_which_fail_when_missing() -> None:
 # ---------------------------------------------------------------------------
 
 def test_check_nvidia_smi_warn_when_absent() -> None:
-    from tube_scout.cli.doctor import _check_nvidia_smi, _WARN
+    from tube_scout.cli.doctor import _WARN, _check_nvidia_smi
 
     with patch("shutil.which", return_value=None):
         r = _check_nvidia_smi()
@@ -146,8 +144,9 @@ def test_check_nvidia_smi_warn_when_absent() -> None:
 # ---------------------------------------------------------------------------
 
 def test_check_sqlite_version_pass_for_modern() -> None:
-    from tube_scout.cli.doctor import _check_sqlite_version, _PASS
     import sqlite3
+
+    from tube_scout.cli.doctor import _PASS, _check_sqlite_version
 
     with patch.object(sqlite3, "sqlite_version_info", (3, 35, 0)):
         r = _check_sqlite_version()
@@ -156,8 +155,9 @@ def test_check_sqlite_version_pass_for_modern() -> None:
 
 
 def test_check_sqlite_version_fail_for_old() -> None:
-    from tube_scout.cli.doctor import _check_sqlite_version, _FAIL
     import sqlite3
+
+    from tube_scout.cli.doctor import _FAIL, _check_sqlite_version
 
     with patch.object(sqlite3, "sqlite_version_info", (3, 34, 9)):
         r = _check_sqlite_version()

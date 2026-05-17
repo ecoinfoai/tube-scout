@@ -11,7 +11,6 @@ Skips if mp4 files are not found or fpcalc is unavailable.
 from __future__ import annotations
 
 import subprocess
-import sys
 from itertools import combinations
 from pathlib import Path
 from typing import NamedTuple

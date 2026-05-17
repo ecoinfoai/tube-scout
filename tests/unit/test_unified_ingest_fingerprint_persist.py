@@ -9,10 +9,7 @@ after _run_transcript_and_fingerprint processes mp4 files:
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from tube_scout.storage.content_db import insert_audio_fingerprint
-
 
 _V3_BASELINE_SQL = """
 CREATE TABLE IF NOT EXISTS processing_status (

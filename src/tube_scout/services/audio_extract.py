@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +109,8 @@ class WavLifecycle:
 
     def __exit__(
         self,
-        exc_type: Optional[type],
-        exc_val: Optional[BaseException],
+        exc_type: type | None,
+        exc_val: BaseException | None,
         exc_tb: object,
     ) -> None:
         try:

@@ -175,7 +175,7 @@ def run_asr_worker(
     auto_normalize: bool = True,
     retry_failed: bool = False,
     keep_audio: bool = False,
-    progress: "ProgressReporter | None" = None,
+    progress: ProgressReporter | None = None,
 ) -> WorkerResult:
     """Single ASR worker — claims rows from processing_status and processes them.
 
@@ -198,12 +198,12 @@ def run_asr_worker(
     Raises:
         ImportError: faster-whisper not installed (actionable message).
     """
-    from tube_scout.services.audio_extract import WavLifecycle
-    from tube_scout.services.asr import transcribe_audio
-    from tube_scout.services.text_normalizer import normalize_transcript_json
-
-    import json
     import datetime
+    import json
+
+    from tube_scout.services.asr import transcribe_audio
+    from tube_scout.services.audio_extract import WavLifecycle
+    from tube_scout.services.text_normalizer import normalize_transcript_json
 
     _ensure_wal_mode(db_path)
     audio_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -228,7 +228,7 @@ def run_asr_worker(
             continue
 
         transcript_path = transcripts_dir / f"{video_id}.json"
-        ts = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+        ts = datetime.datetime.now(tz=datetime.UTC).isoformat()
 
         device, resolved_compute_type = _resolve_device_and_compute_type(compute_type)
 

@@ -2,8 +2,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 
 def _make_transcript(transcripts_dir: Path, video_id: str, source: str = "captions_api_auto") -> None:
     data = {

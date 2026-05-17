@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
-from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

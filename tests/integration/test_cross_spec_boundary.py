@@ -13,9 +13,6 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # B-X1-2: spec 011 v2 schema unchanged after migrate_to_v3
 # ---------------------------------------------------------------------------

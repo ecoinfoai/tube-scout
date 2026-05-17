@@ -9,9 +9,7 @@ Contract: collect-ingest-force.md §1~§4.
 from __future__ import annotations
 
 import inspect
-from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 

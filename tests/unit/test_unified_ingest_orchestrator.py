@@ -10,7 +10,6 @@ import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-
 _AUDIO_FP_SQL = """
 CREATE TABLE IF NOT EXISTS audio_fingerprint (
     video_id     TEXT PRIMARY KEY,

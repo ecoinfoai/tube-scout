@@ -7,11 +7,11 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # ADV-1: sub_reason in INGEST_ORCHESTRATOR_FIELDNAMES
@@ -113,8 +113,8 @@ def test_logger_exception_on_asr_failure(tmp_path: Path, caplog: pytest.LogCaptu
 
 def test_logger_exception_on_fingerprint_failure(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     """_logger.exception must be called when extract_chromaprint_fingerprint raises (LOG-5)."""
-    from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
     from tube_scout.services.asr import TranscribeResult
+    from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
 
     db_path = _make_test_db(tmp_path / "test.db")
 
@@ -162,8 +162,8 @@ def test_persist_transcript_logs_warning_on_permission_error(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """_persist_transcript must emit a warning before re-raising PermissionError (LOG-3)."""
-    from tube_scout.services.unified_ingest import _persist_transcript
     from tube_scout.services.asr import TranscribeResult
+    from tube_scout.services.unified_ingest import _persist_transcript
 
     fake_asr = MagicMock(spec=TranscribeResult)
     fake_asr.caption_source_detail = "whisper"
@@ -194,8 +194,10 @@ def test_print_summary_table_shows_top3_failures_when_failures_exist(
     tmp_path: Path,
 ) -> None:
     """_print_summary_table must print top-3 failure_reason when failure_count > 0 (R-7.a)."""
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta
+
     from rich.console import Console
+
     from tube_scout.models.content import (
         FailureEntry,
         FingerprintStageResult,
@@ -204,10 +206,7 @@ def test_print_summary_table_shows_top3_failures_when_failures_exist(
         UnifiedIngestSummary,
     )
     from tube_scout.services.unified_ingest import _print_summary_table
-    from tube_scout.services.takeout_ingest import IngestResult
-
-    from datetime import timedelta
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     later = now + timedelta(seconds=2)
     failures = [
         FailureEntry(
@@ -278,11 +277,12 @@ def test_print_summary_table_shows_top3_failures_when_failures_exist(
 
 def test_select_retry_targets_overflow_to_manual_intervention(tmp_path: Path) -> None:
     """Entries with attempt_count >= max_attempts overflow to manual_intervention_required.json (ADV-54)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     from tube_scout.models.content import RetryManifestEntry
     from tube_scout.services.retry_manifest import RetryManifest, select_retry_targets
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     entries = [
         RetryManifestEntry(
             video_id=f"vid{i:04d}",

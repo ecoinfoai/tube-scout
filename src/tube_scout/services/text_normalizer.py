@@ -7,7 +7,7 @@ import os
 import re
 import tempfile
 import unicodedata
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 NORMALIZER_VERSION: str = "v1.0"
@@ -117,7 +117,7 @@ def normalize_transcript_json(
         "language": raw.get("language", raw.get("language_detected", "ko")),
         "source_type": source_type,
         "normalizer_version": NORMALIZER_VERSION,
-        "normalized_at": datetime.now(tz=timezone.utc).isoformat(),
+        "normalized_at": datetime.now(tz=UTC).isoformat(),
         "segments": normalized_segments,
     }
 

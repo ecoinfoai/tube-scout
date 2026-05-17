@@ -10,9 +10,6 @@ import json
 import unicodedata
 from pathlib import Path
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # T046-1: normalize_transcript_text is idempotent n(n(x)) == n(x)
 # ---------------------------------------------------------------------------
@@ -161,7 +158,9 @@ def test_normalize_transcript_json_writes_atomic(tmp_path: Path) -> None:
 
 def test_normalize_transcript_json_skips_when_version_matches(tmp_path: Path) -> None:
     """normalize_transcript_json returns False (skip) when output normalizer_version matches."""
-    from tube_scout.services.text_normalizer import normalize_transcript_json, NORMALIZER_VERSION
+    from tube_scout.services.text_normalizer import (
+        normalize_transcript_json,
+    )
 
     raw_path = tmp_path / "raw.json"
     norm_path = tmp_path / "normalized.json"

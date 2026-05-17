@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pytest
 
-
 _V3_BASELINE_SQL = """
 -- spec 007 + 012 baseline tables (minimal columns for testing)
 CREATE TABLE IF NOT EXISTS processing_status (

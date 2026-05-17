@@ -1,8 +1,6 @@
 """T071 RED — contract tests for reporting/professor_nc2.py."""
 import inspect
 from datetime import datetime
-from pathlib import Path
-from typing import get_type_hints
 
 
 def test_render_professor_nc2_report_signature_matches_contract() -> None:
@@ -29,7 +27,7 @@ def test_render_professor_nc2_report_signature_matches_contract() -> None:
 
 def test_report_result_includes_pattern_distribution() -> None:
     """ReportResult has all required fields including pattern_distribution dict."""
-    from tube_scout.reporting.professor_nc2 import ReportResult, AppendixThresholds
+    from tube_scout.reporting.professor_nc2 import AppendixThresholds, ReportResult
 
     result = ReportResult(
         professor="test-prof",

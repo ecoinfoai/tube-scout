@@ -19,13 +19,9 @@ Mocking policy:
 from __future__ import annotations
 
 import csv
-import datetime
-import json
-import os
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 from typer.testing import CliRunner
@@ -33,7 +29,6 @@ from typer.testing import CliRunner
 from tube_scout.cli.main import app
 from tube_scout.models.config import ChannelRegistration
 from tube_scout.services import takeout_ingest as ingest_mod
-
 
 # ---------------------------------------------------------------------------
 # helpers

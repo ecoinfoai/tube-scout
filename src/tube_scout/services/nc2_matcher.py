@@ -149,7 +149,7 @@ def _lookup_source_type(video_id: str, db_path: Path) -> str:
 
 
 def _resolve_transcript_path_by_video(
-    video_id: str, data_dir: Path, db: "ContentDB"
+    video_id: str, data_dir: Path, db: ContentDB
 ) -> Path | None:
     """Resolve ``<data_dir>/<channel_alias>/02_analyze/transcripts/<video_id>.json``.
 
@@ -188,7 +188,7 @@ def _load_transcript_segments(
     video_id: str,
     *,
     data_dir: Path | None = None,
-    db: "ContentDB | None" = None,
+    db: ContentDB | None = None,
 ) -> list[dict[str, float | str]]:
     """Load segments from a per-video transcript JSON (spec 018 schema).
 
@@ -364,12 +364,12 @@ def get_caption_pool(professor_id: str, db_path: Path) -> CaptionPool:
 
 def generate_nc2_pairs(
     professor_id: str,
-    db_path: "Path | ContentDB",
-    captions_dir: "Path | None" = None,
+    db_path: Path | ContentDB,
+    captions_dir: Path | None = None,
     cosine_cull_threshold: float = 0.0,
     *,
     layer_a_min_seconds: float | None = None,
-) -> "list[CandidatePair] | Iterator[VideoPairRef]":
+) -> list[CandidatePair] | Iterator[VideoPairRef]:
     """Generate nC2 pairs — dispatches to spec 011 or spec 013 implementation.
 
     spec 011 call (positional): generate_nc2_pairs(professor_id, db_path, captions_dir, threshold)
@@ -395,7 +395,7 @@ def generate_nc2_pairs(
 def _generate_nc2_candidate_pairs(
     professor_id: str,
     db_path: Path,
-    captions_dir: "Path | None",
+    captions_dir: Path | None,
     cosine_cull_threshold: float,
 ) -> list[CandidatePair]:
     """Generate nC2 candidate pairs for a single professor's caption pool (spec 011).
@@ -480,7 +480,7 @@ def _generate_nc2_candidate_pairs(
 
 def _generate_nc2_pairs_v013(
     professor: str,
-    db: "ContentDB",
+    db: ContentDB,
     *,
     layer_a_min_seconds: float = 30.0,
 ) -> Iterator[VideoPairRef]:
@@ -538,14 +538,14 @@ def _generate_nc2_pairs_v013(
 def run_nc2_analysis(
     professor: str,
     channel_alias: str,
-    db: "ContentDB",
+    db: ContentDB,
     *,
     matching_mode: Literal["M-default", "M-nC2"] = "M-default",
     layer_a_min_seconds: float = 30.0,
     layer_b_threshold: float = 0.30,
     resume: bool = False,
     force: bool = False,
-    progress: "ProgressReporter | None" = None,
+    progress: ProgressReporter | None = None,
     transcript_root: Path | None = None,
     data_dir: Path | None = None,
 ) -> AnalysisResult:

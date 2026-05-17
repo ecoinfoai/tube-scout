@@ -14,8 +14,6 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 VIDEO_IDS = [
     "res_vid_aaa",
     "res_vid_bbb",
@@ -33,7 +31,12 @@ EXPECTED_PAIRS = len(VIDEO_IDS) * (len(VIDEO_IDS) - 1) // 2  # 36
 def _setup_resume_db(tmp_path: Path, professor: str = "prof-resume") -> Path:
     db_path = tmp_path / "content_reuse_resume.db"
 
-    from tube_scout.storage.content_db import ContentDB, migrate_to_v2, migrate_to_v3, _ensure_v4
+    from tube_scout.storage.content_db import (
+        ContentDB,
+        _ensure_v4,
+        migrate_to_v2,
+        migrate_to_v3,
+    )
     ContentDB(db_path).close()
     migrate_to_v2(db_path)
     migrate_to_v3(db_path)
@@ -75,9 +78,10 @@ def _setup_resume_db(tmp_path: Path, professor: str = "prof-resume") -> Path:
 
 def test_resume_completes_partial_run(tmp_path: Path) -> None:
     """resume=True: re-run after partial analysis reaches exactly 36 total pairs."""
+    from itertools import combinations
+
     from tube_scout.services.nc2_matcher import run_nc2_analysis
     from tube_scout.storage.content_db import ContentDB
-    from itertools import combinations
 
     professor = "prof-resume"
     db_path = _setup_resume_db(tmp_path, professor)

@@ -9,9 +9,6 @@ from __future__ import annotations
 import inspect
 import re
 
-import pytest
-
-
 # ---------------------------------------------------------------------------
 # T042-1: transcribe_audio signature matches contract
 # ---------------------------------------------------------------------------

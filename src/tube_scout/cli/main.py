@@ -32,6 +32,7 @@ from tube_scout.cli.collect import (
     collect_videos_command,
 )
 from tube_scout.cli.content import content_app
+from tube_scout.cli.doctor import doctor_command
 from tube_scout.cli.process import process_normalize_transcripts_command
 from tube_scout.cli.report import (
     report_bundle_command,
@@ -47,7 +48,6 @@ from tube_scout.cli.transcript import (
     transcript_export_bulk_typer,
     transcript_export_typer,
 )
-from tube_scout.cli.doctor import doctor_command
 from tube_scout.cli.validate_cli import validate_command
 from tube_scout.models.config import (
     AcademicCalendar,

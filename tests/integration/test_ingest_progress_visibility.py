@@ -8,12 +8,8 @@ from __future__ import annotations
 
 import io
 import sqlite3
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
-
 
 _AUDIO_FP_SQL = """
 CREATE TABLE IF NOT EXISTS audio_fingerprint (
@@ -142,8 +138,13 @@ class TestProgressVisibility:
 
     def test_progress_columns_include_mofn_and_time(self, tmp_path: Path) -> None:
         """Progress constructor receives MofNCompleteColumn and time columns."""
+        from rich.progress import (
+            MofNCompleteColumn,
+            TimeElapsedColumn,
+            TimeRemainingColumn,
+        )
+
         from tube_scout.services.unified_ingest import _run_transcript_and_fingerprint
-        from rich.progress import MofNCompleteColumn, TimeElapsedColumn, TimeRemainingColumn
 
         mp4_map = _make_mp4_map(tmp_path, n=1)
         db_path = _make_db(tmp_path / "test.db")

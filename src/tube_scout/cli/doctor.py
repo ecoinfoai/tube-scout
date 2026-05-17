@@ -64,7 +64,7 @@ def _check_faster_whisper() -> _CheckResult:
         return _CheckResult(
             "faster_whisper import",
             _FAIL,
-            f"ImportError — uv sync --extra asr",
+            "ImportError — uv sync --extra asr",
             str(exc),
         )
 

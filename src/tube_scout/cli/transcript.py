@@ -2,7 +2,6 @@
 
 import datetime
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich.console import Console
@@ -21,7 +20,7 @@ def export_command(
     keep_timestamps: bool = False,
     clean_fillers: bool = False,
     with_meta: bool = False,
-    audit_dir: Optional[Path] = None,
+    audit_dir: Path | None = None,
 ) -> None:
     """Export a single transcript to KB-ingestible plain text.
 
@@ -39,7 +38,7 @@ def export_command(
         FileNotFoundError: Transcript JSON not found.
     """
     transcript_path = transcripts_dir / f"{video_id}.json"
-    timestamp = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    timestamp = datetime.datetime.now(tz=datetime.UTC).isoformat()
     _audit_dir = audit_dir if audit_dir is not None else transcripts_dir.parent
 
     result = export_transcript(
@@ -65,13 +64,13 @@ def export_command(
 def export_bulk_command(
     transcripts_dir: Path,
     output_dir: Path,
-    video_ids_file: Optional[Path],
+    video_ids_file: Path | None,
     export_all: bool,
     format_: ExportFormat = "txt",
     keep_timestamps: bool = False,
     clean_fillers: bool = False,
     with_meta: bool = False,
-    audit_dir: Optional[Path] = None,
+    audit_dir: Path | None = None,
 ) -> None:
     """Export multiple transcripts to output_dir.
 
@@ -93,7 +92,7 @@ def export_bulk_command(
         raise ValueError("Specify --video-ids-file or --all to select transcripts.")
 
     _audit_dir = audit_dir if audit_dir is not None else transcripts_dir.parent
-    timestamp = datetime.datetime.now(tz=datetime.timezone.utc).isoformat()
+    timestamp = datetime.datetime.now(tz=datetime.UTC).isoformat()
     writer = AuditWriter(_audit_dir)
 
     video_ids: list[str] | None = None
@@ -159,7 +158,7 @@ def transcript_export_typer(
     transcripts_dir: str = typer.Option(
         "./01_collect/transcripts", "--transcripts-dir", help="Transcripts directory."
     ),
-    output: Optional[str] = typer.Option(None, "--output", help="Output file path."),
+    output: str | None = typer.Option(None, "--output", help="Output file path."),
     format_: str = typer.Option("txt", "--format", help="Output format: txt, md, jsonl."),
     keep_timestamps: bool = typer.Option(False, "--keep-timestamps", help="Include timestamps."),
     clean_fillers: bool = typer.Option(False, "--clean-fillers", help="Remove Korean ASR fillers."),
@@ -194,18 +193,18 @@ def transcript_export_typer(
 
 
 def transcript_export_bulk_typer(
-    channel: Optional[str] = typer.Option(None, "--channel", help="Channel alias."),
-    video_ids_file: Optional[str] = typer.Option(
+    channel: str | None = typer.Option(None, "--channel", help="Channel alias."),
+    video_ids_file: str | None = typer.Option(
         None, "--video-ids-file", help="Text file with one video_id per line."
     ),
     export_all: bool = typer.Option(False, "--all", help="Export all transcripts."),
     format_: str = typer.Option("txt", "--format", help="Output format: txt, md, jsonl."),
-    output_dir: Optional[str] = typer.Option(None, "--output-dir", help="Output directory."),
+    output_dir: str | None = typer.Option(None, "--output-dir", help="Output directory."),
     keep_timestamps: bool = typer.Option(False, "--keep-timestamps"),
     clean_fillers: bool = typer.Option(False, "--clean-fillers"),
     with_meta: bool = typer.Option(False, "--with-meta"),
     data_dir: str = typer.Option("./data", "--data-dir"),
-    transcripts_dir: Optional[str] = typer.Option(
+    transcripts_dir: str | None = typer.Option(
         None, "--transcripts-dir", help="Transcripts directory (overrides --channel default)."
     ),
 ) -> None:

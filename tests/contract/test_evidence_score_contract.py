@@ -12,18 +12,18 @@ from pathlib import Path
 
 def test_score_mp4_candidates_returns_per_candidate_signals(tmp_path: Path) -> None:
     """score_mp4_candidates returns one (video_id, EvidenceSignals) per candidate."""
+    from tube_scout.models.content import VideoMetadata
     from tube_scout.services.evidence_score import (
         EvidenceSignals,
         score_mp4_candidates,
     )
-    from tube_scout.models.content import VideoMetadata
 
     mp4 = tmp_path / "1-1.강의제목A.mp4"
     mp4.write_bytes(b"\x00" * 1024)
 
     import datetime
 
-    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    now = datetime.datetime.now(tz=datetime.UTC)
     # Two candidate VideoMetadata entries
     candidates = [
         VideoMetadata(
@@ -32,7 +32,7 @@ def test_score_mp4_candidates_returns_per_candidate_signals(tmp_path: Path) -> N
             duration_seconds=3600.0,
             channel_id="UCfake0001",
             privacy_status="unlisted",
-            created_at=datetime.datetime(2026, 4, 1, 9, 0, 0, tzinfo=datetime.timezone.utc),
+            created_at=datetime.datetime(2026, 4, 1, 9, 0, 0, tzinfo=datetime.UTC),
             source="takeout",
             ingested_at=now,
         ),
@@ -42,7 +42,7 @@ def test_score_mp4_candidates_returns_per_candidate_signals(tmp_path: Path) -> N
             duration_seconds=2700.0,
             channel_id="UCfake0001",
             privacy_status="unlisted",
-            created_at=datetime.datetime(2026, 4, 8, 9, 0, 0, tzinfo=datetime.timezone.utc),
+            created_at=datetime.datetime(2026, 4, 8, 9, 0, 0, tzinfo=datetime.UTC),
             source="takeout",
             ingested_at=now,
         ),

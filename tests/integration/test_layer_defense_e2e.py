@@ -17,8 +17,6 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from tube_scout.models.reuse_v2 import MatchSpan
 
 
@@ -134,9 +132,14 @@ def test_match_spans_baseline_subtracted_flag_persisted(tmp_path: Path) -> None:
     This test is RED until run_nc2_analysis integrates Layer B and persists
     baseline_subtracted flags in match_spans table.
     """
-    from tube_scout.services.nc2_matcher import run_nc2_analysis
-    from tube_scout.storage.content_db import ContentDB, migrate_to_v2, migrate_to_v3, _ensure_v4
     from tube_scout.services.baseline_corpus import add_baseline_phrase
+    from tube_scout.services.nc2_matcher import run_nc2_analysis
+    from tube_scout.storage.content_db import (
+        ContentDB,
+        _ensure_v4,
+        migrate_to_v2,
+        migrate_to_v3,
+    )
 
     professor = "prof-layer-b-e2e"
     db_path = tmp_path / "content_reuse_lb.db"
