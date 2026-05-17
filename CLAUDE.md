@@ -105,11 +105,29 @@ flake.nix update did not flow through to LD_LIBRARY_PATH / dlopen).
    - Run `uv lock` and commit the updated `uv.lock` together with the
      `pyproject.toml` edit.
 
-3. **§11 Self-Check additions for tube-scout PRs**:
+3. **cudaPackages multi-output trap.** `cudaPackages.{cudnn,
+   cuda_nvrtc, libcublas}` are multi-output derivations whose default
+   `out` holds only `LICENSE` + `nix-support/`; the real `.so` files
+   live in the `.lib` output. `cuda_cudart` currently keeps a
+   conventional `out` shape, but nixpkgs may split it in any release.
+   When adding a CUDA derivation to `flake.nix` `gpuLibPath`:
+   - Always use the `(p.lib or p)` fallback pattern — never bare
+     `cudaPackages.foo`. This is what saved F-1 (audit v3, 2026-05-17)
+     from recurring.
+   - Verify in a fresh `nix develop .#gpu` shell that the target `.so`
+     actually resolves (use the snippet in the `flake.nix` `gpuLibPath`
+     comment, or `tube-scout doctor` which now performs file-existence
+     checks on each `LD_LIBRARY_PATH` entry — F-12 follow-up).
+   - A green `nix flake check` does NOT cover this; it only validates
+     evaluation, not dlopen.
+
+4. **§11 Self-Check additions for tube-scout PRs**:
    - [ ] If this PR edited `flake.nix`, did I verify every devShell
          variant (default + gpu) builds (`nix flake check`) and that
-         the GPU shell still resolves CUDA libs?
+         the GPU shell still resolves CUDA libs (per §3 above)?
    - [ ] If this PR added a Python dependency that dlopens a system
          library, did I update flake.nix in the same PR?
+   - [ ] If this PR added a `cudaPackages.*` entry to `gpuLibPath`,
+         did I use the `(p.lib or p)` fallback (§3)?
 
 <!-- MANUAL ADDITIONS END -->

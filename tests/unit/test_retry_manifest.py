@@ -225,6 +225,116 @@ def test_add_or_update_failures_stage_independent_pk(tmp_path: Path) -> None:
     assert "fingerprint" in stages
 
 
+# ---------------------------------------------------------------------------
+# F-11 follow-up (2026-05-17 audit v3): SIGINT → retry manifest persistence
+#
+# Operator hits Ctrl+C mid-ingest. The in-flight video was never recorded
+# in the retry queue, so ``tube-scout collect ingest --resume`` silently
+# skipped it. Fix: ``append_aborted_by_user`` atomically loads, appends a
+# stage=aborted_by_user entry, and saves the manifest — callable from
+# inside a signal handler (no FailureEntry round-trip because its Literal
+# does not include the aborted_by_user stage).
+# ---------------------------------------------------------------------------
+
+
+def test_append_aborted_by_user_creates_entry_when_manifest_missing(tmp_path: Path) -> None:
+    """No prior manifest → file created with exactly one aborted_by_user entry."""
+    from tube_scout.services.retry_manifest import (
+        append_aborted_by_user,
+        load_manifest,
+    )
+
+    manifest_path = tmp_path / "retry_pending.json"
+    assert not manifest_path.exists()
+
+    delta = append_aborted_by_user(
+        manifest_path,
+        channel_alias="nursing",
+        video_id="vidAborted1",
+        mp4_filename="lecture-3주차.mp4",
+        title="3주차 1차시",
+        now=NOW,
+    )
+
+    assert delta.added_count == 1
+    assert delta.remaining_count == 1
+    assert manifest_path.exists()
+
+    manifest = load_manifest(manifest_path, expected_alias="nursing")
+    assert len(manifest.entries) == 1
+    e = manifest.entries[0]
+    assert e.video_id == "vidAborted1"
+    assert e.mp4_filename == "lecture-3주차.mp4"
+    assert e.failed_stage == "aborted_by_user"
+    assert e.failure_reason == "aborted_by_user"
+    assert e.attempt_count == 1
+
+
+def test_append_aborted_by_user_increments_attempt_for_same_pk(tmp_path: Path) -> None:
+    """Same (video_id, mp4_filename, aborted_by_user) PK → attempt_count++."""
+    from tube_scout.services.retry_manifest import (
+        append_aborted_by_user,
+        load_manifest,
+    )
+
+    manifest_path = tmp_path / "retry_pending.json"
+    for _ in range(3):
+        append_aborted_by_user(
+            manifest_path,
+            channel_alias="nursing",
+            video_id="vidAborted2",
+            mp4_filename="lecture-4주차.mp4",
+            title="4주차 1차시",
+            now=NOW,
+        )
+
+    manifest = load_manifest(manifest_path, expected_alias="nursing")
+    assert len(manifest.entries) == 1
+    assert manifest.entries[0].attempt_count == 3
+
+
+def test_append_aborted_by_user_accepts_mp4_only_pk(tmp_path: Path) -> None:
+    """mp4 with no resolved video_id (ingest_mapping failure → SIGINT) is still
+    representable: video_id=None, mp4_filename must be non-None per PK validator."""
+    from tube_scout.services.retry_manifest import (
+        append_aborted_by_user,
+        load_manifest,
+    )
+
+    manifest_path = tmp_path / "retry_pending.json"
+    append_aborted_by_user(
+        manifest_path,
+        channel_alias="nursing",
+        video_id=None,
+        mp4_filename="orphan-lecture.mp4",
+        title="orphan-lecture",
+        now=NOW,
+    )
+
+    manifest = load_manifest(manifest_path, expected_alias="nursing")
+    assert len(manifest.entries) == 1
+    assert manifest.entries[0].video_id is None
+    assert manifest.entries[0].mp4_filename == "orphan-lecture.mp4"
+
+
+def test_append_aborted_by_user_leaves_no_tmp_residue(tmp_path: Path) -> None:
+    """Atomic write: no .tmp files left after success."""
+    from tube_scout.services.retry_manifest import append_aborted_by_user
+
+    manifest_path = tmp_path / "retry_pending.json"
+    append_aborted_by_user(
+        manifest_path,
+        channel_alias="nursing",
+        video_id="vidAborted3",
+        mp4_filename="lecture.mp4",
+        title="t",
+        now=NOW,
+    )
+
+    leftovers = [p for p in tmp_path.iterdir() if p.suffix in (".tmp", ".lock")]
+    assert leftovers == [], f"atomic write leftover detected: {leftovers}"
+
+
 # T021-12: video_id=None + mp4_filename required — Pydantic PK validator
 def test_retry_manifest_entry_both_none_raises() -> None:
     from tube_scout.models.content import RetryManifestEntry

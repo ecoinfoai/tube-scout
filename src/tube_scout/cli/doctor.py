@@ -69,6 +69,23 @@ def _check_faster_whisper() -> _CheckResult:
         )
 
 
+# F-12 followup (2026-05-17 audit v3 incident): the 4 shared libraries
+# faster-whisper / CTranslate2 dlopen at first GPU model load. Each MUST
+# resolve via LD_LIBRARY_PATH or the process raises a generic
+# RuntimeError. Keep this list in sync with the flake.nix gpuLibPath
+# comment block.
+_F12_TARGET_CUDA_LIBS: tuple[str, ...] = (
+    "libcudnn.so.9",
+    "libnvrtc.so.12",
+    "libcublas.so.12",
+    "libcudart.so.12",
+)
+
+_F12_CUDA_KEYWORDS: tuple[str, ...] = (
+    "cuda", "cudnn", "cublas", "cudart", "nvcuda",
+)
+
+
 def _check_ld_library_path() -> _CheckResult:
     ld = os.environ.get("LD_LIBRARY_PATH", "")
     if not ld:
@@ -78,25 +95,68 @@ def _check_ld_library_path() -> _CheckResult:
             "(unset)",
             "",
         )
+
     cuda_paths = [
         p for p in ld.split(":")
-        if any(k in p.lower() for k in ("cuda", "cudnn", "cublas", "cudart", "nvcuda"))
+        if p and any(k in p.lower() for k in _F12_CUDA_KEYWORDS)
     ]
-    if cuda_paths:
-        summary = ", ".join(cuda_paths[:2])
-        if len(cuda_paths) > 2:
-            summary += f" (+{len(cuda_paths) - 2} more)"
+    if not cuda_paths:
         return _CheckResult(
             "LD_LIBRARY_PATH (CUDA)",
-            _PASS,
-            summary,
-            ld,
+            _WARN,
+            "set but no cuda/cudnn/cublas entry found",
+            ld[:200],
         )
+
+    # F-1 follow-up: keyword match alone is the false-PASS trap. Verify
+    # that each target .so actually exists somewhere in cuda_paths.
+    found: dict[str, str] = {}
+    missing: list[str] = []
+    for lib in _F12_TARGET_CUDA_LIBS:
+        hit = next(
+            (p for p in cuda_paths if os.path.isfile(os.path.join(p, lib))),
+            None,
+        )
+        if hit is not None:
+            found[lib] = hit
+        else:
+            missing.append(lib)
+
+    empty_paths = [
+        p for p in cuda_paths
+        if not any(
+            os.path.isfile(os.path.join(p, lib))
+            for lib in _F12_TARGET_CUDA_LIBS
+        )
+    ]
+
+    total = len(_F12_TARGET_CUDA_LIBS)
+    found_count = len(found)
+    summary = f"{found_count}/{total} CUDA libs resolvable"
+    if missing:
+        summary += f" (missing: {', '.join(missing)})"
+
+    verbose_parts = [
+        "found: " + (", ".join(sorted(found)) if found else "(none)"),
+    ]
+    if missing:
+        verbose_parts.append("missing: " + ", ".join(missing))
+    if empty_paths:
+        verbose_parts.append("empty cuda paths: " + ", ".join(empty_paths))
+    verbose_detail = " | ".join(verbose_parts)
+
+    if found_count == total:
+        status = _PASS
+    elif found_count == 0:
+        status = _FAIL
+    else:
+        status = _WARN
+
     return _CheckResult(
         "LD_LIBRARY_PATH (CUDA)",
-        _WARN,
-        "set but no cuda/cudnn/cublas entry found",
-        ld[:200],
+        status,
+        summary,
+        verbose_detail,
     )
 
 
