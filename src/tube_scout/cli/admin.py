@@ -42,6 +42,21 @@ admin_app = typer.Typer(help="운영자 전용 명령")
 console = Console()
 err_console = Console(stderr=True)
 
+
+@admin_app.callback()
+def _admin_callback() -> None:
+    """Run before every ``tube-scout admin`` subcommand.
+
+    Bootstraps the runtime config/state/log/lock directories AND the
+    ``admin.db`` schema so subcommands can persist without a missing-dir
+    or missing-table crash. Fixes the 2026-05-18 CI failure where fresh
+    runners lack ``~/.local/share/tube-scout`` (and therefore also lack
+    the ``operator_actions`` table inside an absent DB).
+    ``bootstrap()`` is idempotent — re-entry on warm hosts is a no-op.
+    """
+    from tube_scout.web.repo.db import bootstrap
+    bootstrap()
+
 NEAR_EXPIRY_DAYS = 7
 
 # ADV-US3-12: alias regex mirrors models.AliasStr (Pydantic) so the path

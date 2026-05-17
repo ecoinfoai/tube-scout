@@ -39,6 +39,54 @@ def _channels_json(tokens_dir: Path, alias: str, channel_id: str) -> Path:
     return p
 
 
+class TestAdminEnsuresRuntimeDirs:
+    """2026-05-18 CI fix — admin commands must auto-create state/config dirs.
+
+    Root cause: CI runners ship a fresh ``$HOME`` without
+    ``~/.local/share/tube-scout``. ``OperatorActionsRepo.record_action``
+    opens ``admin.db`` under that dir and fails with
+    ``sqlite3.OperationalError: State directory missing: …``. The
+    ``admin_app`` callback now invokes ``ensure_runtime_dirs()`` so every
+    subcommand under ``admin`` is safe regardless of host bootstrap state.
+    """
+
+    def test_add_department_creates_state_dir_when_missing(
+        self, tmp_path: Path
+    ) -> None:
+        """Fresh state/config dirs → admin command auto-creates them."""
+        tokens_dir = tmp_path / "tokens"
+        tokens_dir.mkdir()
+        state_target = tmp_path / "state-target"
+        config_target = tmp_path / "config-target"
+        # Both target dirs intentionally absent — simulating fresh CI runner.
+        assert not state_target.exists()
+        assert not config_target.exists()
+
+        result = _run(
+            [
+                "admin", "add-department",
+                "--alias", "nursing2",
+                "--display", "테스트학과",
+            ],
+            env={
+                "TUBE_SCOUT_TOKENS_DIR": str(tokens_dir),
+                "TUBE_SCOUT_STATE_DIR": str(state_target),
+                "TUBE_SCOUT_CONFIG_DIR": str(config_target),
+            },
+        )
+
+        assert result.returncode == 0, (
+            f"Expected exit 0 with fresh state dir.\n"
+            f"stdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert state_target.exists(), (
+            "admin command must auto-create state dir via ensure_runtime_dirs()"
+        )
+        assert (state_target / "admin.db").exists(), (
+            "admin.db must be created under the resolved state dir"
+        )
+
+
 class TestAddDepartmentNoOAuthEnv:
     """T030 — Takeout-only registration (no OAuth env options)."""
 
