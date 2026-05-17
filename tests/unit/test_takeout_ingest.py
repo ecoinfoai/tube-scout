@@ -87,10 +87,10 @@ def _make_takeout_tree(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
 # ---------------------------------------------------------------------------
 
 class TestDefect3RealChannelHeaders:
-    """T008 — 채널.csv real headers produce correct ChannelMetadata fields."""
+    """T008 — real 채널.csv headers produce correct ChannelMetadata fields."""
 
     def test_channel_title_from_real_header(self, tmp_path: Path) -> None:
-        """title must come from '채널 제목(원본)', not '채널 이름'."""
+        """title must come from the '채널 제목(원본)' column, not '채널 이름'."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
         takeout_root, _, meta_dir, channel_dir = _make_takeout_tree(tmp_path)
@@ -101,7 +101,7 @@ class TestDefect3RealChannelHeaders:
         assert channel.title == "부산보건대 간호학과"
 
     def test_channel_country_from_real_header(self, tmp_path: Path) -> None:
-        """country must come from '채널 국가', not '국가'."""
+        """country must come from the '채널 국가' column, not '국가'."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
         takeout_root, _, meta_dir, channel_dir = _make_takeout_tree(tmp_path)
@@ -148,10 +148,10 @@ class TestDefect3RealChannelHeaders:
 # ---------------------------------------------------------------------------
 
 class TestDefect4RealVideoHeaders:
-    """T009 — 동영상.csv real column names produce correct VideoMetadata fields."""
+    """T009 — real 동영상.csv column names produce correct VideoMetadata fields."""
 
     def test_title_from_real_column(self, tmp_path: Path) -> None:
-        """title must come from '동영상 제목(원본)', not '동영상 제목'."""
+        """title must come from the '동영상 제목(원본)' column, not '동영상 제목'."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
         takeout_root, _, meta_dir, channel_dir = _make_takeout_tree(tmp_path)
@@ -162,7 +162,7 @@ class TestDefect4RealVideoHeaders:
         assert videos[0].title == "실제 강의 제목"
 
     def test_language_from_real_column(self, tmp_path: Path) -> None:
-        """language must come from '동영상 오디오 언어', not '오디오 언어'."""
+        """language must come from the '동영상 오디오 언어' column, not '오디오 언어'."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
         takeout_root, _, meta_dir, channel_dir = _make_takeout_tree(tmp_path)
@@ -173,7 +173,7 @@ class TestDefect4RealVideoHeaders:
         assert videos[0].language == "ko"
 
     def test_category_from_real_column(self, tmp_path: Path) -> None:
-        """category must come from '동영상 카테고리', not '카테고리'."""
+        """category must come from the '동영상 카테고리' column, not '카테고리'."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
         takeout_root, _, meta_dir, channel_dir = _make_takeout_tree(tmp_path)
@@ -201,7 +201,7 @@ class TestDefect4RealVideoHeaders:
 # ---------------------------------------------------------------------------
 
 class TestDefect6ChannelMissingColumn:
-    """T010 — missing '채널 제목(원본)' raises explicit ValueError, not silent None."""
+    """T010 — a missing '채널 제목(원본)' column raises an explicit ValueError instead of returning None."""
 
     def test_missing_title_column_raises_value_error(self, tmp_path: Path) -> None:
         from tube_scout.services.takeout_ingest import (
@@ -237,10 +237,10 @@ class TestDefect6ChannelMissingColumn:
 # ---------------------------------------------------------------------------
 
 class TestDefect8IgnoredCsvAudit:
-    """T012 — '동영상 녹화*.csv' and '동영상 텍스트*.csv' skipped with audit rows."""
+    """T012 — '동영상 녹화*.csv' and '동영상 텍스트*.csv' are skipped with audit rows."""
 
     def test_ignored_csvs_produce_skip_audit_rows(self, tmp_path: Path) -> None:
-        """동영상.csv parsed; 동영상 녹화.csv + 동영상 텍스트.csv → skip audit rows."""
+        """동영상.csv is parsed; 동영상 녹화.csv + 동영상 텍스트.csv produce skip audit rows."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
         takeout_root, yt_dir, meta_dir, channel_dir = _make_takeout_tree(tmp_path)
@@ -263,7 +263,7 @@ class TestDefect8IgnoredCsvAudit:
         _write_channel_csv(channel_dir / "채널.csv")
         _write_video_csv(meta_dir / "동영상.csv", [_video_row("vid001")])
 
-        # Create ignored sub-dirs (이 디렉토리들은 _is_ignored 패턴과 일치해야 함)
+        # Create ignored sub-dirs (these directory names must match the _is_ignored pattern)
         (yt_dir / "동영상 녹화").mkdir()
         (yt_dir / "동영상 텍스트").mkdir()
 

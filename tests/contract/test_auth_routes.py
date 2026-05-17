@@ -367,7 +367,7 @@ def test_login_template_does_not_use_safe_filter_on_next_url(
 async def test_post_login_next_rejects_control_chars_and_alt_schemes(
     auth_env: str,
 ) -> None:
-    """ADV-US1-90~93 (회귀 가드): defense-in-depth open-redirect payloads.
+    """ADV-US1-90~93 (regression guard): defense-in-depth open-redirect payloads.
 
     Beyond the backslash + ``//`` already covered, ensure ``next`` rejects:
     - alt schemes (``javascript:``, ``data:``) by virtue of not starting ``/``
@@ -406,7 +406,7 @@ async def test_post_login_next_rejects_control_chars_and_alt_schemes(
 
 
 async def test_post_login_rejects_username_over_128_chars(auth_env: str) -> None:
-    """ADV-US1-85 (P3 hardening): spec L52 ``username 1-128자``.
+    """ADV-US1-85 (P3 hardening): spec L52 ``username 1-128 chars``.
 
     A username that exceeds the documented length cap MUST be rejected
     with the generic bad-credentials message — no internal echo, no

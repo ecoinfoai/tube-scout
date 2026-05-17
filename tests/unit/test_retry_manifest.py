@@ -39,7 +39,7 @@ def _make_failure(video_id: str = "abc123def45"):
     )
 
 
-# T021-1: 빈 매니페스트 로드 (파일 부재)
+# T021-1: load returns an empty manifest when the file is absent
 def test_load_manifest_missing_file_returns_empty(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import load_manifest
 
@@ -48,7 +48,7 @@ def test_load_manifest_missing_file_returns_empty(tmp_path: Path) -> None:
     assert manifest.schema_version == 2
 
 
-# T021-2: 단일 실패 추가
+# T021-2: add a single failure
 def test_add_or_update_failures_single_entry(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import RetryManifest, add_or_update_failures
 
@@ -64,7 +64,7 @@ def test_add_or_update_failures_single_entry(tmp_path: Path) -> None:
     assert delta.remaining_count == 1
 
 
-# T021-3: 같은 영상 + 같은 stage 재실패 → attempt_count 증가 (3-tuple PK)
+# T021-3: same video + same stage retried → attempt_count increments (3-tuple PK)
 def test_add_or_update_failures_increments_attempt_count(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import RetryManifest, add_or_update_failures
 
@@ -82,7 +82,7 @@ def test_add_or_update_failures_increments_attempt_count(tmp_path: Path) -> None
     assert delta.remaining_count == 1
 
 
-# T021-4: 성공 해소 → entries 제거
+# T021-4: successful resolution → entries removed
 def test_resolve_successes_removes_entry(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import RetryManifest, resolve_successes
 
@@ -97,7 +97,7 @@ def test_resolve_successes_removes_entry(tmp_path: Path) -> None:
     assert delta.remaining_count == 0
 
 
-# T021-5: schema_version 불일치 → ValueError
+# T021-5: schema_version mismatch → ValueError
 def test_load_manifest_schema_version_mismatch_raises(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import load_manifest
 
@@ -111,7 +111,7 @@ def test_load_manifest_schema_version_mismatch_raises(tmp_path: Path) -> None:
         load_manifest(path)
 
 
-# T021-6: alias 불일치 → ValueError
+# T021-6: alias mismatch → ValueError
 def test_load_manifest_alias_mismatch_raises(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import (
         RetryManifest,
@@ -127,7 +127,7 @@ def test_load_manifest_alias_mismatch_raises(tmp_path: Path) -> None:
         load_manifest(path, expected_alias="pharmacy")
 
 
-# T021-7: atomic write 부분 실패 → 기존 파일 보존 + recovery.json 생성
+# T021-7: atomic-write partial failure → existing file preserved + recovery.json written
 def test_save_manifest_partial_write_preserves_existing(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import (
         RetryManifest,
@@ -148,7 +148,7 @@ def test_save_manifest_partial_write_preserves_existing(tmp_path: Path) -> None:
     assert path.read_text(encoding="utf-8") == original_text
 
 
-# T021-8: max_attempts 초과 entry 는 select_retry_targets 에서 제외
+# T021-8: entries past max_attempts are excluded from select_retry_targets
 def test_select_retry_targets_excludes_max_attempts_exceeded(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import RetryManifest, select_retry_targets
 
@@ -162,7 +162,7 @@ def test_select_retry_targets_excludes_max_attempts_exceeded(tmp_path: Path) -> 
     assert "vid_max" not in targets
 
 
-# T021-9: 0600 권한 보장
+# T021-9: 0o600 permission is enforced on save
 def test_save_manifest_sets_0600_permission(tmp_path: Path) -> None:
     from tube_scout.services.retry_manifest import RetryManifest, save_manifest
 
@@ -174,7 +174,7 @@ def test_save_manifest_sets_0600_permission(tmp_path: Path) -> None:
     assert mode == 0o600, f"Expected 0o600, got {oct(mode)}"
 
 
-# T021-10: schema_version=1 파일 로드 시 v2로 마이그레이션 (schema fallback, F-17)
+# T021-10: loading a schema_version=1 file migrates to v2 (schema fallback, F-17)
 def test_load_manifest_v1_migrates_to_v2(tmp_path: Path) -> None:
     import json
 
@@ -202,7 +202,7 @@ def test_load_manifest_v1_migrates_to_v2(tmp_path: Path) -> None:
     assert manifest.entries[0].video_id == "vid001"
 
 
-# T021-11: 3-tuple PK — 같은 video_id라도 다른 stage는 독립 entry
+# T021-11: 3-tuple PK — same video_id with a different stage yields an independent entry
 def test_add_or_update_failures_stage_independent_pk(tmp_path: Path) -> None:
     from tube_scout.models.content import FailureEntry
     from tube_scout.services.retry_manifest import RetryManifest, add_or_update_failures

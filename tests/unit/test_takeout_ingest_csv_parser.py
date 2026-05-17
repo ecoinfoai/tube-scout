@@ -78,18 +78,18 @@ def _make_takeout_dir(tmp_path: Path) -> tuple[Path, Path, Path]:
 # ---------------------------------------------------------------------------
 
 def test_split_csvs_merged_and_deduped(tmp_path: Path) -> None:
-    """동영상.csv + 동영상(1).csv rows are merged; duplicate video_id produces one entry."""
+    """Rows from 동영상.csv + 동영상(1).csv are merged; duplicate video_id yields one entry."""
     from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
     takeout_root, meta_dir, channel_dir = _make_takeout_dir(tmp_path)
     _write_channel_csv(channel_dir / "채널.csv")
 
-    # 동영상.csv: vid001, vid002
+    # 동영상.csv contains vid001 and vid002
     _write_video_csv(meta_dir / "동영상.csv", [
         _make_video_row("vid001", "영상1"),
         _make_video_row("vid002", "영상2"),
     ])
-    # 동영상(1).csv: vid002 (dup), vid003
+    # 동영상(1).csv contains vid002 (duplicate of the first) and vid003
     _write_video_csv(meta_dir / "동영상(1).csv", [
         _make_video_row("vid002", "영상2"),
         _make_video_row("vid003", "영상3"),
@@ -109,7 +109,7 @@ def test_split_csvs_merged_and_deduped(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def test_duration_ms_converted_to_seconds(tmp_path: Path) -> None:
-    """근사치 길이(밀리초) value is converted to duration_sec (float) on VideoMetadata."""
+    """The 근사치 길이(밀리초) column is converted to duration_sec (float) on VideoMetadata."""
     from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
     takeout_root, meta_dir, channel_dir = _make_takeout_dir(tmp_path)
@@ -131,7 +131,7 @@ def test_duration_ms_converted_to_seconds(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# test 3: channel_id extracted from 채널.csv
+# test 3: channel_id is extracted from 채널.csv
 # ---------------------------------------------------------------------------
 
 def test_channel_id_extracted_from_channel_csv(tmp_path: Path) -> None:
@@ -176,7 +176,7 @@ def test_missing_required_column_raises_value_error(tmp_path: Path) -> None:
     takeout_root, meta_dir, channel_dir = _make_takeout_dir(tmp_path)
     _write_channel_csv(channel_dir / "채널.csv")
 
-    # Write CSV with wrong header (missing 동영상 ID)
+    # Write CSV with the wrong header (missing 동영상 ID column)
     bad_csv = meta_dir / "동영상.csv"
     with bad_csv.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)

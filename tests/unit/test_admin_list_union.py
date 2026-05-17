@@ -140,10 +140,10 @@ class TestAdminListConsistency:
 
 
 class TestAdminListBlockingAnalysis:
-    """T036 — mismatch alias blocks collect/analyze/report commands (FR-015 후반부)."""
+    """T036 — mismatch alias blocks collect/analyze/report commands (FR-015 second half)."""
 
     def test_mismatch_blocks_collect_command(self, tmp_path: Path) -> None:
-        """collect takeout with mismatch alias → exit 1 with mismatch in error (FR-015 후반부).
+        """collect takeout with mismatch alias → exit 1 with mismatch in error (FR-015 second half).
 
         The test verifies that the mismatch check is performed BEFORE any
         filesystem validation, so that the blocking message is about channel_id

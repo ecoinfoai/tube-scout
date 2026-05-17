@@ -24,7 +24,7 @@ def sample_titles() -> list[dict]:
 
 
 class TestStandardKrPattern:
-    """Tests for pattern 1: {교수} {연도} {학과} {교과목} {N}주차 {M}차시."""
+    """Tests for pattern 1: professor year department course N-week M-session."""
 
     def test_full_match(self, parser: TitleParser) -> None:
         title = "홍길동 2026 간호학과 인체구조와기능 4주차 2차시"
@@ -57,7 +57,7 @@ class TestStandardKrPattern:
 
 
 class TestSemesterExplicitPattern:
-    """Tests for pattern 2: {교과목} {연도} {N}학기 {교수} {N}주차 {M}차시."""
+    """Tests for pattern 2: course year N-semester professor N-week M-session."""
 
     def test_full_match(self, parser: TitleParser) -> None:
         result = parser.parse("감염미생물학 2024 2학기 홍길동 2주차 1차시", "vid002")
@@ -96,7 +96,7 @@ class TestCoTeachingPattern:
 
 
 class TestAcademicYearPattern:
-    """Tests for pattern 4: {연도}학년도 {N}학기 {교과목} {N}주차 ({교수})."""
+    """Tests for pattern 4: academic-year N-semester course N-week (professor)."""
 
     def test_full_match(self, parser: TitleParser) -> None:
         result = parser.parse("2023학년도 2학기 국어 5주차 (홍길동)", "vid004")
@@ -116,7 +116,7 @@ class TestAcademicYearPattern:
 
 
 class TestNumberedPrefixPattern:
-    """Tests for pattern 5: {번호}.{교수} {교과목} {N}주차 {M}차시({학과})."""
+    """Tests for pattern 5: number.professor course N-week M-session (department)."""
 
     def test_full_match(self, parser: TitleParser) -> None:
         result = parser.parse(

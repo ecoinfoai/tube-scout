@@ -58,7 +58,7 @@ def _audit_reasons(audit: MagicMock) -> list[str]:
     return [str(c) for c in audit.append.call_args_list]
 
 
-# T022-1: 실패 0 + yes → unlink 모든 영상, audit confirmed_yes + deleted × N
+# T022-1: zero failures + yes → unlink every video, audit confirmed_yes + deleted × N
 def test_cleanup_no_failures_yes_unlinks_all(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import (
         confirm_and_cleanup,
@@ -79,7 +79,7 @@ def test_cleanup_no_failures_yes_unlinks_all(tmp_path: Path) -> None:
     assert any("deleted" in r for r in reasons)
 
 
-# T022-2: 실패 N + yes → 성공 영상만 unlink, audit presented_failures + confirmed_yes + deleted
+# T022-2: N failures + yes → only successes unlinked, audit presented_failures + confirmed_yes + deleted
 def test_cleanup_with_failures_yes_unlinks_candidates_only(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import (
         confirm_and_cleanup,
@@ -100,7 +100,7 @@ def test_cleanup_with_failures_yes_unlinks_candidates_only(tmp_path: Path) -> No
     assert any("confirmed_yes" in r for r in reasons)
 
 
-# T022-3: 실패 0 + no → unlink 0, audit confirmed_no
+# T022-3: zero failures + no → 0 unlinks, audit confirmed_no
 def test_cleanup_no_failures_no_preserves_all(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import (
         confirm_and_cleanup,
@@ -120,7 +120,7 @@ def test_cleanup_no_failures_no_preserves_all(tmp_path: Path) -> None:
     assert any("confirmed_no" in r for r in reasons)
 
 
-# T022-4: 실패 N + no → unlink 0, audit presented_failures + confirmed_no
+# T022-4: N failures + no → 0 unlinks, audit presented_failures + confirmed_no
 def test_cleanup_with_failures_no_preserves_all(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import (
         confirm_and_cleanup,
@@ -156,7 +156,7 @@ def test_cleanup_eof_preserves_all(tmp_path: Path) -> None:
     assert any("timeout" in r for r in reasons)
 
 
-# T022-6: Ctrl+C → unlink 0, audit interrupted, 예외 미전파
+# T022-6: Ctrl+C → 0 unlinks, audit interrupted, exception swallowed
 def test_cleanup_ctrl_c_preserves_all_no_propagation(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import confirm_and_cleanup
 
@@ -171,7 +171,7 @@ def test_cleanup_ctrl_c_preserves_all_no_propagation(tmp_path: Path) -> None:
     assert any("interrupted" in r for r in reasons)
 
 
-# T022-7: 파일 잠금 → locked 파일은 audit delete_failed_locked, 나머지는 deleted
+# T022-7: file locked → locked file audits delete_failed_locked, rest deleted
 def test_cleanup_file_locked_partial_delete(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import confirm_and_cleanup
 
@@ -198,7 +198,7 @@ def test_cleanup_file_locked_partial_delete(tmp_path: Path) -> None:
     assert any("deleted" in r for r in reasons)
 
 
-# T022-8: I/O 오류 → I/O 파일은 audit delete_failed_io, 나머지는 deleted
+# T022-8: I/O error → I/O-affected file audits delete_failed_io, rest deleted
 def test_cleanup_io_error_partial_delete(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import confirm_and_cleanup
 
@@ -223,7 +223,7 @@ def test_cleanup_io_error_partial_delete(tmp_path: Path) -> None:
     assert any("delete_failed_io" in r for r in reasons)
 
 
-# T022-9: present_failure_table 실패 0 → audit presented_failures
+# T022-9: present_failure_table with 0 failures → audit presented_failures
 def test_present_failure_table_zero_failures_logs_audit(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import present_failure_table
 
@@ -234,7 +234,7 @@ def test_present_failure_table_zero_failures_logs_audit(tmp_path: Path) -> None:
     assert any("presented_failures" in r for r in reasons)
 
 
-# T022-10: present_failure_table 실패 N → audit presented_failures
+# T022-10: present_failure_table with N failures → audit presented_failures
 def test_present_failure_table_with_failures_logs_audit(tmp_path: Path) -> None:
     from tube_scout.services.source_video_cleanup import present_failure_table
 

@@ -58,7 +58,7 @@ class TestUnknownPrivacyValueHandling:
     """T011 — unknown Korean privacy value skipped with audit row, others processed."""
 
     def test_unknown_privacy_skipped_other_videos_continue(self, tmp_path: Path) -> None:
-        """'예약 공개' row skipped; vid_ok1 and vid_ok2 must still be parsed."""
+        """A '예약 공개' row is skipped; vid_ok1 and vid_ok2 must still be parsed."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
         takeout_root, meta_dir, channel_dir = _make_takeout_tree(tmp_path)
@@ -113,7 +113,7 @@ class TestUnknownPrivacyValueHandling:
         assert skip_rows[0]["raw_value"] == "예약 공개"
 
     def test_known_korean_privacy_values_accepted(self, tmp_path: Path) -> None:
-        """'비공개', '일부 공개', '공개' must all be parsed and NOT skipped."""
+        """The three known Korean privacy values ('비공개', '일부 공개', '공개') must all be parsed."""
         from tube_scout.services.takeout_ingest import parse_takeout_csv_metadata
 
         takeout_root, meta_dir, channel_dir = _make_takeout_tree(tmp_path)
