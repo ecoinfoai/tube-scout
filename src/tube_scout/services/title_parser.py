@@ -63,7 +63,7 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?P<week>\d+)주차\s+(?P<session>\d+)차시"
             ),
             priority=1,
-            description="{교과목} {연도} {N}학기 {교수} {N}주차 {M}차시",
+            description="course year N-semester professor N-week M-session",
         ),
         TitlePattern(
             name="co_teaching",
@@ -75,7 +75,7 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?:\s*\((?P<department>[^)]+)\))?"
             ),
             priority=2,
-            description="co-teaching: {교수}/{교수} {교과목}",
+            description="co-teaching: professor/professor course",
         ),
         TitlePattern(
             name="academic_year",
@@ -88,7 +88,7 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?:\s*\((?P<professor>[^)]+)\))?"
             ),
             priority=3,
-            description="{연도}학년도 {N}학기 {교과목} {N}주차 ({교수})",
+            description="academic-year N-semester course N-week (professor)",
         ),
         TitlePattern(
             name="numbered_prefix",
@@ -100,7 +100,7 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?:\s*\(?(?P<department>[^)]*(?:학과|과))\)?)?"
             ),
             priority=4,
-            description="{번호}.{교수} {교과목} {N}주차 {M}차시({학과})",
+            description="number.professor course N-week M-session (department)",
         ),
         TitlePattern(
             name="standard_kr",
@@ -111,9 +111,9 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?P<week>\d+)주차\s+(?P<session>\d+)차시"
             ),
             priority=5,
-            description="{교수} {연도} {학과} {교과목} {N}주차 {M}차시",
+            description="professor year department course N-week M-session",
         ),
-        # year_prof_course_week: {연도} {교수} {교과목} {N}주차
+        # year_prof_course_week: year professor course N-week
         TitlePattern(
             name="year_prof_course_week",
             pattern=re.compile(
@@ -123,9 +123,9 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?:\s+(?P<session>\d+)차시)?"
             ),
             priority=6,
-            description="{연도} {교수} {교과목} {N}주차",
+            description="year professor course N-week",
         ),
-        # year_course_week_session_prof: {연도} {교과목} {N}주차 {M}차시 ... ({교수})
+        # year_course_week_session_prof: year course N-week M-session ... (professor)
         TitlePattern(
             name="year_course_week_prof",
             pattern=re.compile(
@@ -137,9 +137,9 @@ def _build_patterns() -> list[TitlePattern]:
                 r"\s*\((?P<professor>[^)]+)\)"
             ),
             priority=7,
-            description="{연도} {교과목} {N}주차 {M}차시 ({교수})",
+            description="year course N-week M-session (professor)",
         ),
-        # prof_year_course_week_only: {교수} {연도} {교과목} {keyword}? {N}주차
+        # prof_year_course_week_only: professor year course keyword? N-week
         TitlePattern(
             name="prof_year_course_week_only",
             pattern=re.compile(
@@ -149,9 +149,9 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?P<week>\d+)주차"
             ),
             priority=8,
-            description="{교수} {연도} {교과목} {N}주차 (no session)",
+            description="professor year course N-week (no session)",
         ),
-        # year_semester_prefix: {연도}-{학기} {교수} {교과목} {N}주차
+        # year_semester_prefix: year-semester professor course N-week
         TitlePattern(
             name="year_semester_prefix",
             pattern=re.compile(
@@ -162,9 +162,9 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?P<week>\d+)주차\s+(?P<session>\d+)차시"
             ),
             priority=9,
-            description="{연도}-{학기} {교수} {학과} {교과목} {N}주차 {M}차시",
+            description="year-semester professor department course N-week M-session",
         ),
-        # prof_keyword_course: {교수} {특강|OT} {교과목}
+        # prof_keyword_course: professor (특강|OT) course
         TitlePattern(
             name="prof_keyword_course",
             pattern=re.compile(
@@ -173,9 +173,9 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?P<course>\S+(?:\s+\S+)*?)$"
             ),
             priority=10,
-            description="{교수} {특강|OT} {교과목}",
+            description="professor (특강|OT) course",
         ),
-        # prof_year_course_supplementary: {교수} {연도} {학과}? {교과목} OT
+        # prof_year_course_supplementary: professor year department? course OT
         TitlePattern(
             name="prof_supplementary",
             pattern=re.compile(
@@ -186,9 +186,9 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?P<supp_keyword>OT|특강|핵심영상|보완영상|질문응답|보충)"
             ),
             priority=11,
-            description="{교수} {연도}? {교과목} {supplementary}",
+            description="professor year? course supplementary",
         ),
-        # dept_first: {학과} ... {교과목} {연도} {N}주차 {M}차시 ... {교수}
+        # dept_first: department ... course year N-week M-session ... professor
         TitlePattern(
             name="dept_first",
             pattern=re.compile(
@@ -199,7 +199,7 @@ def _build_patterns() -> list[TitlePattern]:
                 r"(?:\s+\S+)*\s+(?P<professor>[가-힣]{2,4})$"
             ),
             priority=12,
-            description="{학과} ... {교과목} {연도} {N}주차 {M}차시 ... {교수}",
+            description="department ... course year N-week M-session ... professor",
         ),
     ]
     return sorted(patterns, key=lambda p: p.priority)

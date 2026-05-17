@@ -1,6 +1,6 @@
 """Admin CLI commands (T089-T094).
 
-Subcommand group ``tube-scout admin ...`` for the operator (DX 지원센터장).
+Subcommand group ``tube-scout admin ...`` for the operator (DX center director).
 Spec FR-024~027 + ``contracts/admin-cli.md`` §1-§5.
 
 Commands:
@@ -247,7 +247,7 @@ def add_department(
         False, "--no-oauth-consent", help="OAuth 동의 흐름 건너뛰기"
     ),
 ) -> None:
-    """학과를 신규 등록한다 (departments.json 원자적 쓰기 + 선택적 OAuth).
+    """Register a new department (atomic departments.json write + optional OAuth).
 
     Args:
         alias: Department alias (lowercase alphanumeric + hyphens).
@@ -474,7 +474,9 @@ def _build_union_rows() -> list[dict[str, str | None]]:
 def list_departments(
     json_output: bool = typer.Option(False, "--json", help="JSON 출력"),
 ) -> None:
-    """등록된 학과 목록을 출력한다 (FR-014: channels.json + departments.json union).
+    """Print the union of registered departments.
+
+    FR-014: union of channels.json + departments.json.
 
     Args:
         json_output: Emit raw JSON instead of a rich table when True.
@@ -562,7 +564,7 @@ def status(
     alias: str | None = typer.Option(None, "--alias", help="특정 학과만 조회"),
     json_output: bool = typer.Option(False, "--json", help="JSON 출력"),
 ) -> None:
-    """OAuth 토큰 상태 + 진행 중 작업 + 최근 7일 운영 동작 요약."""
+    """Summarize OAuth token state, in-progress jobs, and recent operator actions."""
     rows = _build_status_rows(alias)
     _write_status_log_line(rows)
 

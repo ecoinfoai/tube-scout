@@ -46,7 +46,7 @@ _META_SUBDIR = "동영상 메타데이터"
 _CHANNEL_SUBDIR = "채널"
 _VIDEO_SUBDIR = "동영상"
 
-# Minimum required columns — real Takeout export (결함 4 fix: drop absent URL column)
+# Minimum required columns — real Takeout export (defect-4 fix: drop absent URL column)
 _VIDEO_CSV_REQUIRED = {
     "동영상 ID",
     "동영상 제목(원본)",
@@ -56,7 +56,7 @@ _VIDEO_CSV_REQUIRED = {
     "동영상 생성 타임스탬프",
 }
 
-# Real Takeout channel CSV required columns (결함 3 fix)
+# Real Takeout channel CSV required columns (defect-3 fix)
 _CHANNEL_CSV_REQUIRED = {"채널 ID", "채널 제목(원본)"}
 
 # R-4 / FR-005: Korean privacy labels from Takeout CSV → canonical English values
@@ -155,7 +155,7 @@ def _parse_takeout_full(
         FileNotFoundError: Required directory or CSV not found.
         ValueError: Required CSV columns absent or CSV malformed.
     """
-    # 결함 12: yt_dir 자동 탐색 — archive root 또는 Takeout/ 자체 모두 허용
+    # defect-12: auto-detect yt_dir — accept either an archive root or the Takeout/ dir
     candidate_a = takeout_dir / "Takeout" / _YT_SUBDIR
     candidate_b = takeout_dir / _YT_SUBDIR
     if candidate_a.exists():
@@ -171,7 +171,7 @@ def _parse_takeout_full(
     meta_dir = yt_dir / _META_SUBDIR
     channel_dir = yt_dir / _CHANNEL_SUBDIR
 
-    # Parse 채널.csv
+    # Parse 채널.csv (Korean filename, matched verbatim)
     channel_csv_files = (
         list(channel_dir.glob("채널.csv")) if channel_dir.exists() else []
     )
@@ -179,7 +179,7 @@ def _parse_takeout_full(
         raise FileNotFoundError(f"채널.csv not found under {channel_dir}")
     channel_meta = _parse_channel_csv(channel_csv_files[0])
 
-    # Parse all 동영상*.csv files (split CSV support) — 결함 8 fix: exact glob union
+    # Parse all 동영상*.csv files (split CSV support) — defect-8 fix: exact glob union
     if not meta_dir.exists():
         raise FileNotFoundError(f"동영상 메타데이터 directory not found: {meta_dir}")
 
@@ -194,7 +194,7 @@ def _parse_takeout_full(
     now = datetime.datetime.now(tz=datetime.UTC)
 
     for csv_path in video_csv_files:
-        # 결함 8: skip ignored-category files that happen to match broader glob
+        # defect-8: skip ignored-category files that happen to match the broader glob
         if _is_ignored(csv_path.name):
             continue
         with csv_path.open(encoding="utf-8", newline="") as f:
@@ -221,7 +221,7 @@ def _parse_takeout_full(
                     except ValueError:
                         created_at = None
 
-                # 결함 7 / FR-005: Korean privacy → English via _PRIVACY_MAPPING
+                # defect-7 / FR-005: Korean privacy → English via _PRIVACY_MAPPING
                 raw_privacy = row["개인 정보 보호"].strip()
                 privacy_status = _PRIVACY_MAPPING.get(raw_privacy)
                 if privacy_status is None:
@@ -250,7 +250,7 @@ def _parse_takeout_full(
 
 
 def _parse_channel_csv(csv_path: Path) -> ChannelMetadata:
-    """Parse 채널.csv and return a minimal ChannelMetadata.
+    """Parse the Korean 채널.csv file and return a minimal ChannelMetadata.
 
     Args:
         csv_path: Path to 채널.csv.
@@ -434,7 +434,7 @@ def ingest_takeout(
                         },
                     )
 
-    # Detect and audit ignored category files inside meta_dir (결함 8, FR-011)
+    # Detect and audit ignored category files inside meta_dir (defect-8, FR-011)
     meta_dir = yt_dir / _META_SUBDIR
     if meta_dir.exists():
         for item in meta_dir.iterdir():
@@ -485,7 +485,7 @@ def ingest_takeout(
 
     channel_meta = channel_meta.model_copy(update={"channel_alias": channel_alias})
 
-    # Audit unknown privacy rows (결함 7, FR-005)
+    # Audit unknown privacy rows (defect-7, FR-005)
     if not dry_run:
         for entry in pending_unknown_privacy_rows:
             audit_writer.append_row(

@@ -802,7 +802,7 @@ def ingest_unified(
             f"소요 {ingest_result.elapsed_seconds:.0f}s"
         )
 
-    # ── Step 2: dry-run 시 조기 종료 ───────────────────────────────────────
+    # ── Step 2: early return when --dry-run was passed ──────────────────────
     if dry_run:
         completed_at = datetime.now(tz=UTC)
         total_elapsed = time.monotonic() - _t0
@@ -841,7 +841,7 @@ def ingest_unified(
         _print_summary_table(summary, console=_console)
         return summary
 
-    # ── Step 3: 자막 + 지문 (retry targets 우선) ──────────────────────────
+    # ── Step 3: transcript + fingerprint (retry targets first) ─────────────
     if is_tty:
         _console.print("[bold]▶ Step 2/5: 자막 생성 (faster-whisper)[/bold]")
         _console.print("[bold]▶ Step 3/5: 음원 지문 추출 (chromaprint)[/bold]")
@@ -884,7 +884,7 @@ def ingest_unified(
             f"mp4 부재 skip {transcript_result.skipped_no_mp4_count}"
         )
 
-    # ── Step 4: 재시도 매니페스트 갱신 ────────────────────────────────────
+    # ── Step 4: update the retry manifest ───────────────────────────────────
     if is_tty:
         _console.print("[bold]▶ Step 4/5: 재시도 매니페스트 갱신[/bold]")
 
@@ -911,7 +911,7 @@ def ingest_unified(
             f"잔여 {retry_manifest_delta.remaining_count}"
         )
 
-    # ── Step 5: 영상 본체 정리 (--delete-source 지정 시만) ─────────────────
+    # ── Step 5: source-video cleanup (only when --delete-source) ───────────
     cleanup_result = None
     if is_tty:
         if delete_source:
@@ -947,7 +947,7 @@ def ingest_unified(
             allowed_roots=_allowed_roots,
         )
 
-    # ── 최종 집계 ──────────────────────────────────────────────────────────
+    # ── final summary ──────────────────────────────────────────────────────
     completed_at = datetime.now(tz=UTC)
     total_elapsed = time.monotonic() - _t0
 
