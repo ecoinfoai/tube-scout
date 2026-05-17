@@ -75,4 +75,41 @@ Python 3.11: Follow standard conventions
 
 
 <!-- MANUAL ADDITIONS START -->
+
+## Consistency Invariants
+
+Hard rules that fixes touching one of these files must honor (audit v3
+2026-05-17 incident — the GPU runtime broke for a week because a
+flake.nix update did not flow through to LD_LIBRARY_PATH / dlopen).
+
+1. **flake.nix devShell variants must stay parity.** When you add or
+   remove a CUDA / system library used by faster-whisper / WeasyPrint /
+   chromaprint:
+   - Update `commonBuildInputs` (CPU-safe) or `gpuLibPath`
+     (GPU / unfree) — NOT one shell at a time.
+   - Mirror the path in `shellHook` `LD_LIBRARY_PATH_BASE` /
+     `gpuLibPathString`.
+   - Re-enter every active shell (`direnv reload` or `nix develop`) so
+     the change actually applies. `nix flake check` does not verify
+     dlopen behavior.
+   - Verify with: `echo $LD_LIBRARY_PATH | tr : '\n' | grep cuda` and
+     `tube-scout doctor` (audit v3 F-12).
+
+2. **pyproject.toml extras must pair with flake.nix.** When a new
+   heavy runtime dependency lands in
+   `[project.optional-dependencies].asr / .pdf / .ml-*`, check whether
+   it dlopens a system library:
+   - If yes, add the matching nixpkgs package to flake.nix in the same
+     PR. Otherwise direnv users will hit an opaque RuntimeError on
+     first call.
+   - Run `uv lock` and commit the updated `uv.lock` together with the
+     `pyproject.toml` edit.
+
+3. **§11 Self-Check additions for tube-scout PRs**:
+   - [ ] If this PR edited `flake.nix`, did I verify every devShell
+         variant (default + gpu) builds (`nix flake check`) and that
+         the GPU shell still resolves CUDA libs?
+   - [ ] If this PR added a Python dependency that dlopens a system
+         library, did I update flake.nix in the same PR?
+
 <!-- MANUAL ADDITIONS END -->
