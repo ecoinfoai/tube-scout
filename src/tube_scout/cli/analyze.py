@@ -933,6 +933,17 @@ def analyze_content_reuse_command(
         "--db-path",
         help="Path to content_reuse.db SQLite file.",
     ),
+    data_dir: str = typer.Option(
+        "./data",
+        "--data-dir",
+        help=(
+            "Collect data root (parent of channel work dirs). When provided, "
+            "Layer B match_spans persistence resolves transcripts at "
+            "<data-dir>/<channel_alias>/02_analyze/transcripts/<video_id>.json "
+            "per spec 018 atomic-write layout. Without --data-dir the analysis "
+            "still runs but match_spans persistence is skipped."
+        ),
+    ),
 ) -> None:
     """Run nC2 reuse analysis for a professor's video pool.
 
@@ -945,6 +956,8 @@ def analyze_content_reuse_command(
         resume: Skip already-analyzed pairs.
         force: Re-analyze even if done.
         db_path: Path to SQLite database.
+        data_dir: Collect data root used to resolve per-video transcript
+            paths for Layer B match_spans persistence (spec 013 T068).
     """
     from tube_scout.services.nc2_matcher import run_nc2_analysis, AnalysisResult
     from tube_scout.storage.content_db import ContentDB, _ensure_v4, migrate_to_v3, migrate_to_v2
@@ -957,6 +970,7 @@ def analyze_content_reuse_command(
 
     resolved_db = Path(db_path)
     resolved_db.parent.mkdir(parents=True, exist_ok=True)
+    resolved_data_dir = Path(data_dir) if data_dir else None
 
     db = ContentDB(resolved_db)
     try:
@@ -969,6 +983,7 @@ def analyze_content_reuse_command(
             layer_b_threshold=layer_b_threshold,
             resume=resume,
             force=force,
+            data_dir=resolved_data_dir,
         )
     finally:
         db.close()

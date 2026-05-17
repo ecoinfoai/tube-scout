@@ -148,23 +148,81 @@ def _lookup_source_type(video_id: str, db_path: Path) -> str:
     return _normalize_source_type(row[0] if row else None)
 
 
-def _load_transcript_segments(
-    transcript_root: Path, video_id: str
-) -> list[dict[str, float | str]]:
-    """Load segments from ``<transcript_root>/<video_id>.json`` (spec 018 schema).
+def _resolve_transcript_path_by_video(
+    video_id: str, data_dir: Path, db: "ContentDB"
+) -> Path | None:
+    """Resolve ``<data_dir>/<channel_alias>/02_analyze/transcripts/<video_id>.json``.
+
+    Uses video_metadata + channel_metadata in the DB to find which channel a
+    video belongs to (a professor pool may span multiple channels). Returns
+    ``None`` if the channel mapping is missing or the JSON file is absent.
 
     Args:
-        transcript_root: Directory containing per-video transcript JSON files.
-        video_id: Video identifier (json filename stem).
+        video_id: Video identifier.
+        data_dir: Operator-provided collect data root (parent of channel
+            work dirs). collect ingest writes ``<data_dir>/<alias>/02_analyze
+            /transcripts/<video_id>.json`` per spec 018 atomic write.
+        db: ContentDB wrapper to query the metadata tables.
 
     Returns:
-        List of ``{"start", "end", "text"}`` dicts; empty list if the file is
-        missing, unreadable, or contains no usable segments.
+        Path to the per-video transcript JSON, or ``None`` if not found.
+    """
+    row = db._conn.execute(
+        "SELECT cm.channel_alias "
+        "FROM video_metadata vm "
+        "JOIN channel_metadata cm ON cm.channel_id = vm.channel_id "
+        "WHERE vm.video_id = ?",
+        (video_id,),
+    ).fetchone()
+    if row is None:
+        return None
+    alias = row[0] if isinstance(row, (list, tuple)) else row["channel_alias"]
+    if not alias:
+        return None
+    path = data_dir / alias / "02_analyze" / "transcripts" / f"{video_id}.json"
+    return path if path.is_file() else None
+
+
+def _load_transcript_segments(
+    transcript_root: Path | None,
+    video_id: str,
+    *,
+    data_dir: Path | None = None,
+    db: "ContentDB | None" = None,
+) -> list[dict[str, float | str]]:
+    """Load segments from a per-video transcript JSON (spec 018 schema).
+
+    The path is resolved in two ways:
+
+    * If ``transcript_root`` is provided, look at
+      ``<transcript_root>/<video_id>.json`` (legacy single-channel layout
+      and what the integration tests use).
+    * Else if ``data_dir`` + ``db`` are provided, use
+      :func:`_resolve_transcript_path_by_video` so multi-channel professor
+      pools can find the right channel's transcript directory.
+
+    Args:
+        transcript_root: Optional flat directory containing per-video JSONs.
+        video_id: Video identifier (JSON filename stem).
+        data_dir: Optional collect data root for multi-channel resolution.
+        db: ContentDB used to map video_id → channel_alias.
+
+    Returns:
+        List of ``{"start", "end", "text"}`` dicts; empty list when the
+        transcript is missing, unreadable, or has no usable segments.
     """
     import json
 
-    path = transcript_root / f"{video_id}.json"
-    if not path.is_file():
+    if transcript_root is not None:
+        path: Path | None = transcript_root / f"{video_id}.json"
+        if path is not None and not path.is_file():
+            path = None
+    elif data_dir is not None and db is not None:
+        path = _resolve_transcript_path_by_video(video_id, data_dir, db)
+    else:
+        path = None
+
+    if path is None:
         return []
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -489,6 +547,7 @@ def run_nc2_analysis(
     force: bool = False,
     progress: "ProgressReporter | None" = None,
     transcript_root: Path | None = None,
+    data_dir: Path | None = None,
 ) -> AnalysisResult:
     """Execute nC2 analysis for one professor.
 
@@ -616,7 +675,7 @@ def run_nc2_analysis(
             db._conn.commit()
 
             # spec 013 T068: persist match_spans + Layer B baseline marking.
-            if transcript_root is not None:
+            if transcript_root is not None or data_dir is not None:
                 row = db._conn.execute(
                     "SELECT id FROM comparison_results "
                     "WHERE source_video_id = ? AND target_video_id = ? "
@@ -628,10 +687,16 @@ def run_nc2_analysis(
                         row[0] if isinstance(row, (list, tuple)) else row["id"]
                     )
                     captions_a = _load_transcript_segments(
-                        transcript_root, pair_ref.source_video_id
+                        transcript_root,
+                        pair_ref.source_video_id,
+                        data_dir=data_dir,
+                        db=db,
                     )
                     captions_b = _load_transcript_segments(
-                        transcript_root, pair_ref.target_video_id
+                        transcript_root,
+                        pair_ref.target_video_id,
+                        data_dir=data_dir,
+                        db=db,
                     )
                     _persist_match_spans_for_pair(
                         comparison_id=int(comparison_id),
