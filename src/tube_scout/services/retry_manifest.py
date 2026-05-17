@@ -325,6 +325,90 @@ def add_or_update_failures(
     )
 
 
+def append_aborted_by_user(
+    manifest_path: Path,
+    *,
+    channel_alias: str,
+    video_id: str | None,
+    mp4_filename: str | None,
+    title: str,
+    now: datetime,
+) -> RetryManifestDelta:
+    """Atomically append (or increment) an aborted_by_user entry.
+
+    Loads ``manifest_path`` (creating an empty manifest if absent), upserts
+    a RetryManifestEntry whose 3-tuple PK is
+    ``(video_id, mp4_filename, "aborted_by_user")``, then saves. Designed
+    for the SIGINT handler in unified_ingest (F-11 follow-up, 2026-05-17
+    audit v3): without this call the in-flight video is never recorded in
+    the retry queue and ``--resume`` silently drops it.
+
+    At least one of ``video_id`` / ``mp4_filename`` must be non-None
+    (enforced by RetryManifestEntry's PK validator).
+
+    Args:
+        manifest_path: Path to retry_pending.json (created if absent).
+        channel_alias: Department alias persisted in the manifest header.
+        video_id: YouTube video_id of the interrupted video, or None when
+            ingest_mapping never produced one.
+        mp4_filename: mp4 basename of the interrupted file, or None when
+            the failure predates mp4 selection.
+        title: Operator-facing video title.
+        now: UTC timestamp recorded as last_attempt_at.
+
+    Returns:
+        RetryManifestDelta with added_count = 1 for new entries, 0 when an
+        existing PK had its attempt_count incremented.
+
+    Raises:
+        OSError: Manifest write failed (a .recovery.json fallback is left
+            behind by save_manifest).
+    """
+    manifest = load_manifest(manifest_path, expected_alias=channel_alias)
+
+    pk = (video_id, mp4_filename, "aborted_by_user")
+    existing_idx = next(
+        (i for i, e in enumerate(manifest.entries) if _pk(e) == pk),
+        None,
+    )
+
+    if existing_idx is None:
+        manifest.entries.append(
+            RetryManifestEntry(
+                video_id=video_id,
+                mp4_filename=mp4_filename,
+                title=title,
+                failed_stage="aborted_by_user",
+                failure_reason="aborted_by_user",
+                last_attempt_at=now,
+                attempt_count=1,
+            )
+        )
+        added = 1
+    else:
+        old = manifest.entries[existing_idx]
+        manifest.entries[existing_idx] = RetryManifestEntry(
+            video_id=old.video_id,
+            mp4_filename=old.mp4_filename,
+            title=old.title,
+            failed_stage=old.failed_stage,
+            failure_reason="aborted_by_user",
+            last_attempt_at=now,
+            attempt_count=old.attempt_count + 1,
+        )
+        added = 0
+
+    manifest.updated_at = now
+    save_manifest(manifest_path, manifest)
+
+    return RetryManifestDelta(
+        added_count=added,
+        resolved_count=0,
+        remaining_count=len(manifest.entries),
+        manifest_path=manifest_path,
+    )
+
+
 def resolve_successes(
     manifest: RetryManifest,
     succeeded_video_ids: set[str],

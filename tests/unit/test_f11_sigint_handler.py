@@ -205,3 +205,105 @@ def test_original_sigint_handler_restored_after_run(tmp_path: Path) -> None:
     assert restored == original_handler, (
         f"Original SIGINT handler must be restored; got {restored!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# F-11 follow-up priority 1 (2026-05-17 audit v3): SIGINT must also append
+# the in-flight video to retry_pending.json so ``--resume`` re-picks it.
+# Without this, the operator's Ctrl+C silently drops the video from the
+# retry queue (audit row alone is non-actionable for resume logic).
+# ---------------------------------------------------------------------------
+
+
+def test_sigint_handler_appends_aborted_by_user_to_retry_manifest(tmp_path: Path) -> None:
+    """Handler with retry_manifest_path + current_video_meta must append entry."""
+    from tube_scout.services.retry_manifest import load_manifest
+    from tube_scout.services.unified_ingest import _build_ingest_sigint_handler
+
+    transcript_dir = tmp_path / "transcripts"
+    transcript_dir.mkdir()
+    manifest_path = tmp_path / "retry_pending.json"
+
+    current_video_meta: dict[str, str | None] = {
+        "video_id": "vidAborted9",
+        "mp4_filename": "9주차.mp4",
+        "title": "9주차 1차시",
+    }
+
+    handler = _build_ingest_sigint_handler(
+        current_video_ref=["vidAborted9"],
+        transcript_dir=transcript_dir,
+        audit_writer=MagicMock(),
+        channel_alias="nursing",
+        retry_manifest_path=manifest_path,
+        current_video_meta=current_video_meta,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        handler(signal.SIGINT, None)
+
+    assert exc_info.value.code == 130
+
+    manifest = load_manifest(manifest_path, expected_alias="nursing")
+    aborted = [e for e in manifest.entries if e.failed_stage == "aborted_by_user"]
+    assert len(aborted) == 1, f"expected 1 aborted_by_user entry; got {manifest.entries}"
+    assert aborted[0].video_id == "vidAborted9"
+    assert aborted[0].mp4_filename == "9주차.mp4"
+    assert aborted[0].failure_reason == "aborted_by_user"
+
+
+def test_sigint_handler_skips_retry_when_no_video_in_flight(tmp_path: Path) -> None:
+    """G-4: empty current_video_ref → retry_pending.json untouched."""
+    from tube_scout.services.unified_ingest import _build_ingest_sigint_handler
+
+    transcript_dir = tmp_path / "transcripts"
+    transcript_dir.mkdir()
+    manifest_path = tmp_path / "retry_pending.json"
+
+    handler = _build_ingest_sigint_handler(
+        current_video_ref=[],
+        transcript_dir=transcript_dir,
+        audit_writer=MagicMock(),
+        channel_alias="nursing",
+        retry_manifest_path=manifest_path,
+        current_video_meta=None,
+    )
+
+    with pytest.raises(SystemExit):
+        handler(signal.SIGINT, None)
+
+    assert not manifest_path.exists(), (
+        "G-4: manifest must not be created when no video in flight"
+    )
+
+
+def test_sigint_handler_retry_failure_does_not_block_exit(tmp_path: Path) -> None:
+    """retry manifest append exception must not prevent SystemExit(130)."""
+    from unittest.mock import patch
+
+    from tube_scout.services.unified_ingest import _build_ingest_sigint_handler
+
+    transcript_dir = tmp_path / "transcripts"
+    transcript_dir.mkdir()
+    manifest_path = tmp_path / "retry_pending.json"
+
+    handler = _build_ingest_sigint_handler(
+        current_video_ref=["vidAborted8"],
+        transcript_dir=transcript_dir,
+        audit_writer=MagicMock(),
+        channel_alias="nursing",
+        retry_manifest_path=manifest_path,
+        current_video_meta={
+            "video_id": "vidAborted8",
+            "mp4_filename": "8주차.mp4",
+            "title": "8주차 1차시",
+        },
+    )
+
+    with patch(
+        "tube_scout.services.retry_manifest.append_aborted_by_user",
+        side_effect=OSError("disk full"),
+    ), pytest.raises(SystemExit) as exc_info:
+        handler(signal.SIGINT, None)
+
+    assert exc_info.value.code == 130

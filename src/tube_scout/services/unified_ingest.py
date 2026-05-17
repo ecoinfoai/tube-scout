@@ -78,6 +78,9 @@ def _build_ingest_sigint_handler(
     transcript_dir: Path | None,
     audit_writer: AuditWriter,
     channel_alias: str,
+    *,
+    retry_manifest_path: Path | None = None,
+    current_video_meta: dict[str, str | None] | None = None,
 ) -> object:
     """Build a SIGINT handler for _run_transcript_and_fingerprint (F-11 / ADV-22).
 
@@ -87,14 +90,21 @@ def _build_ingest_sigint_handler(
         transcript_dir: Transcript directory; *.partial files are removed on SIGINT.
         audit_writer: For writing the aborted_by_user audit row.
         channel_alias: Written as channel_alias in the audit row.
+        retry_manifest_path: Path to retry_pending.json. When provided and a
+            video is in flight, an aborted_by_user entry is appended so
+            ``--resume`` re-picks the interrupted video (F-11 follow-up,
+            2026-05-17 audit v3). None disables this side effect.
+        current_video_meta: Mutable dict mirroring ``current_video_ref`` with
+            keys ``video_id`` / ``mp4_filename`` / ``title``. Required when
+            ``retry_manifest_path`` is set; ignored otherwise.
 
     Returns:
         Signal handler callable(signum, frame) that cleans .partial files,
-        writes aborted_by_user audit row (when a video is in flight),
-        and raises SystemExit(130).
+        writes aborted_by_user audit row, appends the retry-manifest entry
+        (when configured), and raises SystemExit(130). The handler never
+        re-raises a side-effect failure — exit is always reached.
     """
     def _handler(signum: int, frame: object) -> None:
-        # Remove any .partial transcript files left from interrupted write
         if transcript_dir is not None:
             for partial in transcript_dir.glob("*.partial"):
                 partial.unlink(missing_ok=True)
@@ -113,6 +123,24 @@ def _build_ingest_sigint_handler(
                 })
             except Exception as exc:  # noqa: BLE001 — handler must not raise
                 print(f"[SIGINT handler] audit write failed: {exc}", file=sys.stderr)
+
+            # F-11 follow-up: persist to retry_pending.json so --resume picks it.
+            if retry_manifest_path is not None and current_video_meta is not None:
+                try:
+                    from tube_scout.services import retry_manifest as _rm
+                    _rm.append_aborted_by_user(
+                        retry_manifest_path,
+                        channel_alias=channel_alias,
+                        video_id=current_video_meta.get("video_id"),
+                        mp4_filename=current_video_meta.get("mp4_filename"),
+                        title=current_video_meta.get("title") or video_id,
+                        now=datetime.now(tz=UTC),
+                    )
+                except Exception as exc:  # noqa: BLE001 — handler must not raise
+                    print(
+                        f"[SIGINT handler] retry manifest append failed: {exc}",
+                        file=sys.stderr,
+                    )
 
         raise SystemExit(130)
 
@@ -223,6 +251,7 @@ def _run_transcript_and_fingerprint(
     db_path: Path | None = None,
     force: bool = False,
     asr_kwargs: dict[str, str | int] | None = None,
+    retry_manifest_path: Path | None = None,
 ) -> tuple[TranscriptStageResult, FingerprintStageResult]:
     """Run ASR + chromaprint fingerprint for each mp4-mapped video.
 
@@ -263,11 +292,16 @@ def _run_transcript_and_fingerprint(
 
     # F-11 / ADV-22: SIGINT handler — tracks in-flight video; restored on exit
     _current_video_ref: list[str] = []
+    _current_video_meta: dict[str, str | None] = {
+        "video_id": None, "mp4_filename": None, "title": None,
+    }
     _sigint_handler = _build_ingest_sigint_handler(
         current_video_ref=_current_video_ref,
         transcript_dir=transcript_dir,
         audit_writer=audit_writer,
         channel_alias=work_root.name,
+        retry_manifest_path=retry_manifest_path,
+        current_video_meta=_current_video_meta,
     )
     _prev_sigint = signal.signal(signal.SIGINT, _sigint_handler)  # type: ignore[arg-type]
 
@@ -287,8 +321,11 @@ def _run_transcript_and_fingerprint(
         for mp4_path_str, video_id in mp4_video_id_map.items():
             # F-11: mark in-flight video for SIGINT handler
             _current_video_ref[:] = [video_id]
-            progress.update(task_id, description=f"자막+지문: {video_id[:11]}")
             mp4_path = Path(mp4_path_str)
+            _current_video_meta["video_id"] = video_id
+            _current_video_meta["mp4_filename"] = mp4_path.name
+            _current_video_meta["title"] = mp4_path.stem
+            progress.update(task_id, description=f"자막+지문: {video_id[:11]}")
             attempted_at = datetime.now(tz=UTC)
             ts = attempted_at.isoformat()
 
@@ -451,6 +488,8 @@ def _run_transcript_and_fingerprint(
                         })
 
             _current_video_ref.clear()  # F-11: clear after each video completes
+            for _k in _current_video_meta:
+                _current_video_meta[_k] = None
             progress.advance(task_id)
 
     # F-11: restore original SIGINT handler
@@ -776,6 +815,7 @@ def ingest_unified(
         db_path=db_path,
         force=force,
         asr_kwargs=asr_kwargs,
+        retry_manifest_path=_pre_manifest_path,
     )
 
     if is_tty:
