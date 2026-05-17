@@ -47,6 +47,7 @@ from tube_scout.cli.transcript import (
     transcript_export_bulk_typer,
     transcript_export_typer,
 )
+from tube_scout.cli.doctor import doctor_command
 from tube_scout.cli.validate_cli import validate_command
 from tube_scout.models.config import (
     AcademicCalendar,
@@ -73,6 +74,7 @@ calendar_app = typer.Typer(help="Manage academic calendar for forecasting.")
 app.command(name="auth")(auth_command)
 app.command(name="search")(search_command)
 app.command(name="validate")(validate_command)
+app.command(name="doctor")(doctor_command)
 app.add_typer(collect_app, name="collect")
 app.add_typer(analyze_app, name="analyze")
 app.add_typer(report_app, name="report")
