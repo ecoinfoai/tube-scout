@@ -2382,9 +2382,14 @@ def collect_takeout_command(
     work_root = Path(data_dir)
     db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
 
+    if takeout_path.is_symlink() and not takeout_path.exists():
+        console.print(
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' is a broken symlink.[/red]"
+        )
+        raise typer.Exit(code=1)
     if not takeout_path.exists():
         console.print(
-            f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]"
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' does not exist.[/red]"
         )
         raise typer.Exit(code=1)
 
@@ -2693,9 +2698,14 @@ def collect_ingest_command(
     work_root = Path(data_dir)
     db = Path(db_path_str) if db_path_str else work_root / "content_reuse.db"
 
+    if takeout_path.is_symlink() and not takeout_path.exists():
+        console.print(
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' is a broken symlink.[/red]"
+        )
+        raise typer.Exit(code=1)
     if not takeout_path.exists():
         console.print(
-            f"[red]Error: --takeout-dir '{takeout_dir}' does not exist.[/red]"
+            f"[red]Error: --takeout-dir '{takeout_path.resolve()}' does not exist.[/red]"
         )
         raise typer.Exit(code=1)
 
