@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import functools
+import logging
 import os
 import re
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,7 +17,25 @@ from pydantic import BaseModel
 from tube_scout.models.content import AsrQualityFlags
 
 if TYPE_CHECKING:
-    pass
+    from faster_whisper import WhisperModel
+
+_logger = logging.getLogger(__name__)
+
+# Substrings observed in ``ctranslate2`` / ``faster-whisper`` errors when a
+# CUDA runtime library failed to dlopen at first model load. Used by
+# :func:`transcribe_audio` to classify the outer ``except Exception`` so
+# operators see an actionable, environment-shaped message instead of an
+# opaque transcription error. cuRAND is intentionally absent: binary
+# analysis on nixpkgs 8110df5 / CUDA 12.9 confirmed CTranslate2 4.7.x does
+# NOT dlopen libcurand (audit v3 G-4, 2026-05-17). Adding it here would
+# misclassify unrelated CUDA errors as a missing-library problem.
+_CUDA_RUNTIME_ERROR_MARKERS: tuple[str, ...] = (
+    "libcublas",
+    "libcublasLt",
+    "libcudart",
+    "is not found or cannot be loaded",
+    "ctranslate2",
+)
 
 ModelSize = Literal["tiny", "base", "small", "medium", "large-v3"]
 ComputeType = Literal["float32", "float16", "int8_float16", "int8"]
@@ -81,9 +101,12 @@ def _detect_gpu_count() -> int:
         import torch
         if torch.cuda.is_available():
             return int(torch.cuda.device_count())
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("GPU count via torch.cuda failed: %s", exc)
 
+    if shutil.which("nvidia-smi") is None:
+        _logger.debug("GPU count via nvidia-smi skipped: binary not on PATH")
+        return 0
     try:
         import subprocess
         out = subprocess.run(
@@ -97,8 +120,8 @@ def _detect_gpu_count() -> int:
             # nvidia-smi returns one line per GPU; count returns each GPU's
             # idx field which equals the total count when summed across rows.
             return len(out.stdout.strip().splitlines())
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("GPU count via nvidia-smi failed: %s", exc)
 
     return 0
 
@@ -136,9 +159,12 @@ def _detect_gpu_vram_gib() -> float | None:
         if torch.cuda.is_available() and torch.cuda.device_count() > 0:
             props = torch.cuda.get_device_properties(0)
             return float(props.total_memory) / (1024 ** 3)
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("VRAM via torch.cuda failed: %s", exc)
 
+    if shutil.which("nvidia-smi") is None:
+        _logger.debug("VRAM via nvidia-smi skipped: binary not on PATH")
+        return None
     try:
         import subprocess
         out = subprocess.run(
@@ -151,8 +177,8 @@ def _detect_gpu_vram_gib() -> float | None:
         if out.returncode == 0 and out.stdout.strip():
             mib = float(out.stdout.strip().splitlines()[0])
             return mib / 1024.0
-    except Exception:
-        pass
+    except Exception as exc:
+        _logger.debug("VRAM via nvidia-smi failed: %s", exc)
 
     return None
 
@@ -337,7 +363,7 @@ def _load_model(
     device: str,
     device_index: int | None,
     model_cache_dir: Path | None,
-) -> "object":
+) -> "WhisperModel":
     """Load WhisperModel singleton per (model_size, compute_type, device, device_index)."""
     try:
         from faster_whisper import WhisperModel
@@ -561,4 +587,14 @@ def transcribe_audio(
     except ImportError:
         raise
     except Exception as exc:
+        message = str(exc)
+        if any(marker in message for marker in _CUDA_RUNTIME_ERROR_MARKERS):
+            raise RuntimeError(
+                "faster-whisper CUDA runtime error: "
+                f"{message}. "
+                "Hint: verify GPU devShell has cuBLAS/cudart linked "
+                "(echo $LD_LIBRARY_PATH | tr : '\\n' | grep cuda); "
+                "see flake.nix devShells.gpu (audit v3 F-1) and "
+                "docs/quickstart.md GPU section."
+            ) from exc
         raise RuntimeError(f"faster-whisper transcription failed: {exc}") from exc
