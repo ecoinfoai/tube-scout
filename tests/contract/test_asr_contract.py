@@ -60,14 +60,21 @@ def test_transcribe_audio_signature_matches_contract() -> None:
 # ---------------------------------------------------------------------------
 
 def test_preset_table_has_required_keys() -> None:
-    """PRESET_TABLE must have 4 presets, each with model/compute_type/device/device_index."""
-    from tube_scout.services.asr import PRESET_TABLE
+    """PRESET_TABLE must have the 4 canonical presets, each with the four
+    required kwargs. spec 013 originally shipped role-tagged names
+    (poc-laptop / prod-a6000 / prod-a6000-pool / cpu-fallback); those are
+    preserved as :data:`PRESET_ALIASES` for backward compat. The canonical
+    keys are now function-based (gpu-quantized / gpu-native / gpu-pool / cpu)
+    so operators do not have to pretend their host is a specific lab machine.
+    """
+    from tube_scout.services.asr import PRESET_ALIASES, PRESET_TABLE
 
-    required_presets = {"poc-laptop", "prod-a6000", "prod-a6000-pool", "cpu-fallback"}
+    required_presets = {"gpu-quantized", "gpu-native", "gpu-pool", "cpu"}
     required_keys = {"model", "compute_type", "device", "device_index"}
 
     assert set(PRESET_TABLE.keys()) == required_presets, (
-        f"PRESET_TABLE must have exactly {required_presets}, got {set(PRESET_TABLE.keys())}"
+        f"PRESET_TABLE must have exactly {required_presets}, "
+        f"got {set(PRESET_TABLE.keys())}"
     )
 
     for preset_name, preset in PRESET_TABLE.items():
@@ -76,12 +83,23 @@ def test_preset_table_has_required_keys() -> None:
             f"Preset '{preset_name}' missing keys: {missing}"
         )
 
-    # Spot-check specific values per contract
-    assert PRESET_TABLE["poc-laptop"]["model"] == "large-v3"
-    assert PRESET_TABLE["poc-laptop"]["compute_type"] == "int8_float16"
-    assert PRESET_TABLE["cpu-fallback"]["model"] == "medium"
-    assert PRESET_TABLE["cpu-fallback"]["compute_type"] == "int8"
-    assert PRESET_TABLE["cpu-fallback"]["device"] == "cpu"
+    # Spot-check canonical values
+    assert PRESET_TABLE["gpu-quantized"]["model"] == "large-v3"
+    assert PRESET_TABLE["gpu-quantized"]["compute_type"] == "int8_float16"
+    assert PRESET_TABLE["gpu-native"]["compute_type"] == "float16"
+    assert PRESET_TABLE["gpu-pool"]["device_index"] is None
+    assert PRESET_TABLE["cpu"]["model"] == "medium"
+    assert PRESET_TABLE["cpu"]["compute_type"] == "int8"
+    assert PRESET_TABLE["cpu"]["device"] == "cpu"
+
+    # The legacy role-tagged names must still resolve through aliases so
+    # operator scripts that hard-code them keep working.
+    assert PRESET_ALIASES == {
+        "poc-laptop":      "gpu-quantized",
+        "prod-a6000":      "gpu-native",
+        "prod-a6000-pool": "gpu-pool",
+        "cpu-fallback":    "cpu",
+    }
 
 
 # ---------------------------------------------------------------------------
