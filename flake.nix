@@ -115,6 +115,18 @@
         # libraries live in the ``.lib`` output. cuda_cudart keeps its
         # default ``out`` shape (lib/ + include/). Use ``.lib or .``
         # so we always pick the output that holds libcublas.so.12 etc.
+        #
+        # Invariant when adding a new CUDA derivation here (CLAUDE.md
+        # Consistency Invariants §4):
+        #   1. Always use the ``(p.lib or p)`` fallback — never bare
+        #      ``cudaPackages.foo`` — even if today its default ``out``
+        #      contains lib/. nixpkgs may split outputs in any release.
+        #   2. After the edit, verify in a fresh ``nix develop .#gpu``
+        #      shell that the .so actually resolves, e.g.
+        #          ls $LD_LIBRARY_PATH | tr : '\n' | xargs -I{} \
+        #              find {} -maxdepth 1 -name 'libcublas.so.12'
+        #      ``tube-scout doctor`` (F-12 follow-up) catches the same
+        #      class of regression in CI.
         gpuLibPath = with pkgsUnfree; [
           (cudaPackages.cudnn.lib or cudaPackages.cudnn)
           (cudaPackages.cuda_nvrtc.lib or cudaPackages.cuda_nvrtc)
