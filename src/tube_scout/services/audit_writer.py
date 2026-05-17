@@ -58,7 +58,7 @@ KB_EXPORT_FIELDNAMES: tuple[str, ...] = (
 
 INGEST_ORCHESTRATOR_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason",
-    "channel_alias", "elapsed_ms", "timestamp",
+    "sub_reason", "channel_alias", "elapsed_ms", "timestamp",
 )
 SOURCE_VIDEO_CLEANUP_FIELDNAMES: tuple[str, ...] = (
     "video_id", "result", "reason",

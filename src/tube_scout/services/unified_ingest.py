@@ -108,6 +108,7 @@ def _persist_transcript(
             json.dump(transcript_dict, f, ensure_ascii=False, indent=2)
         os.replace(tmp_name, dst_path)
     except Exception:
+        _logger.warning("_persist_transcript: failed writing %s", dst_path)
         try:
             os.unlink(tmp_name)
         except OSError:
@@ -267,7 +268,9 @@ def _run_transcript_and_fingerprint(
                 try:
                     extract_wav_16k_mono(mp4_path, wav_path)
                 except Exception as exc:
+                    _logger.exception("audio_decode failed for %s: %s", video_id, exc)
                     reason = f"audio_decode_failed: {exc}"
+                    sub_reason = type(exc).__name__
                     transcript_failures.append(FailureEntry(
                         video_id=video_id,
                         title=mp4_path.stem,
@@ -282,6 +285,15 @@ def _run_transcript_and_fingerprint(
                         failure_reason=reason,
                         attempted_at=attempted_at,
                     ))
+                    audit_writer.append_row("ingest_orchestrator", {
+                        "video_id": video_id,
+                        "result": "fail",
+                        "reason": "asr_fail",
+                        "sub_reason": sub_reason,
+                        "channel_alias": work_root.name,
+                        "elapsed_ms": 0,
+                        "timestamp": ts,
+                    })
                     progress.advance(task_id)
                     continue
 
@@ -314,6 +326,7 @@ def _run_transcript_and_fingerprint(
                             "timestamp": ts,
                         })
                     except Exception as exc:
+                        _logger.exception("ASR failed for %s: %s", video_id, exc)
                         transcript_failures.append(FailureEntry(
                             video_id=video_id,
                             title=mp4_path.stem,
@@ -325,6 +338,7 @@ def _run_transcript_and_fingerprint(
                             "video_id": video_id,
                             "result": "fail",
                             "reason": "asr_fail",
+                            "sub_reason": type(exc).__name__,
                             "channel_alias": work_root.name,
                             "elapsed_ms": 0,
                             "timestamp": ts,
@@ -359,6 +373,7 @@ def _run_transcript_and_fingerprint(
                             "timestamp": ts,
                         })
                     except Exception as exc:
+                        _logger.exception("fingerprint failed for %s: %s", video_id, exc)
                         fingerprint_failures.append(FailureEntry(
                             video_id=video_id,
                             title=mp4_path.stem,
@@ -370,6 +385,7 @@ def _run_transcript_and_fingerprint(
                             "video_id": video_id,
                             "result": "fail",
                             "reason": "fp_fail",
+                            "sub_reason": type(exc).__name__,
                             "channel_alias": work_root.name,
                             "elapsed_ms": 0,
                             "timestamp": ts,
@@ -506,6 +522,27 @@ def _print_summary_table(
         table.add_row("영상 정리", "skip", "-", "-", "-")
 
     console.print(table)
+
+    total_failure_count = (
+        summary.transcript_result.failure_count
+        + summary.fingerprint_result.failure_count
+    )
+    if total_failure_count > 0:
+        all_failures = (
+            summary.transcript_result.failures
+            + summary.fingerprint_result.failures
+        )
+        reason_counts: dict[str, int] = {}
+        for f in all_failures:
+            reason_counts[f.failure_reason] = reason_counts.get(f.failure_reason, 0) + 1
+        top3 = sorted(reason_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+        failure_table = Table(title="실패 원인 Top 3", show_header=True, header_style="bold red")
+        failure_table.add_column("실패 원인", style="red")
+        failure_table.add_column("건수", justify="right")
+        for reason, count in top3:
+            failure_table.add_row(reason, str(count))
+        console.print(failure_table)
+
     total = summary.total_elapsed_seconds
     console.print(
         f"[green]✓ 통합 명령 완료[/green] "
